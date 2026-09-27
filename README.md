@@ -22,7 +22,7 @@
 <p align="center">
   <a href="https://github.com/deepakness/cogsend/actions/workflows/ci.yml"><img alt="Checks" src="https://img.shields.io/github/actions/workflow/status/deepakness/cogsend/ci.yml?branch=main&label=checks&style=flat-square"></a>
   <a href="https://github.com/deepakness/cogsend/releases"><img alt="Release" src="https://img.shields.io/github/v/release/deepakness/cogsend?style=flat-square"></a>
-  <img alt="Node 22.12 or newer" src="https://img.shields.io/badge/Node-22.12%2B-339933?style=flat-square" />
+  <img alt="Node 22.13+, 24 or 26+" src="https://img.shields.io/badge/Node-22.13%2B%20%7C%2024%20%7C%2026%2B-339933?style=flat-square" />
   <img alt="Cloudflare Workers" src="https://img.shields.io/badge/Cloudflare-Workers-F38020?style=flat-square" />
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square"></a>
 </p>
@@ -53,7 +53,7 @@ A single-admin instance normally stays within Cloudflare's free plans, though R2
 
 ## Install
 
-Needs Node 22.12+ and a Cloudflare account with Workers, D1 and R2 available.
+Needs Node 22.13+, 24 or 26+ (odd-numbered releases such as 25 are not supported) and a Cloudflare account with Workers, D1 and R2 available.
 
 ```sh
 git clone --depth 1 https://github.com/deepakness/cogsend.git cogsend

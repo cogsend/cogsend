@@ -122,7 +122,7 @@ rolling back across a schema change can break things. Take a
 
 ## Deploying by hand
 
-`setup` is the supported path. To run the steps yourself you need Node 22.12+, a Cloudflare account (`npx wrangler login`), and R2 enabled. Every
+`setup` is the supported path. To run the steps yourself you need Node 22.13+, 24 or 26+, a Cloudflare account (`npx wrangler login`), and R2 enabled. Every
 command goes through `scripts/wrangler.mjs`, which applies your
 `wrangler.personal.jsonc` and `WRANGLER_PROFILE`; plain `npx wrangler …` would
 use the generic config in the repo, and skip the check that a command reaches
