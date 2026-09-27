@@ -140,7 +140,11 @@ describe('checking the target', () => {
 		expect(told.refuse).toBe(true);
 		expect(told.headline).toContain(`deployed cogsend to account ${HOME}`);
 		expect(told.headline).toContain(`would reach ${OTHER}`);
-		expect(told.notes.join('\n')).toContain(`"account_id": "${HOME}"`);
+		// Pinning account_id is not the fix here: with the wrong login it only
+		// turns this refusal into an authentication error.
+		expect(told.notes.join('\n')).toContain(`use a login that reaches ${HOME}`);
+		expect(told.notes.join('\n')).toContain('npx wrangler auth activate <profile>');
+		expect(told.notes.join('\n')).not.toContain('account_id');
 		expect(told.notes.join('\n')).toContain('COGSEND_ALLOW_ACCOUNT_CHANGE=1 npm run deploy');
 	});
 

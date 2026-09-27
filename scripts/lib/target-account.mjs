@@ -21,7 +21,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { PERSONAL_CONFIG, effectiveConfigPath, parseJsonc } from './wrangler-config.mjs';
+import { effectiveConfigPath, parseJsonc } from './wrangler-config.mjs';
 
 /** Relative to the checkout, like `wrangler.personal.jsonc`. `.wrangler/` is
  *  already gitignored, and deleting it only means the next deploy records again. */
@@ -317,7 +317,7 @@ export function explainTarget(check) {
 				refuse: true,
 				headline: `refusing: this checkout deployed ${worker} to account ${check.recorded}, but this command would reach ${accountLabel(check.current)}${via}`,
 				notes: [
-					`pick the account: WRANGLER_PROFILE=<profile> before the command, or "account_id": "${check.recorded}" in ${PERSONAL_CONFIG}`,
+					`use a login that reaches ${check.recorded}: WRANGLER_PROFILE=<profile> before the command, or bind this folder to that profile once with npx wrangler auth activate <profile>`,
 					`moving the instance on purpose: ${ALLOW_CHANGE_ENV}=1 npm run deploy`
 				]
 			};

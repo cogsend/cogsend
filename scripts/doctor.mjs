@@ -684,7 +684,7 @@ export function accountPinVerdict({ config, configFile, profile, accountCount = 
 		status: 'warn',
 		label: `No account_id in ${configFile}`,
 		detail: profile
-			? `every command needs WRANGLER_PROFILE=${profile}; one without it uses another login`
+			? `a command goes to whichever account its login reaches, so one run without WRANGLER_PROFILE=${profile} goes to another`
 			: 'commands use whichever login this shell and folder have',
 		fix: `Add "account_id": "${recorded ?? '<your account id>'}" to ${PERSONAL_CONFIG}`
 	};
@@ -722,7 +722,7 @@ export function targetVerdict(check) {
 		status: 'fail',
 		label: `Commands reach account ${check.current.accountId}, but ${check.worker} was deployed to ${check.recorded}`,
 		detail: 'deploys, secrets and migrations from here refuse to run',
-		fix: `Set WRANGLER_PROFILE, or add "account_id": "${check.recorded}" to ${PERSONAL_CONFIG}`
+		fix: `Use a login that reaches ${check.recorded}: set WRANGLER_PROFILE, or bind this folder once with npx wrangler auth activate <profile>`
 	};
 }
 
