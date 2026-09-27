@@ -27,6 +27,7 @@
 //   npm run setup -- --reset-login      # also replace the account's password (revokes every session)
 //   npm run setup -- --name my-cogsend --bucket my-cogsend-media --db my-cogsend
 //   npm run setup -- --admin-email you@example.com --admin-password '…'
+//   npm run setup -- --subdomain my-name   # a new account's workers.dev subdomain, without the prompt
 //   npm run setup -- --verbose          # print every command and its raw output
 //   npm run setup -- --no-color         # plain text, for logs and bug reports
 //
@@ -70,6 +71,17 @@ import { PLACEHOLDER_EMAIL, isPlaceholderValue, readDevVars } from './lib/dev-va
 import { readWorkerSecrets } from './lib/worker-secrets.mjs';
 import { syncMigrations } from './lib/migration-sync.mjs';
 import { guardTarget, resolveAccount } from './lib/target-account.mjs';
+import {
+	SUBDOMAIN_PATTERN,
+	apiHeaders,
+	isMissingSubdomainError,
+	nameAvailability,
+	onboardingUrl,
+	readSubdomain,
+	registerSubdomain,
+	suggestSubdomain,
+	toValidSubdomain
+} from './lib/workers-subdomain.mjs';
 import { ask as promptAsk, askSecret as promptAskSecret } from './lib/prompt.mjs';
 import * as ui from './lib/cli.mjs';
 
@@ -365,6 +377,75 @@ function patchPersonalConfig({ name, databaseName, databaseId, bucket, databaseI
 	writeFileSync(PERSONAL_CONFIG, text);
 }
 
+/**
+ * Make sure the account can serve workers.dev before anything is created: a new
+ * account has no subdomain, and the deploy (step 8) is the first thing to need
+ * one. See ./lib/workers-subdomain.mjs for why the deploy cannot ask itself.
+ *
+ * Anything this cannot read is left to the deploy, which still explains a
+ * missing subdomain on its own: a check that fails must not block a setup that
+ * would have worked.
+ */
+async function ensureSubdomain({ accountId, accountName, workerName }) {
+	if (!accountId) return;
+	const headers = apiHeaders();
+	if (!headers) return;
+	const current = await readSubdomain({ accountId, headers });
+	if (current.status === 'set') {
+		ui.ok(`workers.dev subdomain ${ui.value(`${current.subdomain}.workers.dev`)}`);
+		return;
+	}
+	if (current.status === 'unknown') {
+		note(`could not read the workers.dev subdomain (${current.reason}); the deploy will tell`);
+		return;
+	}
+
+	const link = onboardingUrl(accountId);
+	warn('this Cloudflare account has no workers.dev subdomain yet, and the deploy needs one');
+	if (DRY || SKIP_DEPLOY) {
+		note(`a full run asks for one; or pick it at ${link}`);
+		return;
+	}
+	const flagged = value('--subdomain', null);
+	if (!flagged && !interactive()) {
+		fail(
+			`no workers.dev subdomain to deploy to. Pass --subdomain <name>, or pick one at\n  ${link}\n  and re-run \`npm run setup\`.`
+		);
+	}
+	note('it is account-wide: every Worker here is served at <worker>.<subdomain>.workers.dev');
+
+	let candidate = flagged ? String(flagged).trim().toLowerCase() : '';
+	for (let attempt = 0; attempt < 5; attempt++) {
+		if (!candidate) {
+			const typed = await ask(
+				'workers.dev subdomain for this account',
+				suggestSubdomain(accountName, workerName)
+			);
+			candidate = typed.trim().toLowerCase();
+		}
+		const problem = !SUBDOMAIN_PATTERN.test(candidate)
+			? `${candidate || '(empty)'} is not a valid name: lowercase letters, digits and hyphens, up to 63 (try ${toValidSubdomain(candidate) || 'another'})`
+			: (await nameAvailability({ accountId, headers, name: candidate })) === 'taken'
+				? `${candidate}.workers.dev is taken`
+				: null;
+		if (problem) {
+			if (flagged) fail(`--subdomain: ${problem}`);
+			warn(problem);
+			candidate = '';
+			continue;
+		}
+		const registered = await registerSubdomain({ accountId, headers, name: candidate });
+		if (!registered.ok) {
+			fail(
+				`could not register ${candidate}.workers.dev (${registered.reason}).\n  Pick one at ${link} and re-run \`npm run setup\`.`
+			);
+		}
+		did(`registered ${ui.value(`${registered.subdomain}.workers.dev`)}`);
+		return;
+	}
+	fail(`no workers.dev subdomain chosen. Pick one at ${link} and re-run \`npm run setup\`.`);
+}
+
 async function main() {
 	console.log(`CogSend setup${DRY ? ' (dry run — nothing will be created or changed)' : ''}`);
 
@@ -453,7 +534,7 @@ async function main() {
 
 	// After the names are settled, before the first write to Cloudflare: the
 	// record is per Worker, and `--name` can make this a different one.
-	guardTarget({
+	const target = guardTarget({
 		worker: personalExists ? effective.name : name,
 		print: (headline, notes, verdict) => {
 			(verdict === 'unknown' ? ui.warn : ui.ok)(headline);
@@ -465,6 +546,15 @@ async function main() {
 			process.exit(1);
 		}
 	});
+
+	// A config that turns workers.dev off deploys to its routes instead.
+	if (effective.workers_dev !== false) {
+		await ensureSubdomain({
+			accountId: target.current.accountId,
+			accountName: target.current.accountName,
+			workerName: personalExists ? effective.name : name
+		});
+	}
 
 	// 3. D1.
 	say('3. D1 database');
@@ -718,6 +808,16 @@ async function main() {
 		say('8. Deploy');
 		const deployed = wrangler(['deploy'], { allowFailure: true, label: 'deploying' });
 		const text = `${deployed.stdout}${deployed.stderr}`;
+		if (deployed.status !== 0 && isMissingSubdomainError(text)) {
+			const link = /https:\/\/dash\.cloudflare\.com\/[0-9a-f]{32}\/workers\/onboarding/.exec(
+				text
+			)?.[0];
+			fail(
+				'deploy failed: this Cloudflare account has no workers.dev subdomain yet.\n' +
+					`  pick one at ${link ?? 'Dashboard → Workers & Pages'}, or pass --subdomain <name>,\n` +
+					'  then re-run `npm run setup`: it reuses everything it already created.'
+			);
+		}
 		if (deployed.status !== 0) fail(`deploy failed:\n${ui.stripToolNoise(text)}`);
 		const facts = ui.deployFacts(text);
 		if (facts.url) siteUrl = facts.url;

@@ -114,6 +114,14 @@ The command would reach a different Cloudflare account than the last deploy from
 
 Moving the instance on purpose? `COGSEND_ALLOW_ACCOUNT_CHANGE=1 npm run deploy` deploys to the new account and records it.
 
+## The deploy asks you to register a workers.dev subdomain
+
+```
+▲ [WARNING] You need to register a workers.dev subdomain before publishing to workers.dev
+```
+
+The Cloudflare account is new and has never picked its workers.dev subdomain; adding a card or enabling R2 does not set one. `npm run setup` asks for it before it creates anything, and `npm run setup -- --subdomain <name>` answers without a prompt. You can also pick it under **Workers & Pages** in the dashboard. Either way, re-run `npm run setup` afterwards: it reuses everything it already created.
+
 ## Still stuck?
 
 [Open an issue](https://github.com/deepakness/cogsend/issues) with the output of `npm run doctor` and the version shown in

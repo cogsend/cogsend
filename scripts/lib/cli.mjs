@@ -132,13 +132,15 @@ export function box(rows, { pad = 2 } = {}) {
  * Reading what a tool said
  * -------------------------------------------------------------------------- */
 
-/** Chrome only: the update banner, its rule, and wrangler's prompt fallbacks. */
+/** Chrome only: the update banner, its rule, the telemetry notice, and
+ *  wrangler's prompt fallbacks. */
 const NOISE = [
 	/^\s*⛅️?\s*wrangler\s+\d+\.\d+\.\d+.*$/i,
 	/^\s*─{3,}\s*$/,
 	/^\s*🤖 Using fallback value in non-interactive context:.*$/i,
 	/^\s*🌀 To execute on your local development database.*$/i,
-	/^\s*Resource location:.*$/i
+	/^\s*Resource location:.*$/i,
+	/^\s*Cloudflare collects anonymous telemetry about your usage of Wrangler\..*$/i
 ];
 
 /** Is this line wrangler's chrome rather than its answer?

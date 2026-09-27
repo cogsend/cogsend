@@ -23,6 +23,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PLACEHOLDER_VALUES, readDevVars } from './lib/dev-vars.mjs';
 import { checkTarget, explainTarget } from './lib/target-account.mjs';
+import { apiHeaders, onboardingUrl, readSubdomain } from './lib/workers-subdomain.mjs';
 
 /**
  * @typedef {{ id: string, status: 'ok' | 'warn' | 'fail' | 'skip', label: string, detail?: string, fix?: string }} Check
@@ -726,6 +727,38 @@ export function targetVerdict(check) {
 	};
 }
 
+/**
+ * A new account has no workers.dev subdomain, and a deploy to workers.dev
+ * fails until one is picked. Irrelevant once the config turns workers.dev off.
+ *
+ * @param {{ workersDev: unknown, accountId: string | null, result: Awaited<ReturnType<typeof readSubdomain>> | null }} input
+ * @returns {Check | null}
+ */
+export function subdomainVerdict({ workersDev, accountId, result }) {
+	if (workersDev === false || !accountId || !result) return null;
+	if (result.status === 'set') {
+		return {
+			id: 'subdomain',
+			status: 'ok',
+			label: `workers.dev subdomain ${result.subdomain}.workers.dev`
+		};
+	}
+	if (result.status === 'missing') {
+		return {
+			id: 'subdomain',
+			status: 'fail',
+			label: 'This account has no workers.dev subdomain, so a deploy to workers.dev fails',
+			fix: `Pick one at ${onboardingUrl(accountId)}, or let npm run setup ask for it`
+		};
+	}
+	return {
+		id: 'subdomain',
+		status: 'warn',
+		label: 'Could not read the workers.dev subdomain',
+		detail: result.reason
+	};
+}
+
 async function main() {
 	const argv = process.argv.slice(2);
 	/** @param {string} name @returns {string | undefined} */
@@ -834,6 +867,15 @@ async function main() {
 						}
 			);
 		}
+
+		const accountId = target.current.accountId;
+		const headers = config?.workers_dev !== false && accountId ? apiHeaders() : null;
+		const subdomain = subdomainVerdict({
+			workersDev: config?.workers_dev,
+			accountId,
+			result: accountId && headers ? await readSubdomain({ accountId, headers }) : null
+		});
+		if (subdomain) checks.push(subdomain);
 
 		const secrets = readWorkerSecrets({
 			run: (args) => wrangler(args, { timeout: 60_000 })

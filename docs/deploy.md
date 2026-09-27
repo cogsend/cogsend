@@ -21,6 +21,8 @@ generates or you type; only the PBKDF2 hash is stored), deploys and sets
 `APP_URL`. The account exists before the URL answers its first request, so there
 is nothing to claim and no window in which someone else could get there first.
 
+A brand-new Cloudflare account has no workers.dev subdomain yet, and the deploy needs one. `setup` checks before it creates anything and asks for the name, which becomes `<worker>.<subdomain>.workers.dev`. It is account-wide and can be changed later ([Custom domains](domains.md#the-workersdev-url)).
+
 It is safe to re-run: resources that exist, secrets that are already set, and an
 account that already exists are all left alone, because rotating
 `APP_ENCRYPTION_KEY` orphans every stored credential and signs every session out.
@@ -34,6 +36,7 @@ Its flags, for the cases the defaults deliberately avoid:
 | `--dry-run`                         | read-only: checks auth, prints the plan                       |
 | `--yes`                             | no prompts; the secrets and the password are printed once     |
 | `--admin-email`, `--admin-password` | answer the account questions without a prompt                 |
+| `--subdomain`                       | a new account's workers.dev subdomain, without a prompt       |
 | `--name`, `--db`, `--bucket`        | your own resource names, for a second instance on one account |
 | `--skip-deploy`                     | everything except the deploy                                  |
 | `--rotate-secrets`                  | also overwrite `APP_ENCRYPTION_KEY`                           |
