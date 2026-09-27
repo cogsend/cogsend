@@ -110,7 +110,7 @@ d1 …` and `npm run doctor` all name the instance you think they do.
 
 ## A command refuses: "this checkout deployed … to account …"
 
-The command would reach a different Cloudflare account than the last deploy from this checkout, usually because `WRANGLER_PROFILE` was left off or the checkout moved out of a folder with a bound Wrangler profile. Nothing was changed. Run it again with the profile the instance uses, or pin the account with `account_id` in `wrangler.personal.jsonc` so no command depends on the shell; see [More than one Cloudflare account](configuration.md#more-than-one-cloudflare-account).
+The command would reach a different Cloudflare account than the last deploy from this checkout, usually because `WRANGLER_PROFILE` was left off or the checkout moved out of a folder with a bound Wrangler profile. Nothing was changed. Run it again with the profile the instance uses, or bind the checkout to that profile once with `npx wrangler auth activate <profile>`, so no command needs `WRANGLER_PROFILE`; see [More than one Cloudflare account](configuration.md#more-than-one-cloudflare-account).
 
 Moving the instance on purpose? `COGSEND_ALLOW_ACCOUNT_CHANGE=1 npm run deploy` deploys to the new account and records it.
 

@@ -111,21 +111,31 @@ main` stays conflict-free. `npm run doctor` warns when the two configs disagree.
 
 ### More than one Cloudflare account
 
-If your login reaches more than one account, or you keep several Wrangler auth profiles, pin the account in `wrangler.personal.jsonc`:
+Every command needs two things: a login, and the account it acts on. With one login and one account there is nothing to choose. Otherwise, set both once instead of on every command.
+
+**The login.** If you keep several Wrangler auth profiles, bind the one your instance uses to the checkout, from inside it:
+
+```sh
+npx wrangler auth activate my-account
+```
+
+Every command run from that folder then uses the profile. The binding belongs to the folder, so a moved or fresh checkout needs it again.
+
+**The account.** Pin it in `wrangler.personal.jsonc`:
 
 ```jsonc
 "account_id": "0123456789abcdef0123456789abcdef"
 ```
 
-Every command then targets that account whatever the shell or folder, and a command run with a login that cannot reach it fails instead of writing somewhere else. The id is the first part of the dashboard URL (`dash.cloudflare.com/<account id>/…`), and `npm run doctor` prints the one your commands reach.
+This picks the account when your login reaches several, and a command run with the wrong login fails with an authentication error instead of writing to whichever account that login reaches. It does not choose the login. The id is the first part of the dashboard URL (`dash.cloudflare.com/<account id>/…`), and `npm run doctor` prints the one your commands reach.
 
-`WRANGLER_PROFILE` picks a Wrangler auth profile for one command, and the wrapper passes it on as `--profile`:
+`WRANGLER_PROFILE` picks a profile for a single command instead, and the wrapper passes it on as `--profile`:
 
 ```sh
 WRANGLER_PROFILE=my-account npm run deploy
 ```
 
-It has to be on every command, though: one without it uses the profile bound to the folder, or the default login. A profile bound to the folder with `wrangler auth activate` stops applying when the checkout moves.
+A command without it uses the profile bound to the folder, or the default login.
 
 Each deploy records the account it went to in `.wrangler/deployed-accounts.json`. Commands that write, which are deploys, secrets, remote migrations, `setup` and `admin:reset`, print the account they are about to use and refuse to run against a different one. To move an instance to another account on purpose, deploy once with `COGSEND_ALLOW_ACCOUNT_CHANGE=1 npm run deploy`, which records the new account.
 

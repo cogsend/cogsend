@@ -82,14 +82,7 @@ npm run doctor
 npm run doctor -- --app-url https://your-worker.workers.dev
 ```
 
-Read-only: it verifies your Cloudflare login, that the D1 database and R2 bucket
-exist, that `APP_ENCRYPTION_KEY` is set, whether migrations are pending, and
-whether the Worker has a deployment. With `--app-url` it also asks the running
-app: that `/api/health` answers, whether an account exists yet and whether 2FA is
-set up, whether the scheduler is actually ticking (and why not, when it is not),
-and whether a newer release is out (with the update command for your install
-shape). Every failure prints the exact command that fixes it. It never changes
-anything.
+Read-only: it verifies your Cloudflare login, that your commands reach the account this checkout deployed to, that the D1 database and R2 bucket exist, that `APP_ENCRYPTION_KEY` is set, whether migrations are pending, and whether the Worker has a deployment. With `--app-url` it also asks the running app: that `/api/health` answers, whether an account exists yet and whether 2FA is set up, whether the scheduler is actually ticking (and why not, when it is not), and whether a newer release is out (with the update command for your install shape). Every failure prints the exact command that fixes it. It never changes anything.
 
 Something failed? [Troubleshooting](troubleshooting.md) covers the errors people
 actually hit.
