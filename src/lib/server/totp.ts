@@ -354,9 +354,9 @@ export async function verifyMfa(db: AppDb, env: AppEnv, rawToken: string, code: 
 	throw Object.assign(new Error('Invalid code'), { status: 400 });
 }
 
-// Janitor for rows no client will ever present again. Called from the
-// scheduler tick (see scheduler.ts) so expired challenges cannot accumulate
-// now that logout also clears them eagerly.
+// Janitor for rows no client will ever present again. Run by the scheduler's
+// hourly janitors (runJanitorsIfDue in scheduler.ts) so expired challenges
+// cannot accumulate.
 export async function purgeExpiredMfaChallenges(db: AppDb, now = new Date()) {
 	await db.delete(mfaChallenges).where(lt(mfaChallenges.expiresAt, now));
 }

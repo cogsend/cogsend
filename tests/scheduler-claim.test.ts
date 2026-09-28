@@ -8,13 +8,17 @@ import { drizzle } from 'drizzle-orm/libsql';
 import * as schema from '$lib/server/db/schema';
 import { encryptJson } from '$lib/server/crypto';
 import { newId, type AppDb } from '$lib/server/db/client';
-import { connections, drafts, publishTargets, users } from '$lib/server/db/schema';
+import { connections, drafts, publishTargets, sessions, users } from '$lib/server/db/schema';
 import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
 import { captureConsole, loggedLines } from './console-spy';
+import { writeAppSetting } from '$lib/server/app-settings';
 import { draftHasInFlightPublish } from '$lib/server/publish-plan';
 import {
 	claimDueTargets,
 	consumePublishJob,
+	JANITOR_INTERVAL_MS,
+	JANITOR_SETTING,
+	runJanitorsIfDue,
 	runSchedulerTick,
 	schedulerHealth,
 	writeHeartbeat
@@ -572,5 +576,70 @@ describe('scheduler statement budget', () => {
 		// The rows the batch never reached stay claimable on the next tick.
 		const due = await claimDueTargets(db, new Date());
 		expect(due.length).toBeGreaterThanOrEqual(1);
+	});
+});
+
+/**
+ * The janitors are not urgent, and every statement a tick runs on the Workers
+ * Free plan comes out of the 50 calls it publishes with, so they run hourly.
+ */
+describe('hourly janitors', () => {
+	let db: AppDb;
+	let close: () => void;
+	let userId: string;
+
+	beforeAll(async () => {
+		({ db, close } = await createTestDb());
+		const now = new Date();
+		userId = newId();
+		await db.insert(users).values({
+			id: userId,
+			email: 'janitor@localhost',
+			passwordHash: 'x',
+			timezone: 'UTC',
+			createdAt: now,
+			updatedAt: now
+		});
+	});
+	afterAll(() => close());
+
+	async function expiredSession() {
+		const id = newId();
+		const long = new Date(Date.now() - 60 * 24 * 60 * 60_000);
+		await db.insert(sessions).values({
+			id,
+			token: newId(),
+			userId,
+			expiresAt: long,
+			remember: true,
+			mfaVerified: true,
+			createdAt: long,
+			lastSeenAt: long
+		});
+		return id;
+	}
+	const exists = async (id: string) =>
+		(await db.select().from(sessions).where(eq(sessions.id, id))).length === 1;
+
+	it('the tick clears expired rows, then leaves the tables alone for an hour', async () => {
+		const first = await expiredSession();
+		await runSchedulerTick(db, TEST_ENV, { store: createTestMedia() });
+		expect(await exists(first)).toBe(false);
+
+		const second = await expiredSession();
+		await runSchedulerTick(db, TEST_ENV, { store: createTestMedia() });
+		expect(await exists(second)).toBe(true);
+
+		const later = new Date(Date.now() + JANITOR_INTERVAL_MS + 60_000);
+		expect(await runJanitorsIfDue(db, later)).toBe(true);
+		expect(await exists(second)).toBe(false);
+		expect(await runJanitorsIfDue(db, new Date(later.getTime() + 60_000))).toBe(false);
+	});
+
+	it('does not let a marker from the future hold the janitors off', async () => {
+		await writeAppSetting(db, JANITOR_SETTING, String(Date.now() + 24 * 60 * 60_000));
+		const stale = await expiredSession();
+		expect(await runJanitorsIfDue(db)).toBe(true);
+		expect(await exists(stale)).toBe(false);
 	});
 });

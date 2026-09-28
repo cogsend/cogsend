@@ -6,8 +6,9 @@
  * visit, so a deployment does not have to know its own hostname before it
  * exists), the display name (set in Settings → Instance, so renaming an
  * instance is a form field rather than a redeploy), what the last deploy did
- * with the cron trigger, the tick token, and the cached release check — see the
- * constants below and their owners (tick-token.ts, release.ts).
+ * with the cron trigger, the tick token, the cached release check, and when the
+ * scheduler's janitors last ran — see the constants below and their owners
+ * (tick-token.ts, release.ts, scheduler.ts).
  *
  * Cached per database handle in module scope, for a minute at a time: a
  * deployment that pins APP_URL never reads for it, and everything else should

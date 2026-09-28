@@ -33,6 +33,7 @@ import { PUBLISH_RESERVE_CALLS, publishTarget } from './publish';
 import type { SubrequestBudget } from './budget';
 import { purgeExpiredMfaChallenges } from './totp';
 import { purgeExpiredSessions } from './auth';
+import { readAppSetting, writeAppSetting } from './app-settings';
 
 export const HEARTBEAT_ID = 'default';
 /** GitHub cron is often delayed 15–75 minutes. This is display-only. */
@@ -44,25 +45,12 @@ export type QueueLike = {
 	send(body: { targetId: string }): Promise<unknown>;
 };
 
+/** One statement: every tick pays for it out of the same budget it publishes with. */
 export async function writeHeartbeat(db: AppDb, at = new Date()) {
-	const existing = await first(
-		db.select().from(schedulerHeartbeats).where(eq(schedulerHeartbeats.id, HEARTBEAT_ID))
-	);
-	if (existing) {
-		await db
-			.update(schedulerHeartbeats)
-			.set({ lastOkAt: at })
-			.where(eq(schedulerHeartbeats.id, HEARTBEAT_ID));
-		return;
-	}
-	try {
-		await db.insert(schedulerHeartbeats).values({ id: HEARTBEAT_ID, lastOkAt: at });
-	} catch {
-		await db
-			.update(schedulerHeartbeats)
-			.set({ lastOkAt: at })
-			.where(eq(schedulerHeartbeats.id, HEARTBEAT_ID));
-	}
+	await db
+		.insert(schedulerHeartbeats)
+		.values({ id: HEARTBEAT_ID, lastOkAt: at })
+		.onConflictDoUpdate({ target: schedulerHeartbeats.id, set: { lastOkAt: at } });
 }
 
 export interface SchedulerHealth {
@@ -383,6 +371,33 @@ export async function claimDueTargets(db: AppDb, now = new Date(), limit = TICK_
 	);
 }
 
+/** How often the tick clears expired rows. */
+export const JANITOR_INTERVAL_MS = 60 * 60_000;
+/** When the janitors last finished, in `app_settings` (epoch ms). */
+export const JANITOR_SETTING = 'janitor_at';
+
+/**
+ * Clear rows nothing will read again: expired connect attempts and MFA
+ * challenges, expired sessions, and disconnected accounts with no history left.
+ * Each table grows on its own (a challenge per sign-in attempt, a session per
+ * device), but none of it is urgent, so this runs hourly rather than every
+ * tick: on the Workers Free plan each statement comes out of the 50 calls the
+ * tick publishes with. The marker is written after a clean run, so a janitor
+ * that fails is tried again on the next tick.
+ */
+export async function runJanitorsIfDue(db: AppDb, now = new Date()): Promise<boolean> {
+	const last = Number(await readAppSetting(db, JANITOR_SETTING));
+	// A marker from the future (a skewed clock) must not hold the janitors off.
+	const age = now.getTime() - last;
+	if (Number.isFinite(last) && age >= 0 && age < JANITOR_INTERVAL_MS) return false;
+	await expireOauthPending(db, now);
+	await purgeDisconnectedConnections(db);
+	await purgeExpiredMfaChallenges(db, now);
+	await purgeExpiredSessions(db);
+	await writeAppSetting(db, JANITOR_SETTING, String(now.getTime()));
+	return true;
+}
+
 export async function runSchedulerTick(
 	db: AppDb,
 	env: AppEnv,
@@ -396,13 +411,7 @@ export async function runSchedulerTick(
 	}
 ) {
 	await writeHeartbeat(db);
-	await expireOauthPending(db);
-	await purgeDisconnectedConnections(db);
-	// Janitors. Both tables grow without bound on their own: a challenge is
-	// minted per sign-in attempt and a session per device, and nothing else
-	// deletes an expired row.
-	await purgeExpiredMfaChallenges(db);
-	await purgeExpiredSessions(db);
+	await runJanitorsIfDue(db);
 	// Before the scan, so a row a dead consumer left behind is queued (or
 	// published inline) by this same tick instead of being scanned and skipped.
 	await recoverStalePublishing(db);
