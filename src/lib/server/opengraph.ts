@@ -95,10 +95,26 @@ function metaContent(html: string, attr: 'property' | 'name', key: string): stri
 }
 
 /**
+ * The part of the page worth scanning. A dozen patterns over a whole 2 MB page
+ * is CPU the Workers Free plan (10 ms a request) cannot spare on the publish
+ * path, and the tags live in <head>. `</head>` is optional in HTML, so the
+ * body's opening tag ends the head too. A head without any og:/twitter: tag
+ * (tags misplaced in the body, or no head at all) gets the whole page, so no
+ * card is lost to the shortcut.
+ */
+function metaScope(html: string): string {
+	const end = html.search(/<\/head\s*>|<body[\s>]/i);
+	if (end === -1) return html;
+	const head = html.slice(0, end);
+	return /<meta[^>]+(?:property|name)\s*=\s*["']?(?:og|twitter):/i.test(head) ? head : html;
+}
+
+/**
  * Pure HTML → OG parser (no network). Exported for unit tests.
  * `baseUrl` resolves relative `og:image` values.
  */
-export function parseOpenGraphHtml(html: string, baseUrl: string): OpenGraphData {
+export function parseOpenGraphHtml(page: string, baseUrl: string): OpenGraphData {
+	const html = metaScope(page);
 	const title =
 		metaContent(html, 'property', 'og:title') ||
 		metaContent(html, 'name', 'twitter:title') ||

@@ -33,6 +33,30 @@ describe('parseOpenGraphHtml', () => {
 		expect(og.image).toBe('https://cdn.test/x.jpg');
 	});
 
+	it('reads only <head> when the page keeps its tags there', () => {
+		// Without a closing </head>: the body's opening tag ends the head.
+		const html = `<!doctype html><html><head>
+			<meta property="og:title" content="The real title" />
+			<meta name="description" content="Head description" />
+			<body>${'<p>long article</p>'.repeat(5000)}
+			<meta property="og:description" content="An embedded widget's tag" />
+			</body></html>`;
+		const og = parseOpenGraphHtml(html, 'https://example.com/');
+		expect(og.title).toBe('The real title');
+		expect(og.description).toBe('Head description');
+	});
+
+	it('still finds tags a page put in its body', () => {
+		const html = `<html><head><title>Head title</title></head><body>
+			<meta property="og:description" content="Body description" />
+			<meta property="og:image" content="https://cdn.test/body.png" />
+			</body></html>`;
+		const og = parseOpenGraphHtml(html, 'https://example.com/');
+		expect(og.title).toBe('Head title');
+		expect(og.description).toBe('Body description');
+		expect(og.image).toBe('https://cdn.test/body.png');
+	});
+
 	it('rejects blocked/private image hosts', () => {
 		const html = `<meta property="og:image" content="http://127.0.0.1/x.png" />`;
 		const og = parseOpenGraphHtml(html, 'https://example.com/');
