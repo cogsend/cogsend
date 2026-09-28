@@ -136,6 +136,12 @@
 		return `${d > 0 ? '+' : '−'}${Math.abs(d)} vs previous`;
 	}
 
+	function deltaTone(current: number, previous: number): string {
+		if (current > previous) return 'text-emerald-700';
+		if (current < previous) return 'text-red-700';
+		return 'text-stone-500';
+	}
+
 	/** "90 days" only covers whole weeks, so it is described as 13 weeks. */
 	function rangeWords(days: Range | undefined): string {
 		if (!days) return 'selected period';
@@ -156,17 +162,15 @@
 		return `${Math.max(2, (value / chartMax) * 100)}%`;
 	}
 
+	/** The newest bucket is always labelled; a stepped label too close to it is dropped so the two never collide. */
 	function showBarLabel(index: number): boolean {
-		if (buckets.length <= 7) return true;
-		if (buckets.length <= 30) return index % 5 === 0;
-		return index % 3 === 0;
+		const n = buckets.length;
+		if (n <= 7 || index === n - 1) return true;
+		const step = n <= 31 ? 5 : 3;
+		return index % step === 0 && n - 1 - index >= step / 2;
 	}
 
-	function barTitle(bucket: Bucket, previous: Bucket | undefined, index: number): string {
-		const when = bucket.label || `#${index + 1}`;
-		const prev = previous ? ` · previous ${previous.published} published` : '';
-		return `${when} · this period ${bucket.published} published${prev}`;
-	}
+	const hasFailures = $derived(buckets.some((b) => b.failed > 0));
 
 	const cumulative = $derived.by(() => {
 		const acc = (list: Bucket[]) => {
@@ -206,6 +210,107 @@
 			n
 		).toFixed(1)},${CHART_H - CHART_BOTTOM} Z`;
 	});
+
+	/* The whole plot is one hit area: the column under the pointer is the
+	   active bucket, so a reading never depends on landing on a thin line or
+	   a short bar. A stale index from a longer range is ignored rather than
+	   reset, which keeps range switches free of effects. */
+	let hoverIndex = $state<number | null>(null);
+	let keyboardReading = $state(false);
+	const active = $derived(hoverIndex !== null && hoverIndex < buckets.length ? hoverIndex : null);
+
+	function indexAt(event: PointerEvent): number | null {
+		const n = buckets.length;
+		if (!n) return null;
+		const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+		if (rect.width <= 0) return null;
+		const i = Math.floor(((event.clientX - rect.left) / rect.width) * n);
+		return Math.min(n - 1, Math.max(0, i));
+	}
+
+	function onPlotPointer(event: PointerEvent) {
+		const i = indexAt(event);
+		keyboardReading = false;
+		if (i !== hoverIndex) hoverIndex = i;
+	}
+
+	/* A finger lifting off fires pointerleave, which would hide the reading
+	   the tap just asked for, so touch keeps it until the next tap. */
+	function onPlotLeave(event: PointerEvent) {
+		if (event.pointerType !== 'touch') hoverIndex = null;
+	}
+
+	function onPlotKey(event: KeyboardEvent) {
+		const n = buckets.length;
+		if (!n) return;
+		const from = active ?? n - 1;
+		let next: number | null;
+		switch (event.key) {
+			case 'ArrowLeft':
+				next = Math.max(0, from - 1);
+				break;
+			case 'ArrowRight':
+				next = Math.min(n - 1, from + 1);
+				break;
+			case 'Home':
+				next = 0;
+				break;
+			case 'End':
+				next = n - 1;
+				break;
+			case 'Escape':
+				next = null;
+				break;
+			default:
+				return;
+		}
+		event.preventDefault();
+		keyboardReading = true;
+		hoverIndex = next;
+	}
+
+	function onPlotFocus() {
+		if (active === null && buckets.length) {
+			keyboardReading = true;
+			hoverIndex = buckets.length - 1;
+		}
+	}
+
+	function onPlotBlur() {
+		keyboardReading = false;
+		hoverIndex = null;
+	}
+
+	function pct(index: number, count: number): number {
+		return ((index + 0.5) / count) * 100;
+	}
+
+	const reading = $derived.by(() => {
+		if (active === null || !stats) return null;
+		const bucket = buckets[active]!;
+		const previous = previousBuckets[active];
+		const weekly = stats.range.bucket === 'week';
+		return {
+			index: active,
+			when: weekly ? `Week of ${bucket.label}` : bucket.label,
+			previousWhen: previous ? (weekly ? `week of ${previous.label}` : previous.label) : null,
+			day: bucket.published,
+			failed: bucket.failed,
+			current: style === 'cum' ? (cumulative.current[active] ?? 0) : bucket.published,
+			previous: style === 'cum' ? (cumulative.previous[active] ?? 0) : (previous?.published ?? 0),
+			x: pct(active, buckets.length)
+		};
+	});
+
+	/** Legend readout: the hovered bucket, or the period totals when nothing is hovered. */
+	const legendCurrent = $derived(reading?.current ?? stats?.totals.published ?? 0);
+	const legendPrevious = $derived(reading?.previous ?? stats?.previous.published ?? 0);
+
+	const liveText = $derived(
+		reading && keyboardReading
+			? `${reading.when}: ${reading.current} published${style === 'cum' ? ' so far' : ''}, previous period ${reading.previous}${reading.failed ? `, ${reading.failed} failed` : ''}.`
+			: ''
+	);
 
 	/* ── Failures ──────────────────────────────────────────────────────── */
 	const reasonSummary = $derived(
@@ -346,7 +451,12 @@
 					{stats.totals.published}
 				</p>
 				<p class="mt-1 text-[11px] font-bold tracking-widest text-stone-500 uppercase">Published</p>
-				<p class="mt-1 text-[11px] font-bold text-emerald-700">
+				<p
+					class="mt-1 text-[11px] font-bold {deltaTone(
+						stats.totals.published,
+						stats.previous.published
+					)}"
+				>
 					{countDelta(stats.totals.published, stats.previous.published)}
 				</p>
 			</div>
@@ -422,55 +532,79 @@
 			data-testid="insights-chart"
 		>
 			<div class="p-4 pb-3.5 sm:p-5">
-				<div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-					{#if style === 'bars'}
+				<div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2" data-testid="insights-legend">
+					<span class="flex items-center gap-1.5 text-[11px] font-bold text-stone-500">
+						{#if style === 'bars'}
+							<span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-stone-900"></span>
+						{:else}
+							<span class="inline-block h-[3px] w-4 rounded bg-stone-900"></span>
+						{/if}
+						This period
+						<span class="text-stone-900 tabular-nums">{legendCurrent}</span>
+					</span>
+					<span class="flex items-center gap-1.5 text-[11px] font-bold text-stone-500">
+						{#if style === 'bars'}
+							<span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-stone-300"></span>
+						{:else}
+							<span class="inline-block h-0 w-4 border-t-[3px] border-dotted border-stone-400"
+							></span>
+						{/if}
+						Previous period
+						<span class="text-stone-900 tabular-nums">{legendPrevious}</span>
+					</span>
+					{#if hasFailures}
 						<span class="flex items-center gap-1.5 text-[11px] font-bold text-stone-500">
-							<span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-stone-900"></span>This period
+							<span class="inline-block h-1.5 w-1.5 rounded-full bg-red-500"></span>Failed
 						</span>
-						<span class="flex items-center gap-1.5 text-[11px] font-bold text-stone-500">
-							<span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-stone-500"></span>Previous
-							period
-						</span>
-					{:else}
-						<span class="flex items-center gap-1.5 text-[11px] font-bold text-stone-500">
-							<span class="inline-block h-[3px] w-4 rounded bg-stone-900"></span>This period
-						</span>
-						<span class="flex items-center gap-1.5 text-[11px] font-bold text-stone-500">
-							<span class="inline-block h-[3px] w-4 rounded bg-stone-500"></span>Previous period
-						</span>
+					{/if}
+					{#if reading}
+						<span class="ml-auto text-[11px] font-bold text-stone-900">{reading.when}</span>
 					{/if}
 				</div>
 
-				{#if style === 'bars'}
-					<div class="flex h-[150px] items-end gap-1">
-						{#each buckets as bucket, i (i)}
-							<div
-								class="h-full min-w-0 flex-1"
-								role="img"
-								aria-label={barTitle(bucket, previousBuckets[i], i)}
-								title={barTitle(bucket, previousBuckets[i], i)}
-							>
-								<div class="flex h-full items-end gap-0.5">
+				<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+				<div
+					class="relative h-[150px] touch-pan-y rounded-md outline-offset-4 select-none"
+					tabindex="0"
+					role="group"
+					aria-roledescription="chart"
+					aria-label="{style === 'cum'
+						? 'Cumulative published posts'
+						: 'Published posts per bucket'}, this period against the previous period. Use the arrow keys to read each {stats
+						.range.bucket}."
+					onpointerdown={onPlotPointer}
+					onpointermove={onPlotPointer}
+					onpointerleave={onPlotLeave}
+					onkeydown={onPlotKey}
+					onfocus={onPlotFocus}
+					onblur={onPlotBlur}
+				>
+					{#if style === 'bars'}
+						<div class="flex h-full items-end gap-1" aria-hidden="true">
+							{#each buckets as bucket, i (i)}
+								<div
+									class="flex h-full min-w-0 flex-1 items-end gap-0.5 transition-opacity duration-100 {reading &&
+									reading.index !== i
+										? 'opacity-40'
+										: ''}"
+								>
 									<div
-										class="min-w-0 flex-1 rounded-t-[3px] bg-stone-500"
-										style="height:{barHeight(previousBuckets[i]?.published ?? 0)}"
-									></div>
-									<div
-										class="relative min-w-0 flex-1 overflow-hidden rounded-t-[3px] bg-stone-900"
+										class="min-w-0 flex-1 rounded-t-[3px] bg-stone-900"
 										style="height:{barHeight(bucket.published)}"
 									></div>
+									<div
+										class="min-w-0 flex-1 rounded-t-[3px] bg-stone-300"
+										style="height:{barHeight(previousBuckets[i]?.published ?? 0)}"
+									></div>
 								</div>
-							</div>
-						{/each}
-					</div>
-				{:else}
-					<div class="h-[150px]">
+							{/each}
+						</div>
+					{:else}
 						<svg
 							viewBox="0 0 {CHART_W} {CHART_H}"
 							preserveAspectRatio="none"
 							class="block h-full w-full"
-							role="img"
-							aria-label="Cumulative published posts, this period compared with the previous period"
+							aria-hidden="true"
 						>
 							<defs>
 								<linearGradient id="insights-area" x1="0" y1="0" x2="0" y2="1">
@@ -487,12 +621,24 @@
 								stroke-width="1"
 								vector-effect="non-scaling-stroke"
 							></line>
+							{#if reading}
+								<line
+									x1={pointX(reading.index, buckets.length)}
+									y1="0"
+									x2={pointX(reading.index, buckets.length)}
+									y2={CHART_H - CHART_BOTTOM}
+									stroke="#d6d3d1"
+									stroke-width="1"
+									vector-effect="non-scaling-stroke"
+								></line>
+							{/if}
 							<path d={areaPath} fill="url(#insights-area)"></path>
 							<path
 								d={previousLine}
 								fill="none"
-								stroke="#78716c"
+								stroke="#a8a29e"
 								stroke-width="2"
+								stroke-dasharray="2 4"
 								stroke-linecap="round"
 								stroke-linejoin="round"
 								vector-effect="non-scaling-stroke"
@@ -506,27 +652,91 @@
 								stroke-linejoin="round"
 								vector-effect="non-scaling-stroke"
 							></path>
-							{#each cumulative.current as value, i (i)}
-								<circle
-									cx={pointX(i, cumulative.current.length)}
-									cy={pointY(value)}
-									r="9"
-									fill="transparent"
-								>
-									<title>
-										{buckets[i]?.label} · this period {value} published · previous
-										{cumulative.previous[i] ?? 0}
-									</title>
-								</circle>
-							{/each}
 						</svg>
+						<!-- Markers are HTML so the stretched viewBox cannot squash them into ovals. -->
+						{#if reading}
+							<span
+								class="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-stone-400 shadow-sm"
+								style="left:{reading.x}%;top:{(pointY(reading.previous) / CHART_H) * 100}%"
+								aria-hidden="true"
+							></span>
+							<span
+								class="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-stone-900 shadow-sm"
+								style="left:{reading.x}%;top:{(pointY(reading.current) / CHART_H) * 100}%"
+								aria-hidden="true"
+							></span>
+						{/if}
+					{/if}
+
+					{#if reading}
+						<!-- Sits on the far side of the pointer so it never covers the reading. -->
+						<div
+							class="pointer-events-none absolute top-0 z-10 w-max max-w-[14rem] rounded-xl bg-stone-900 px-3 py-2 text-[11px] font-semibold text-stone-300 shadow-lg"
+							style={reading.x > 50
+								? `right:calc(${100 - reading.x}% + 12px)`
+								: `left:calc(${reading.x}% + 12px)`}
+							aria-hidden="true"
+							data-testid="insights-tooltip"
+						>
+							<p class="mb-1 font-bold text-white">{reading.when}</p>
+							<p class="flex items-center justify-between gap-4">
+								<span class="flex items-center gap-1.5">
+									<span class="inline-block h-2 w-2 rounded-full bg-white"></span>This period
+								</span>
+								<span class="font-bold text-white tabular-nums">{reading.current}</span>
+							</p>
+							{#if style === 'cum'}
+								<p class="pl-3.5 text-stone-400">+{reading.day} that {stats.range.bucket}</p>
+							{/if}
+							<p class="mt-0.5 flex items-center justify-between gap-4">
+								<span class="flex items-center gap-1.5">
+									<span class="inline-block h-2 w-2 rounded-full bg-stone-400"></span>Previous
+								</span>
+								<span class="font-bold text-white tabular-nums">{reading.previous}</span>
+							</p>
+							{#if reading.previousWhen}
+								<p class="pl-3.5 text-stone-400">{reading.previousWhen}</p>
+							{/if}
+							{#if reading.failed > 0}
+								<p class="mt-0.5 flex items-center justify-between gap-4 text-red-300">
+									<span class="flex items-center gap-1.5">
+										<span class="inline-block h-2 w-2 rounded-full bg-red-400"></span>Failed
+									</span>
+									<span class="font-bold tabular-nums">{reading.failed}</span>
+								</p>
+							{/if}
+						</div>
+					{/if}
+				</div>
+				<p class="sr-only" aria-live="polite">{liveText}</p>
+
+				{#if hasFailures}
+					<div
+						class="relative mt-1.5 h-1.5"
+						aria-hidden="true"
+						data-testid="insights-failure-marks"
+					>
+						{#each buckets as bucket, i (i)}
+							{#if bucket.failed > 0}
+								<span
+									class="absolute top-0 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-red-500"
+									style="left:{pct(i, buckets.length)}%"
+								></span>
+							{/if}
+						{/each}
 					</div>
 				{/if}
 
+				<!-- Labels are wider than a day's column; flex alignment makes the edge ones overflow inward instead of being clipped by the card. -->
 				<div class="mt-2.5 flex gap-1">
 					{#each buckets as bucket, i (i)}
 						<span
-							class="min-w-0 flex-1 text-center text-[10px] font-bold tracking-wider text-stone-500 uppercase"
+							class="flex min-w-0 flex-1 text-[10px] font-bold tracking-wider whitespace-nowrap uppercase {i ===
+							0
+								? 'justify-start'
+								: i === buckets.length - 1
+									? 'justify-end'
+									: 'justify-center'} {reading?.index === i ? 'text-stone-900' : 'text-stone-500'}"
 						>
 							{showBarLabel(i) ? bucket.label : ''}
 						</span>

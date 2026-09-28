@@ -40,7 +40,8 @@ alongside.
 - **Scheduled**, with how long until the next one goes out.
 - **Last post**, so a week where nothing went out is obvious.
 - A chart of posts per day, as **Bars** or **Cumulative** against the previous
-  period.
+  period. Hover, tap or use the arrow keys to read any day; red dots mark days
+  with failures.
 - The failures, grouped by reason — a platform-wide problem reads differently from
   one bad post — with a link to review them in Posts.
 - A row per account, including disconnected ones, which are kept and marked
