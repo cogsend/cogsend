@@ -9,7 +9,9 @@ import {
 	splitThreadSegments,
 	updateSegment,
 	flattenThreadBody,
-	joinThreadTexts
+	joinThreadTexts,
+	remapSegmentIndexAfterInsert,
+	splitAtMarkers
 } from '$lib/domain/thread-segments';
 
 describe('splitThreadSegments', () => {
@@ -174,5 +176,29 @@ describe('single-post flattening', () => {
 	it('flattens a thread body and normalizes CRLF', () => {
 		expect(flattenThreadBody('a\r\n---\r\nb\n---\nc')).toBe('a\n\nb\n\nc');
 		expect(flattenThreadBody('single post')).toBe('single post');
+	});
+});
+
+describe('splitAtMarkers', () => {
+	it('is null when the text has no marker', () => {
+		expect(splitAtMarkers('plain text')).toBeNull();
+	});
+
+	it('splits a typed marker into the text before and after it', () => {
+		expect(splitAtMarkers('first part ---second')).toEqual(['first part', 'second']);
+		expect(splitAtMarkers('hello ---')).toEqual(['hello', '']);
+	});
+
+	it('keeps every piece when the text carries several markers', () => {
+		expect(splitAtMarkers('one --- two --- three---four')).toEqual(['one', 'two', 'three', 'four']);
+	});
+});
+
+describe('remapSegmentIndexAfterInsert', () => {
+	it('moves only the cards after the split point', () => {
+		expect(remapSegmentIndexAfterInsert(0, 1, 2)).toBe(0);
+		expect(remapSegmentIndexAfterInsert(1, 1, 2)).toBe(1);
+		expect(remapSegmentIndexAfterInsert(2, 1, 2)).toBe(4);
+		expect(remapSegmentIndexAfterInsert(3, 1, 0)).toBe(3);
 	});
 });

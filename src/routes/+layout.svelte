@@ -16,6 +16,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import faviconDark from '$lib/assets/favicon-dark.svg';
 	import logoGlyph from '$lib/assets/logo-glyph.svg';
+	import { initialsOf } from '$lib/components/initials';
 	import { menuNav } from '$lib/components/menu-nav';
 	import { browserTimeZone } from '$lib/domain/time-zone';
 
@@ -30,22 +31,10 @@
 	const userEmail: string | null = $derived(data.user?.email ?? null);
 	const displayName: string | null = $derived(data.displayName ?? null);
 	const profilePictureUrl: string | null = $derived(data.profilePictureUrl ?? null);
-	const avatarSeed = $derived(displayName?.trim() || userEmail?.split('@')[0] || 'cogsend');
-	const avatarSrc = $derived(
-		profilePictureUrl ||
-			`https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(avatarSeed)}`
-	);
+	const avatarSrc = $derived(profilePictureUrl || null);
 	// Initials stay underneath the picture. A failed URL (and only that URL)
-	// drops the image; the next URL is tried again. Dicebear SVGs have no
-	// intrinsic size, so readiness cannot be decided from naturalWidth.
+	// drops the image; the next URL is tried again.
 	let failedAvatarSrc = $state<string | null>(null);
-
-	function headerInitials(name: string | null, email: string | null): string {
-		const source = (name?.trim() || email?.split('@')[0] || '?').replace(/^@/, '');
-		const parts = source.split(/[\s._-]+/).filter(Boolean);
-		if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-		return source.slice(0, 2).toUpperCase();
-	}
 	const isLoginRoute = $derived(page.url.pathname.startsWith('/login'));
 
 	// Insights counts days in the account's zone, and nothing else knows it: the
@@ -257,9 +246,9 @@
 							class="flex h-full w-full items-center justify-center bg-stone-200 text-[11px] font-bold text-stone-700"
 							aria-hidden="true"
 						>
-							{headerInitials(displayName, userEmail)}
+							{initialsOf(displayName, userEmail)}
 						</span>
-						{#if failedAvatarSrc !== avatarSrc}
+						{#if avatarSrc && failedAvatarSrc !== avatarSrc}
 							<img
 								src={avatarSrc}
 								alt=""

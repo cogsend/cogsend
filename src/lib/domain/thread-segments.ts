@@ -160,6 +160,24 @@ export function reorderSegments(segments: string[], from: number, to: number): s
 	return next;
 }
 
+/** What a person types inside a card to split it there. */
+export const SPLIT_MARKER = '---';
+
+/**
+ * The cards a card's text becomes when it contains the split marker, or null
+ * when it contains none. Every marker splits and every piece is kept: a paste
+ * can carry several markers, and none of the text around them may be lost.
+ */
+export function splitAtMarkers(value: string): string[] | null {
+	if (!value.includes(SPLIT_MARKER)) return null;
+	return value.split(SPLIT_MARKER).map((piece) => piece.trim());
+}
+
+/** Where a media item on segment `index` lands after `added` cards are inserted after card `at`. */
+export function remapSegmentIndexAfterInsert(index: number, at: number, added: number): number {
+	return index > at ? index + added : index;
+}
+
 /**
  * Where a media item on segment `index` lands after moving `from` → `to`.
  * Pure math (no bounds surprises): mirrors reorderSegments exactly.

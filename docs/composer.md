@@ -13,15 +13,17 @@ asking.
 
 ## A thread is a list of cards
 
-Each card is one post, with its own character counter and its own images.
+Each card is one post, with its own character counter and its own images. The
+counter uses the strictest limit among the accounts you picked, counted the way
+that platform counts: graphemes for most, while Mastodon and X count every link
+as 23 characters, and X also counts CJK characters and each emoji as 2.
 
 - **+ Thread** adds a card; the × on a card removes it.
 - Type `---` in a card to split it there. The text after the marker moves into a
-  new card below.
-- Paste a long draft and it is split for you: into a thread that fits the
-  strictest limit among the accounts you picked, counted the way that platform
-  counts (graphemes, and Mastodon's own URL weighting). Paste text with `---` on
-  lines of their own and it splits on those instead.
+  new card below; several markers make several cards.
+- Paste a long draft and it is split for you: into a thread that fits that same
+  strictest limit. Paste text with `---` on lines of their own and it splits on
+  those instead.
 - **Alt + ↑ / ↓** moves the card you are typing in up or down the thread.
 
 LinkedIn has no threads: a thread sent there is flattened into one post. The

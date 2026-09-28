@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateXText } from '$lib/domain/validation/text';
+import { validateXText, xWeightedLength } from '$lib/domain/validation/text';
 import {
 	codeChallenge,
 	generateCodeVerifier,
@@ -33,6 +33,51 @@ describe('validateXText', () => {
 		const over = validateXText('a'.repeat(281));
 		expect(over.ok).toBe(false);
 		expect(over.message).toMatch(/280/);
+	});
+
+	it('takes a post whose long link X counts as 23', () => {
+		const link = `https://example.com/${'path/'.repeat(40)}`;
+		const text = `${'a'.repeat(250)} ${link}`;
+		expect(text.length).toBeGreaterThan(280);
+		expect(validateXText(text).ok).toBe(true);
+	});
+
+	it('refuses a CJK post X would refuse, though it is under 280 graphemes', () => {
+		const text = '日本語'.repeat(50);
+		expect([...text]).toHaveLength(150);
+		expect(validateXText(text).ok).toBe(false);
+	});
+});
+
+describe('xWeightedLength', () => {
+	it('counts Latin text and common punctuation as 1', () => {
+		expect(xWeightedLength('hello')).toBe(5);
+		expect(xWeightedLength('\u2018quoted\u2019 \u2014 dash')).toBe(15);
+	});
+
+	it('counts any link as 23 and the punctuation after it as text', () => {
+		expect(xWeightedLength('https://example.com/a/very/long/path?with=query')).toBe(23);
+		expect(xWeightedLength('https://x.co')).toBe(23);
+		expect(xWeightedLength('see https://example.com/page.')).toBe(4 + 23 + 1);
+		expect(xWeightedLength('http:// nothing')).toBe(15);
+	});
+
+	it('counts CJK and characters outside the light ranges as 2', () => {
+		expect(xWeightedLength('日本')).toBe(4);
+		expect(xWeightedLength('\u2026')).toBe(2);
+	});
+
+	it('counts an emoji as 2 however many code points build it', () => {
+		expect(xWeightedLength('\u{1F600}')).toBe(2);
+		expect(xWeightedLength('\u{1F468}\u200D\u{1F469}\u200D\u{1F467}')).toBe(2);
+		expect(xWeightedLength('\u{1F44D}\u{1F3FD}')).toBe(2);
+		expect(xWeightedLength('\u{1F1EE}\u{1F1F3}')).toBe(2);
+		expect(xWeightedLength('1\uFE0F\u20E3')).toBe(2);
+	});
+
+	it('counts composed and decomposed accents the same', () => {
+		expect(xWeightedLength('e\u0301')).toBe(xWeightedLength('\u00e9'));
+		expect(xWeightedLength('\u00e9')).toBe(1);
 	});
 });
 

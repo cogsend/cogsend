@@ -15,7 +15,8 @@
 		Link2Off,
 		Settings,
 		LoaderCircle,
-		RefreshCw
+		RefreshCw,
+		User
 	} from '@lucide/svelte';
 	import { slide, fly } from 'svelte/transition';
 	import {
@@ -25,6 +26,7 @@
 	} from '$lib/domain/editor-limits';
 	import { humanizeError } from '$lib/domain/human-error';
 	import { dialogFocus } from '$lib/components/dialog-focus';
+	import { initialsOf } from '$lib/components/initials';
 	import { platformColorClass } from '$lib/components/platform-color';
 	import {
 		BLUESKY_MAX_IMAGE_BYTES,
@@ -79,12 +81,19 @@
 		flattenThreadBody,
 		joinThreadSegments,
 		maxThreadSegmentLength,
+		remapSegmentIndexAfterInsert,
 		remapSegmentIndexAfterReorder,
 		removeSegment,
 		reorderSegments,
-		splitThreadSegments
+		splitAtMarkers,
+		splitThreadSegments,
+		updateSegment
 	} from '$lib/domain/thread-segments';
-	import { countGraphemes, mastodonWeightedLength } from '$lib/domain/validation/text';
+	import {
+		countGraphemes,
+		mastodonWeightedLength,
+		xWeightedLength
+	} from '$lib/domain/validation/text';
 	import { utf8ByteLength } from '$lib/domain/bytes';
 	import SocialIcon from './SocialIcon.svelte';
 	import LinkPreview from './LinkPreview.svelte';
@@ -208,10 +217,6 @@
 	);
 
 	const SKIP_ASK_KEY = 'cogsend-skip-publish-confirm';
-
-	const avatarFallback = $derived(
-		`https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(displayName || 'cogsend')}`
-	);
 
 	let draftId = $state<string | null>(page.url.searchParams.get('id'));
 	let baseBody = $state(seededBody);
@@ -399,31 +404,36 @@
 		);
 	}
 
-	const avatarSrc = $derived.by(() => {
-		const globalAvatar = initialSettings?.profilePictureUrl || avatarFallback;
+	// Without a picture the card shows initials (drawn here, never fetched).
+	const avatarSrc = $derived.by((): string | null => {
+		const globalAvatar = initialSettings?.profilePictureUrl || null;
 		if (activeTab === 'global') return globalAvatar;
 		const platformAvatar = selectedAccounts.find((c) => c.platform === activeTab)?.avatarUrl;
 		return platformAvatar || globalAvatar;
 	});
+	let failedAvatarSrc = $state<string | null>(null);
+	const avatarInitials = $derived(displayName?.trim() ? initialsOf(displayName) : '');
 
 	const selectedPlatforms = $derived(
 		new Set(connections.filter((c) => selected.has(c.id)).map((c) => c.platform))
 	);
 
-	let maxChars = $derived.by(() => {
-		if (activeTab !== 'global') return platformMax(activeTab, accountsFor(activeTab));
-		// Global defaults to the strictest limit among currently selected accounts.
-		if (selectedAccounts.length === 0) return PLATFORM_LIMITS.x;
-		const limits = selectedAccounts.map((a) => {
-			if (a.platform === 'bluesky') return PLATFORM_LIMITS.bluesky;
-			if (a.platform === 'mastodon') return platformMax('mastodon', accountsFor('mastodon'));
-			if (a.platform === 'linkedin') return PLATFORM_LIMITS.linkedin;
-			if (a.platform === 'threads') return PLATFORM_LIMITS.threads;
-			if (a.platform === 'x') return PLATFORM_LIMITS.x;
-			return PLATFORM_LIMITS.x;
-		});
-		return Math.min(...limits);
+	// Global is held to the strictest limit among the selected accounts, and is
+	// counted the way that platform counts: a gauge in graphemes next to X's
+	// weighted limit could read green while publishing was blocked.
+	const globalLimit = $derived.by((): { platform: string; max: number } => {
+		let strictest: { platform: string; max: number } | null = null;
+		for (const platform of PLATFORM_ORDER) {
+			if (!selectedPlatforms.has(platform)) continue;
+			const max = platformMax(platform, accountsFor(platform));
+			if (!strictest || max < strictest.max) strictest = { platform, max };
+		}
+		return strictest ?? { platform: 'generic', max: PLATFORM_LIMITS.x };
 	});
+
+	let maxChars = $derived(
+		activeTab === 'global' ? globalLimit.max : platformMax(activeTab, accountsFor(activeTab))
+	);
 
 	// On Global the thread affordance follows the destinations: with only
 	// single-post platforms selected (LinkedIn), a thread has nowhere to go.
@@ -434,7 +444,9 @@
 	);
 
 	function countForPlatform(text: string, platform: string): number {
-		return platform === 'mastodon' ? mastodonWeightedLength(text) : countGraphemes(text);
+		if (platform === 'mastodon') return mastodonWeightedLength(text);
+		if (platform === 'x') return xWeightedLength(text);
+		return countGraphemes(text);
 	}
 
 	let activeContent = $derived.by(() => {
@@ -470,7 +482,7 @@
 				len: maxThreadSegmentLength(threadsText, countGraphemes),
 				max: PLATFORM_LIMITS.threads
 			},
-			x: { len: maxThreadSegmentLength(xText, countGraphemes), max: PLATFORM_LIMITS.x }
+			x: { len: maxThreadSegmentLength(xText, xWeightedLength), max: PLATFORM_LIMITS.x }
 		};
 	});
 	const blueskyBytesOver = $derived.by(() => {
@@ -1744,23 +1756,38 @@
 
 	function handleSegmentInput(i: number, e: Event) {
 		const val = (e.target as HTMLTextAreaElement).value;
-		let newSegments = [...segments];
-
-		if (val.includes('---')) {
-			// Trigger split and remove the --- delimiter.
-			const parts = val.split('---');
-			newSegments.splice(i, 1, parts[0].trim(), parts[1].trim());
-
-			setTimeout(() => {
-				if (textareaRefs[i + 1]) {
-					textareaRefs[i + 1]?.focus();
-				}
-			}, 0);
-		} else {
-			newSegments[i] = val;
+		const pieces = splitAtMarkers(val);
+		if (!pieces) {
+			setActiveBody(joinThreadSegments(updateSegment(segments, i, val)));
+			return;
 		}
+		setActiveBody(
+			joinThreadSegments([...segments.slice(0, i), ...pieces, ...segments.slice(i + 1)])
+		);
+		shiftMediaAfter(i, pieces.length - 1);
+		const focusAt = i + pieces.length - 1;
+		setTimeout(() => {
+			textareaRefs[focusAt]?.focus();
+		}, 0);
+	}
 
-		setActiveBody(joinThreadSegments(newSegments));
+	/**
+	 * Keep images on the cards they belong to when cards are inserted after
+	 * card `index`. A single-post view (LinkedIn) edits a flattened body whose
+	 * cards are not the thread's, so the thread's images stay where they are.
+	 */
+	function shiftMediaAfter(index: number, added: number) {
+		if (added === 0) return;
+		if (activeTab !== 'global' && !supportsThreads(activeTab)) return;
+		const remapped = media.map((m) => ({
+			...m,
+			segmentIndex: remapSegmentIndexAfterInsert(m.segmentIndex ?? 0, index, added)
+		}));
+		const moves = remapped
+			.filter((m, k) => m.segmentIndex !== (media[k]?.segmentIndex ?? 0))
+			.map((m) => ({ id: m.id, segmentIndex: m.segmentIndex }));
+		media = remapped;
+		void queueMediaSync(moves, [], { saveBodyFirst: true });
 	}
 
 	function onAddSegment() {
@@ -1776,12 +1803,21 @@
 	// optimistically, so these writes are queued in order, retried once and
 	// awaited before publish — publish reads the stored index, and a silently
 	// dropped move would attach an image to the wrong thread post.
-	function queueMediaSync(moves: MediaMove[], removals: string[] = []) {
+	function queueMediaSync(
+		moves: MediaMove[],
+		removals: string[] = [],
+		opts: { saveBodyFirst?: boolean } = {}
+	) {
 		const id = draftId;
 		if (!id || (!moves.length && !removals.length)) return mediaSync;
 		mediaSync = mediaSync
 			.catch(() => {})
 			.then(async () => {
+				// The server refuses an image on a card the stored draft does not
+				// have yet, so a move onto a card a split just created waits for
+				// the body that created it instead of the autosave. persistClean,
+				// because a save already in flight may predate the split.
+				if (opts.saveBodyFirst) await persistClean();
 				const result = await persistMediaLayout({ draftId: id, moves, removals });
 				if (!result.ok) {
 					showToast('Couldn’t save the image layout — check the images and try again', 'error');
@@ -1856,8 +1892,7 @@
 			cap = platformMax(activeTab, accountsFor(activeTab));
 			capPlatform = activeTab;
 		}
-		const countFn =
-			capPlatform === 'mastodon' ? mastodonWeightedLength : (s: string) => countGraphemes(s);
+		const countFn = (s: string) => countForPlatform(s, capPlatform ?? 'generic');
 		if (!hasDelimiter && splitLongText(text, cap, countFn).length <= 1) return false;
 		const pieces = hasDelimiter
 			? text
@@ -1870,20 +1905,9 @@
 		const next = wasEmpty
 			? [...segments.slice(0, segmentIndex), ...pieces, ...segments.slice(segmentIndex + 1)]
 			: [...segments.slice(0, segmentIndex + 1), ...pieces, ...segments.slice(segmentIndex + 1)];
-		setActiveBody(joinThreadSegments(next));
 		const delta = next.length - segments.length;
-		if (delta !== 0) {
-			const remapped = media.map((m) =>
-				(m.segmentIndex ?? 0) > segmentIndex
-					? { ...m, segmentIndex: (m.segmentIndex ?? 0) + delta }
-					: m
-			);
-			const moves = remapped
-				.filter((m) => m.segmentIndex !== media.find((old) => old.id === m.id)?.segmentIndex)
-				.map((m) => ({ id: m.id, segmentIndex: m.segmentIndex ?? 0 }));
-			media = remapped;
-			void queueMediaSync(moves);
-		}
+		setActiveBody(joinThreadSegments(next));
+		shiftMediaAfter(segmentIndex, delta);
 		focusedSegment = wasEmpty ? segmentIndex + pieces.length - 1 : segmentIndex + pieces.length;
 		showToast(`Split into ${pieces.length} posts`, 'success');
 		return true;
@@ -1965,7 +1989,7 @@
 	}
 
 	function countForCard(text: string): number {
-		return countForPlatform(text, activeTab === 'global' ? 'generic' : activeTab);
+		return countForPlatform(text, activeTab === 'global' ? globalLimit.platform : activeTab);
 	}
 
 	function clearPostConfirm() {
@@ -2410,11 +2434,26 @@
 				<div class="group relative flex gap-4 sm:gap-6">
 					<!-- Avatar / Node -->
 					<div class="relative z-10 hidden flex-shrink-0 flex-col items-center sm:flex">
-						<img
-							src={avatarSrc}
-							alt="Avatar"
-							class="relative z-10 h-10 w-10 rounded-full border-[3px] border-stone-50 bg-white object-cover shadow-sm"
-						/>
+						{#if avatarSrc && failedAvatarSrc !== avatarSrc}
+							<img
+								src={avatarSrc}
+								alt="Avatar"
+								referrerpolicy="no-referrer"
+								class="relative z-10 h-10 w-10 rounded-full border-[3px] border-stone-50 bg-white object-cover shadow-sm"
+								onerror={() => (failedAvatarSrc = avatarSrc)}
+							/>
+						{:else}
+							<span
+								class="relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-[3px] border-stone-50 bg-stone-200 text-[11px] font-bold text-stone-700 shadow-sm"
+								aria-hidden="true"
+							>
+								{#if avatarInitials}
+									{avatarInitials}
+								{:else}
+									<User class="h-4 w-4" />
+								{/if}
+							</span>
+						{/if}
 						{#if index < segments.length - 1}
 							<div
 								class="absolute top-10 bottom-[-24px] left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-stone-200/80"
