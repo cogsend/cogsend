@@ -1254,8 +1254,14 @@ test('a refused draft delete restores the card and says so', async () => {
 	await page.goto('/posts');
 	const label = text.slice(0, 24);
 	await expect(page.getByText(label)).toBeVisible();
-	await page.getByRole('button', { name: 'Remove' }).first().click();
-	await page.getByRole('button', { name: 'Remove', exact: true }).last().click();
+	// Retried until the dialog is up: a click before hydration opens nothing,
+	// and the confirm would then land on another card's Remove.
+	await clickUntilVisible(
+		page,
+		page.getByRole('button', { name: 'Remove' }).first(),
+		page.getByRole('alertdialog')
+	);
+	await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
 	// Optimistically hidden, then restored once the server refuses.
 	await expect(page.getByText(label)).toBeHidden();
 	await expect(page.getByText(label)).toBeVisible({ timeout: 20000 });
@@ -1288,8 +1294,14 @@ test('deleting an already-deleted draft keeps the card hidden', async () => {
 	// Deleted behind the page's back (another tab) while the stale card is
 	// still on screen: a 404 means gone for good, not "restore and complain".
 	expect((await page.request.delete(`/api/drafts/${id}`)).ok()).toBe(true);
-	await page.getByRole('button', { name: 'Remove' }).first().click();
-	await page.getByRole('button', { name: 'Remove', exact: true }).last().click();
+	// Retried until the dialog is up: a click before hydration opens nothing,
+	// and the confirm would then land on another card's Remove.
+	await clickUntilVisible(
+		page,
+		page.getByRole('button', { name: 'Remove' }).first(),
+		page.getByRole('alertdialog')
+	);
+	await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
 	await expect(page.getByText(label)).toBeHidden();
 	await page.waitForTimeout(2500);
 	await expect(page.getByText(label)).toBeHidden();
