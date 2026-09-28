@@ -652,3 +652,98 @@ describe('GET /api/insights', () => {
 		expect(body.series.current.every((b: { label: string }) => b.label.length > 0)).toBe(true);
 	});
 });
+
+/**
+ * Days are the viewer's. The zone stored on the account starts as UTC, so the
+ * page sends the browser's own and the answer says which one it used.
+ */
+describe('GET /api/insights in the viewer’s time zone', () => {
+	let db: AppDb;
+	let close: () => void;
+	// Noon UTC on Sep 15: 20:00 UTC the evening before is already Sep 15 in India.
+	const now = Date.UTC(2026, 8, 15, 12, 0, 0);
+	const postedAt = new Date(Date.UTC(2026, 8, 14, 20, 0, 0));
+
+	const get = async (query: string) => {
+		const res = (await insightsGET({
+			locals: {
+				db,
+				user: {
+					id: 'tz-user',
+					email: 'tz@localhost',
+					timezone: 'UTC',
+					totpEnabled: true,
+					mfaVerified: true
+				},
+				apiKeyScopes: null
+			},
+			url: new URL(`http://localhost/api/insights?days=7${query}`)
+		} as never)) as Response;
+		return res.json();
+	};
+
+	beforeAll(async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(now);
+		({ db, close } = await createTestDb());
+		await db.insert(users).values({
+			id: 'tz-user',
+			email: 'tz@localhost',
+			passwordHash: 'x',
+			timezone: 'UTC',
+			createdAt: postedAt,
+			updatedAt: postedAt
+		});
+		await db.insert(connections).values({
+			id: 'tz-conn',
+			userId: 'tz-user',
+			platform: 'mastodon',
+			handle: 'tz@example.social',
+			credentialsEncrypted: 'enc',
+			status: 'active',
+			createdAt: postedAt,
+			updatedAt: postedAt
+		});
+		const draftId = newId();
+		await db.insert(drafts).values({
+			id: draftId,
+			userId: 'tz-user',
+			baseBody: 'evening post',
+			status: 'published',
+			createdAt: postedAt,
+			updatedAt: postedAt
+		});
+		await db.insert(publishTargets).values({
+			id: newId(),
+			draftId,
+			connectionId: 'tz-conn',
+			status: 'published',
+			remotePostId: 'remote-tz',
+			attemptCount: 1,
+			createdAt: postedAt,
+			updatedAt: postedAt
+		});
+	});
+
+	afterAll(() => {
+		vi.useRealTimers();
+		close();
+	});
+
+	it('counts the post on the viewer’s day, not UTC’s', async () => {
+		const utc = await get('');
+		expect(utc.range.timeZone).toBe('UTC');
+		expect(utc.series.current.at(-1).published).toBe(0);
+		expect(utc.series.current.at(-2).published).toBe(1);
+
+		const india = await get('&tz=Asia/Kolkata');
+		expect(india.range.timeZone).toBe('Asia/Kolkata');
+		expect(india.series.current.at(-1).published).toBe(1);
+		expect(india.totals.published).toBe(1);
+	});
+
+	it('ignores a zone the runtime does not know', async () => {
+		const body = await get('&tz=Not/AZone');
+		expect(body.range.timeZone).toBe('UTC');
+	});
+});

@@ -9,6 +9,7 @@ import {
 	type InsightBound
 } from '$lib/domain/insights';
 import { platformName } from '$lib/domain/platforms';
+import { parseTimeZone } from '$lib/domain/time-zone';
 import { batchQueries, type AppDb } from './db/client';
 import { connections, drafts, publishTargets } from './db/schema';
 
@@ -58,8 +59,9 @@ export const SERIES_BUCKETS_PER_STATEMENT = 7;
  *
  * The bucket series is the one statement that grows with the range, so it is
  * split into several statements inside the same batch; every other read is a
- * single statement. The timezone comes from the caller's session, which
- * already read it, instead of a second round trip.
+ * single statement. The timezone comes from the caller (the browser's, or the
+ * one the session already read) instead of a second round trip, and the zone
+ * actually used is returned so a page can tell when it was not its own.
  */
 export async function loadInsights(
 	db: AppDb,
@@ -70,7 +72,8 @@ export async function loadInsights(
 	const days = parseInsightRange(daysRaw);
 	const span = rangeSpanDays(days);
 	const nowMs = Date.now();
-	const frames = insightFrames(nowMs, days, timeZone || 'UTC');
+	const zone = parseTimeZone(timeZone) ?? 'UTC';
+	const frames = insightFrames(nowMs, days, zone);
 
 	const owned = and(
 		eq(drafts.userId, userId),
@@ -234,7 +237,13 @@ export async function loadInsights(
 
 	const scheduled = scheduledRows[0];
 	return {
-		range: { days, spanDays: span, bucket: bucketKind(days), buckets: current.length },
+		range: {
+			days,
+			spanDays: span,
+			bucket: bucketKind(days),
+			buckets: current.length,
+			timeZone: zone
+		},
 		now: nowMs,
 		totals: {
 			published,

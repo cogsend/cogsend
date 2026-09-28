@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { users } from '$lib/server/db/schema';
 import { newId, type AppDb } from '$lib/server/db/client';
 import { createTestDb, TEST_ENV } from '$lib/server/db/test';
@@ -202,5 +203,73 @@ describe('settings api', () => {
 		// Blank clears the override and the APP_NAME default comes back.
 		const cleared = await patch({ instanceName: '' });
 		expect((await cleared.json()).instanceName).toBe(TEST_ENV.APP_NAME);
+	});
+});
+
+describe('settings api: time zone', () => {
+	let db: AppDb;
+	let close: () => void;
+	let userId: string;
+	const locals = () => ({
+		db,
+		env: TEST_ENV,
+		user: {
+			id: userId,
+			email: 'tz@localhost',
+			timezone: 'UTC',
+			totpEnabled: true,
+			mfaVerified: true
+		}
+	});
+	const patch = (body: unknown) =>
+		settingsPATCH({
+			locals: locals(),
+			request: new Request('http://localhost/api/settings', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body)
+			})
+		} as never) as Promise<Response>;
+	const stored = async () => {
+		const [row] = await db.select().from(users).where(eq(users.id, userId));
+		return row;
+	};
+
+	beforeAll(async () => {
+		({ db, close } = await createTestDb());
+		const now = new Date();
+		userId = newId();
+		await db.insert(users).values({
+			id: userId,
+			email: 'tz@localhost',
+			passwordHash: 'x',
+			timezone: 'UTC',
+			createdAt: now,
+			updatedAt: now
+		});
+	});
+	afterAll(() => close());
+
+	it('records the browser’s zone and leaves the settings column alone', async () => {
+		const res = await patch({ timezone: 'Asia/Kolkata' });
+		expect(res.status).toBe(200);
+		const row = await stored();
+		expect(row.timezone).toBe('Asia/Kolkata');
+		// Never saved before, still never saved: the zone is not a setting.
+		expect(row.settingsJson).toBeNull();
+	});
+
+	it('refuses a zone the runtime does not know', async () => {
+		const res = await patch({ timezone: 'Not/AZone' });
+		expect(res.status).toBe(400);
+		expect((await stored()).timezone).toBe('Asia/Kolkata');
+	});
+
+	it('still writes settings when the request carries one', async () => {
+		const res = await patch({ mastoVisibility: 'unlisted', timezone: 'Europe/Berlin' });
+		expect(res.status).toBe(200);
+		const row = await stored();
+		expect(row.timezone).toBe('Europe/Berlin');
+		expect(JSON.parse(row.settingsJson ?? '{}').mastoVisibility).toBe('unlisted');
 	});
 });

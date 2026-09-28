@@ -1,7 +1,12 @@
 import { eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { normalizeProfileSettings, parseProfileSettings } from '$lib/domain/profile-settings';
+import {
+	DEFAULT_PROFILE_SETTINGS,
+	normalizeProfileSettings,
+	parseProfileSettings
+} from '$lib/domain/profile-settings';
 import { parseInstanceName } from '$lib/domain/instance-name';
+import { parseTimeZone } from '$lib/domain/time-zone';
 import { first } from '$lib/server/db/client';
 import { users } from '$lib/server/db/schema';
 import { fail, handleError, ok } from '$lib/server/http';
@@ -28,6 +33,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 		return handleError(err);
 	}
 };
+
+const SETTINGS_KEYS = Object.keys(DEFAULT_PROFILE_SETTINGS);
 
 function normalizeDisplayName(input: unknown): { ok: true; name: string | null } | { ok: false } {
 	if (input === undefined || input === null) return { ok: true, name: null };
@@ -71,19 +78,30 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 		const instanceName = parseInstanceName(
 			hasInstanceName ? (body as Record<string, unknown>).instanceName : undefined
 		);
+		const hasTimeZone = Object.hasOwn(body as Record<string, unknown>, 'timezone');
+		const timeZone = hasTimeZone ? parseTimeZone((body as Record<string, unknown>).timezone) : null;
 		// Absent key = leave the stored name alone (older clients only send
 		// visibility/defaults). Present key (incl. empty) sets or clears it.
 		if (hasName && !display.ok) return fail('Invalid display name', 400);
 		if (hasInstanceName && !instanceName.ok) return fail('Invalid instance name', 400);
+		if (hasTimeZone && !timeZone) return fail('Invalid time zone', 400);
 		if (hasInstanceName && instanceName.ok) {
 			// One write of its own: the instance name is not a user setting.
 			await rememberAppName(locals.db, instanceName.name ?? '');
 		}
+		// The layout sends the browser's time zone on its own, in the background.
+		// Writing the settings column back from that request would overwrite a
+		// profile save that landed in between, so it is written only when the
+		// request carries a setting.
+		const touchesSettings = SETTINGS_KEYS.some((key) =>
+			Object.hasOwn(body as Record<string, unknown>, key)
+		);
 		await locals.db
 			.update(users)
 			.set({
-				settingsJson: JSON.stringify(normalized.settings),
+				...(touchesSettings ? { settingsJson: JSON.stringify(normalized.settings) } : {}),
 				...(hasName && display.ok ? { displayName: display.name } : {}),
+				...(timeZone ? { timezone: timeZone } : {}),
 				updatedAt: new Date()
 			})
 			.where(eq(users.id, user.id));

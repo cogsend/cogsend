@@ -6,6 +6,7 @@
 	import { sessionExpiredIfUnauthorized } from '$lib/components/session-expired';
 	import { displayHandle, platformName } from '$lib/domain/platforms';
 	import { formatRelativeTime } from '$lib/domain/relative-time';
+	import { browserTimeZone } from '$lib/domain/time-zone';
 
 	type Range = 7 | 30 | 90;
 
@@ -34,7 +35,13 @@
 	}
 
 	interface InsightPayload {
-		range: { days: Range; spanDays: number; bucket: 'day' | 'week'; buckets: number };
+		range: {
+			days: Range;
+			spanDays: number;
+			bucket: 'day' | 'week';
+			buckets: number;
+			timeZone?: string;
+		};
 		now: number;
 		totals: {
 			published: number;
@@ -72,7 +79,10 @@
 		loading = true;
 		error = null;
 		try {
-			const res = await fetch(`/api/insights?days=${next}`);
+			const zone = browserTimeZone();
+			const res = await fetch(
+				`/api/insights?days=${next}${zone ? `&tz=${encodeURIComponent(zone)}` : ''}`
+			);
 			// Same helper the other client-fetching pages use: a 401 means the
 			// session is gone, not that the page needs a Retry button that can
 			// never succeed.
@@ -122,7 +132,13 @@
 	}
 
 	onMount(() => {
-		if (!stats) void load(range);
+		// The page is rendered with the zone stored on the account, which only
+		// follows this browser once the layout has sent it: until then the days
+		// may be another zone's, so ask again in this one.
+		const zone = browserTimeZone();
+		if (!stats || (zone && stats.range.timeZone && stats.range.timeZone !== zone)) {
+			void load(range);
+		}
 	});
 
 	const totalAttempts = $derived((stats?.totals.published ?? 0) + (stats?.totals.failed ?? 0));

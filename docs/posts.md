@@ -34,7 +34,8 @@ can tell you the next morning.
 
 Insights counts what was published and what failed over the last **7**, **30** or
 **90** days, bucketed by your local days (weeks for 90), with the period before it
-alongside.
+alongside. Local means your browser's time zone: the app records it when you open
+it, so the days follow you if you move or travel.
 
 - **Published**, with the change against the previous period as a signed count.
 - **Scheduled**, with how long until the next one goes out.

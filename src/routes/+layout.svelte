@@ -11,11 +11,13 @@
 		Users,
 		ChartColumn
 	} from '@lucide/svelte';
+	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import favicon from '$lib/assets/favicon.svg';
 	import faviconDark from '$lib/assets/favicon-dark.svg';
 	import logoGlyph from '$lib/assets/logo-glyph.svg';
 	import { menuNav } from '$lib/components/menu-nav';
+	import { browserTimeZone } from '$lib/domain/time-zone';
 
 	let workspaceTrigger: HTMLButtonElement | null = $state(null);
 	let profileTrigger: HTMLButtonElement | null = $state(null);
@@ -45,6 +47,20 @@
 		return source.slice(0, 2).toUpperCase();
 	}
 	const isLoginRoute = $derived(page.url.pathname.startsWith('/login'));
+
+	// Insights counts days in the account's zone, and nothing else knows it: the
+	// browser does. Recorded in the background whenever the two disagree, so a
+	// move or a trip follows along; a failure only means the next visit tries again.
+	onMount(() => {
+		const user = data.user;
+		const zone = browserTimeZone();
+		if (!user?.totpEnabled || !user.mfaVerified || !zone || zone === user.timezone) return;
+		void fetch('/api/settings', {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ timezone: zone })
+		}).catch(() => {});
+	});
 	let logoutError = $state<string | null>(null);
 	async function logout() {
 		showProfileDropdown = false;
