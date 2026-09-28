@@ -3,6 +3,7 @@ import {
 	extractFirstUrl,
 	extractUrls,
 	previewDomain,
+	safeHttpUrl,
 	shouldAttachLinkCard
 } from '$lib/domain/links';
 
@@ -26,5 +27,21 @@ describe('links', () => {
 	it('parses preview domain', () => {
 		expect(previewDomain('https://Example.COM/x')).toBe('example.com');
 		expect(previewDomain('not a url')).toBeNull();
+	});
+
+	it('keeps only http(s) links for an href, exactly as given', () => {
+		expect(safeHttpUrl('https://mastodon.test/@me/1')).toBe('https://mastodon.test/@me/1');
+		expect(safeHttpUrl(' http://example.com/a ')).toBe('http://example.com/a');
+		for (const bad of [
+			'javascript:alert(1)',
+			'JavaScript:alert(1)',
+			'data:text/html,x',
+			'/relative',
+			'',
+			null,
+			42
+		]) {
+			expect(safeHttpUrl(bad)).toBeNull();
+		}
 	});
 });

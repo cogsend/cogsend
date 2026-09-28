@@ -12,7 +12,7 @@ import type {
 	PublishResult,
 	ValidationIssue
 } from './types';
-import { mediaByteLength, ProviderError } from './types';
+import { mediaByteLength, ProviderError, unconfirmedPostError } from './types';
 import { LINKEDIN_MAX_IMAGE_BYTES, LINKEDIN_MAX_IMAGES } from '$lib/domain/media-limits';
 import { providerFetch } from './timed-fetch';
 
@@ -416,7 +416,16 @@ export const linkedinProvider: PlatformProvider = {
 		return issues;
 	},
 
-	async publish(content, creds, meta, fetchImpl = providerFetch): Promise<PublishResult> {
+	async publish(content, creds, meta, fetchImpl = providerFetch, opts): Promise<PublishResult> {
+		// A checkpoint from an earlier attempt means the post went out (below);
+		// only recording it failed. Posting again would publish it twice.
+		const resumed = opts?.resume?.segmentIds;
+		if (resumed?.length) {
+			return {
+				remotePostId: resumed[0] || undefined,
+				remoteUrl: opts?.resume?.remoteUrl || undefined
+			};
+		}
 		if (!creds.accessToken)
 			throw new ProviderError('LinkedIn credentials require accessToken (reconnect)', {
 				code: 'auth'
@@ -490,11 +499,16 @@ export const linkedinProvider: PlatformProvider = {
 			}
 		}
 
-		const res = await fetchImpl('https://api.linkedin.com/rest/posts', {
-			method: 'POST',
-			headers: restHeaders(token),
-			body: JSON.stringify(body)
-		});
+		let res: Response;
+		try {
+			res = await fetchImpl('https://api.linkedin.com/rest/posts', {
+				method: 'POST',
+				headers: restHeaders(token),
+				body: JSON.stringify(body)
+			});
+		} catch (err) {
+			throw unconfirmedPostError('LinkedIn', err);
+		}
 		if (!res.ok)
 			throw Object.assign(
 				new Error(`LinkedIn post failed (${res.status}): ${(await res.text()).slice(0, 300)}`),
@@ -510,10 +524,11 @@ export const linkedinProvider: PlatformProvider = {
 			// and can never match the platform, so leave it empty and say so.
 			console.error('[linkedin] post accepted without an id; no permalink will be recorded');
 		}
-		return {
-			remotePostId: urn ?? undefined,
-			remoteUrl: urn ? (linkedinPostUrl(urn) ?? undefined) : undefined
-		};
+		const remoteUrl = urn ? (linkedinPostUrl(urn) ?? undefined) : undefined;
+		// Recorded the moment the post exists: if the write that marks the row
+		// published is lost, the next attempt resumes from here (above).
+		await opts?.checkpoint?.({ segmentIds: [urn ?? ''], remoteUrl: remoteUrl ?? null });
+		return { remotePostId: urn ?? undefined, remoteUrl };
 	},
 
 	refreshImpossibleReason(creds): string | null {

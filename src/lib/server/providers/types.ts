@@ -124,9 +124,12 @@ export interface PublishCheckpoint {
  * - `forbidden` (HTTP 403) → the platform refused this action but the
  *   credential was accepted: do NOT expire the connection. Retrying
  *   unchanged content is pointless, so it is also non-retryable.
+ * - `unconfirmed` → the post request went out and no answer came back, so it
+ *   may be live. Non-retryable: see unconfirmedPostError.
  * Unknown/legacy errors fall back to the previous regex classification.
  */
-export type ProviderErrorCode = 'auth' | 'forbidden' | 'rate_limited' | 'network' | 'upstream';
+export type ProviderErrorCode =
+	'auth' | 'forbidden' | 'rate_limited' | 'network' | 'upstream' | 'unconfirmed';
 
 export class ProviderError extends Error {
 	readonly status?: number;
@@ -151,6 +154,24 @@ export class ProviderError extends Error {
 		this.retryable =
 			opts.code === 'rate_limited' || opts.code === 'network' || opts.code === 'upstream';
 	}
+}
+
+/** In every unconfirmed-post message; publish.ts reads it to keep the row from retrying. */
+export const UNCONFIRMED_POST_MARK = 'may have been published';
+
+/**
+ * The request that creates a post failed without an answer (timeout, dropped
+ * connection), so the platform may have published it. X, LinkedIn and Threads
+ * take no idempotency key, so a retry cannot be recognised as the same post:
+ * retrying on its own would risk a duplicate, and the person has to look first.
+ * The wording avoids the words humanizedCause and the auth matchers react to,
+ * so it reaches the reader as written.
+ */
+export function unconfirmedPostError(platformLabel: string, cause: unknown): ProviderError {
+	return new ProviderError(
+		`${platformLabel} did not confirm the post in time, so it ${UNCONFIRMED_POST_MARK}. Check ${platformLabel} before you retry.`,
+		{ code: 'unconfirmed', detail: cause instanceof Error ? cause.message : String(cause) }
+	);
 }
 
 /**
@@ -214,6 +235,13 @@ export class PublishPartialError extends Error {
 
 export interface PlatformProvider {
 	id: PlatformId;
+	/**
+	 * The platform fetches attachments from `mediaUrlFor` URLs and is never
+	 * handed the bytes, so publish does not read them from storage: on the
+	 * Workers Free plan every read spends one of the request's 50 calls, and a
+	 * carousel's images would otherwise all sit in isolate memory for nothing.
+	 */
+	mediaByUrl?: boolean;
 	capabilities: {
 		maxImages: number;
 		maxImageBytes: number;
@@ -278,6 +306,13 @@ export interface MediaStore {
 	size?(storageKey: string): Promise<number | null>;
 	put(storageKey: string, bytes: Uint8Array, mime: string): Promise<void>;
 	delete(storageKey: string): Promise<void>;
+	// The object (or one inclusive byte range) as a stream plus the object's
+	// total size, so serving a large file never holds it in isolate memory
+	// (128MB limit vs 95MB videos). Optional: callers fall back to get/getRange.
+	open?(
+		storageKey: string,
+		range?: { start: number; end: number }
+	): Promise<{ body: ReadableStream; size: number } | null>;
 	// Bulk delete for the account wipe: R2 takes up to 1,000 keys in one call,
 	// and each call is a subrequest (50 per invocation on Workers Free), so
 	// deleting one at a time cannot finish a library of any size. Optional:

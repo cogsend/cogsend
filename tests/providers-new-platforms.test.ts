@@ -272,6 +272,60 @@ describe('linkedinProvider.publish', () => {
 		expect(result.remotePostId).toBe('urn:li:share:9');
 	});
 
+	it('records the post the moment LinkedIn accepts it', async () => {
+		const recorded: Array<{ segmentIds: string[]; remoteUrl?: string | null }> = [];
+		const result = await linkedinProvider.publish(
+			{ text: 'checkpointed' },
+			{ accessToken: 'tok', personUrn: 'abc' },
+			undefined,
+			mockFetch({
+				'/rest/posts': async () =>
+					new Response(null, { status: 201, headers: { 'x-restli-id': 'urn:li:share:7' } })
+			}),
+			{ checkpoint: (state) => void recorded.push(state) }
+		);
+		expect(result.remotePostId).toBe('urn:li:share:7');
+		expect(recorded).toEqual([
+			{ segmentIds: ['urn:li:share:7'], remoteUrl: result.remoteUrl ?? null }
+		]);
+	});
+
+	it('does not post again when an earlier attempt already went out', async () => {
+		const result = await linkedinProvider.publish(
+			{ text: 'already live' },
+			{ accessToken: 'tok', personUrn: 'abc' },
+			undefined,
+			async () => {
+				throw new Error('a resumed LinkedIn post must not reach the network');
+			},
+			{
+				resume: {
+					segmentIds: ['urn:li:share:7'],
+					remoteUrl: 'https://www.linkedin.com/feed/update/urn%3Ali%3Ashare%3A7/'
+				}
+			}
+		);
+		expect(result).toEqual({
+			remotePostId: 'urn:li:share:7',
+			remoteUrl: 'https://www.linkedin.com/feed/update/urn%3Ali%3Ashare%3A7/'
+		});
+	});
+
+	it('says a post may be live when LinkedIn never answers', async () => {
+		const err = await linkedinProvider
+			.publish(
+				{ text: 'no answer' },
+				{ accessToken: 'tok', personUrn: 'abc' },
+				undefined,
+				async () => {
+					throw Object.assign(new Error('Provider request timed out'), { status: 504 });
+				}
+			)
+			.catch((e: unknown) => e);
+		expect(err).toMatchObject({ code: 'unconfirmed', retryable: false });
+		expect((err as Error).message).toMatch(/LinkedIn did not confirm the post/);
+	});
+
 	it('does not invent a post id when LinkedIn omits one', async () => {
 		// The post is out; only its id is missing. A timestamp used to stand in
 		// for it, which looks like a real id, never matches the platform, and

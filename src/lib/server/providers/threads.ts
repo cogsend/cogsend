@@ -8,7 +8,8 @@ import {
 	mediaByteLength,
 	ProviderError,
 	PublishPartialError,
-	providerErrorForStatus
+	providerErrorForStatus,
+	unconfirmedPostError
 } from './types';
 import type {
 	ConnectionCredentials,
@@ -386,6 +387,8 @@ export async function threadsPermalinkForMedia(
 
 export const threadsProvider: PlatformProvider = {
 	id: 'threads',
+	// Meta pulls every image from a signed URL (createMediaContainer).
+	mediaByUrl: true,
 	capabilities: {
 		maxImages: THREADS_MAX_IMAGES,
 		maxImageBytes: THREADS_MAX_IMAGE_BYTES,
@@ -680,24 +683,32 @@ export const threadsProvider: PlatformProvider = {
 			});
 		}
 
+		/** The published post's id, or '' when a 2xx came back without one. */
 		async function publishContainer(containerId: string): Promise<string> {
 			const pubForm = new URLSearchParams({
 				creation_id: containerId,
 				access_token: token
 			});
-			const pubRes = await fetchImpl(
-				`${graphBase()}/${encodeURIComponent(targetUserId)}/threads_publish`,
-				{
-					method: 'POST',
-					headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-					body: pubForm
-				}
-			);
+			let pubRes: Response;
+			try {
+				pubRes = await fetchImpl(
+					`${graphBase()}/${encodeURIComponent(targetUserId)}/threads_publish`,
+					{
+						method: 'POST',
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+						body: pubForm
+					}
+				);
+			} catch (err) {
+				throw unconfirmedPostError('Threads', err);
+			}
 			if (!pubRes.ok)
 				throw threadsUpstreamError('Threads publish', pubRes.status, await pubRes.text());
-			const published = (await pubRes.json()) as { id?: string };
-			if (!published.id) throw new Error('Threads publish returned no id');
-			return published.id;
+			// A 2xx is a live post even without a readable id: a retry would build
+			// a new container and post it again.
+			const published = (await pubRes.json().catch(() => ({}))) as { id?: unknown };
+			const id = published.id;
+			return typeof id === 'string' || typeof id === 'number' ? String(id) : '';
 		}
 
 		// One thread segment = one post. Segments after the first reply to the
@@ -799,7 +810,7 @@ export const threadsProvider: PlatformProvider = {
 				const { text, media } = normalizeSegment(seg);
 				const mediaId = await publishSegment(text, media, replyTo);
 				segmentIds.push(mediaId);
-				if (!permalinkPromise) {
+				if (!permalinkPromise && mediaId) {
 					// startAt was 0: this segment is the thread root.
 					permalinkPromise = threadsPermalinkForMedia(mediaId, token, creds, meta, fetchImpl);
 				}
@@ -807,7 +818,16 @@ export const threadsProvider: PlatformProvider = {
 					segmentIds: [...segmentIds],
 					remoteUrl: opts?.resume?.remoteUrl ?? null
 				});
-				replyTo = mediaId;
+				if (mediaId) {
+					replyTo = mediaId;
+				} else if (i < segments.length - 1) {
+					// A reply needs the parent's id: stop here with what was posted,
+					// so the retry resumes after this segment rather than reposting.
+					throw new PublishPartialError(
+						'Threads accepted the post but returned no id — the rest of the thread cannot be linked',
+						{ segmentIds: [...segmentIds], remoteUrl: (await resolvedRemoteUrl()) ?? null }
+					);
+				}
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
 				if (segmentIds.length) {
@@ -821,10 +841,9 @@ export const threadsProvider: PlatformProvider = {
 			if (i < segments.length - 1) await sleep(THREADS_SEGMENT_DELAY_MS);
 		}
 
-		const first = segmentIds[0];
-		if (!first) throw new Error('Threads publish produced no posts');
+		if (!segmentIds.length) throw new Error('Threads publish produced no posts');
 		return {
-			remotePostId: first,
+			remotePostId: segmentIds[0] || undefined,
 			remoteUrl: await resolvedRemoteUrl(),
 			segmentIds
 		};

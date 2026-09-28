@@ -106,6 +106,13 @@ export function countingMediaStore(store: MediaStore, budget: SubrequestBudget):
 			return size(key);
 		};
 	}
+	if (store.open) {
+		const open = store.open.bind(store);
+		counted.open = (key, range) => {
+			budget.count();
+			return open(key, range);
+		};
+	}
 	if (store.deleteMany) {
 		const deleteMany = store.deleteMany.bind(store);
 		counted.deleteMany = (keys) => {

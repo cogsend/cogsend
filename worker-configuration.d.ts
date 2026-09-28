@@ -26,7 +26,7 @@ interface R2Bucket {
 	get(
 		key: string,
 		options?: { range?: { offset?: number; length?: number } }
-	): Promise<{ arrayBuffer(): Promise<ArrayBuffer>; size: number } | null>;
+	): Promise<{ arrayBuffer(): Promise<ArrayBuffer>; body: ReadableStream; size: number } | null>;
 	head(key: string): Promise<{ size: number } | null>;
 	put(
 		key: string,

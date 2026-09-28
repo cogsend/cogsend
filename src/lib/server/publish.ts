@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { isLocalAppUrl } from '$lib/domain/app-url';
+import { safeHttpUrl } from '$lib/domain/links';
 import { LEASE_REFRESH_MS, STALE_CLAIM_MS } from '$lib/domain/due-jobs';
 import type { PublishResult } from '$lib/server/providers/types';
 import {
@@ -29,6 +30,7 @@ import {
 	providerFor,
 	ProviderError,
 	PublishPartialError,
+	UNCONFIRMED_POST_MARK,
 	ZERNIO_MAX_POLLS,
 	type ConnectionCredentials,
 	type FetchLike,
@@ -253,10 +255,11 @@ function httpsBaseUrl(raw: string | undefined): string | null {
 
 /**
  * Roughly how many subrequests publishing this content will take from here:
- * the database writes around the publish, one storage read per attachment,
- * and the platform's own calls (uploads, status polls, the post itself). An
- * estimate, deliberately generous — it only decides whether a second or later
- * target in one request starts now or on the next tick.
+ * the database writes around the publish, a storage read per attachment the
+ * platform is sent as bytes, and the platform's own calls (uploads, status
+ * polls, the post itself). An estimate, deliberately generous — it only decides
+ * whether a second or later target in one request starts now or on the next
+ * tick.
  */
 export function publishCallEstimate(platform: string, content: NormalizedPost): number {
 	const segments = content.thread && content.thread.length > 0 ? content.thread : [content];
@@ -268,7 +271,9 @@ export function publishCallEstimate(platform: string, content: NormalizedPost): 
 	// and draft status, a checkpoint per segment, and one more for whichever of
 	// a credential write, a lease renewal or a connection-status fix happens.
 	const database = 8 + segments.length;
-	const storage = media.length;
+	// One read per attachment, except where the platform is handed URLs instead
+	// (PlatformProvider.mediaByUrl): then publish reads nothing from storage.
+	let storage = media.length;
 	let platformCalls = 1;
 	switch (platform) {
 		case 'x':
@@ -301,12 +306,13 @@ export function publishCallEstimate(platform: string, content: NormalizedPost): 
 			// carousel adds a container and polls per item; the permalink lookup
 			// and the identity check run once.
 			platformCalls += segments.length * 4 + images.length * 3 + 4;
+			storage = 0;
 			break;
 		case 'zernio':
-			// One create and the status polls; media travels as URLs, so no
-			// uploads. Storage reads are still counted above: bytes are hydrated
-			// before any provider runs.
+			// One create and the status polls; media travels as URLs, so there
+			// are no uploads and no storage reads.
 			platformCalls += ZERNIO_MAX_POLLS;
+			storage = 0;
 			break;
 		default:
 			platformCalls += segments.length * 3 + media.length * 3;
@@ -543,10 +549,8 @@ export async function publishTarget(
 		);
 		const meta = parseJson<{ maxCharacters?: number; handle?: string }>(conn.metaJson, {});
 		const provider = providerFor(conn);
-		const content = await hydrateMedia(
-			prebuilt ?? (await buildNormalizedPost(db, target.draftId, conn.platform)),
-			store
-		);
+		const built = prebuilt ?? (await buildNormalizedPost(db, target.draftId, conn.platform));
+		const content = provider.mediaByUrl ? built : await hydrateMedia(built, store);
 		// A row uploaded before the feature was switched off (or on another
 		// instance) must fail with something a person can act on.
 		if (!env.videoUploadEnabled && (content.media ?? []).some(isVideoMedia)) {
@@ -646,7 +650,7 @@ export async function publishTarget(
 			.set({
 				status: 'published',
 				remotePostId: result.remotePostId,
-				remoteUrl: result.remoteUrl || null,
+				remoteUrl: safeHttpUrl(result.remoteUrl),
 				errorMessage: null,
 				jobId: null,
 				updatedAt: now
@@ -950,6 +954,9 @@ export async function refreshDraftStatuses(db: AppDb, draftIds: string[]) {
 
 export function isRetryableError(message: string): boolean {
 	const lower = message.toLowerCase();
+	// The post may already be live (unconfirmedPostError). A thread that failed
+	// part-way is classified by its message alone, so the code is not enough.
+	if (lower.includes(UNCONFIRMED_POST_MARK)) return false;
 	if (lower.includes('grapheme') || lower.includes('characters on this')) return false;
 	if (lower.includes('segment needs') || lower.includes('empty')) return false;
 	if (lower.includes('max 4 images') || lower.includes('max 4 photos')) return false;

@@ -10,7 +10,7 @@ import type {
 	PublishResult,
 	ValidationIssue
 } from './types';
-import { ProviderError, PublishPartialError } from './types';
+import { ProviderError, PublishPartialError, unconfirmedPostError } from './types';
 import { X_MAX_GIF_BYTES, X_MAX_IMAGE_BYTES } from '$lib/domain/media-limits';
 import { providerFetch } from './timed-fetch';
 
@@ -530,27 +530,45 @@ export const xProvider: PlatformProvider = {
 				if (mediaIds.length) body.media = { media_ids: mediaIds };
 				if (replyTo) body.reply = { in_reply_to_tweet_id: replyTo };
 
-				const res = await fetchImpl(`${X_API}/2/tweets`, {
-					method: 'POST',
-					headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-					body: JSON.stringify(body)
-				});
+				let res: Response;
+				try {
+					res = await fetchImpl(`${X_API}/2/tweets`, {
+						method: 'POST',
+						headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+						body: JSON.stringify(body)
+					});
+				} catch (err) {
+					throw unconfirmedPostError('X', err);
+				}
 				if (!res.ok) {
 					throw Object.assign(
 						new Error(`X post failed (${res.status}): ${(await res.text()).slice(0, 300)}`),
 						{ status: res.status }
 					);
 				}
-				const data = (await res.json()) as { data?: { id?: string } };
-				const id = data.data?.id;
-				if (!id) throw new Error('X post returned no id');
+				// A 2xx is a posted tweet even when its body cannot be read: retrying
+				// it for want of an id would post it twice.
+				const data = (await res.json().catch(() => ({}))) as { data?: { id?: unknown } };
+				const id = typeof data.data?.id === 'string' ? data.data.id : '';
 				segmentIds.push(id);
-				if (!firstUrl) firstUrl = xPostUrl(id, username) ?? undefined;
+				if (id && !firstUrl) firstUrl = xPostUrl(id, username) ?? undefined;
 				await opts?.checkpoint?.({
 					segmentIds: [...segmentIds],
 					remoteUrl: firstUrl ?? opts?.resume?.remoteUrl ?? null
 				});
-				replyTo = id;
+				if (id) {
+					replyTo = id;
+				} else if (i < segments.length - 1) {
+					// A reply needs the parent's id: stop here with what was posted,
+					// so the retry resumes after this segment rather than reposting.
+					throw new PublishPartialError(
+						'X accepted the post but returned no id — the rest of the thread cannot be linked',
+						{
+							segmentIds: [...segmentIds],
+							remoteUrl: firstUrl ?? opts?.resume?.remoteUrl ?? null
+						}
+					);
+				}
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
 				if (segmentIds.length) {
@@ -565,7 +583,7 @@ export const xProvider: PlatformProvider = {
 		}
 
 		return {
-			remotePostId: segmentIds[0],
+			remotePostId: segmentIds[0] || undefined,
 			remoteUrl: firstUrl,
 			segmentIds
 		};

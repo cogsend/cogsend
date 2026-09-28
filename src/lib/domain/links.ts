@@ -56,3 +56,20 @@ export function previewDomain(url: string): string | null {
 		return null;
 	}
 }
+
+/**
+ * A link that is safe to store and render as an `href`: http(s) only. A post's
+ * permalink comes from the platform's own answer (a Mastodon instance, Zernio),
+ * and a `javascript:` value there would run in this origin when clicked.
+ */
+export function safeHttpUrl(value: unknown): string | null {
+	if (typeof value !== 'string') return null;
+	const trimmed = value.trim();
+	if (!trimmed) return null;
+	try {
+		const { protocol } = new URL(trimmed);
+		return protocol === 'https:' || protocol === 'http:' ? trimmed : null;
+	} catch {
+		return null;
+	}
+}

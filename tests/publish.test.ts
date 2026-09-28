@@ -1576,3 +1576,213 @@ describe('publish auth classification', () => {
 		});
 	});
 });
+
+describe('posts a platform may have taken, URL-only media and stored links', () => {
+	let db: AppDb;
+	let close: () => void;
+	let userId: string;
+	const store = createTestMedia();
+	const noAnswer = () => {
+		throw Object.assign(new Error('Provider request timed out'), { status: 504 });
+	};
+
+	beforeAll(async () => {
+		({ db, close } = await createTestDb());
+		const now = new Date();
+		userId = newId();
+		await db.insert(users).values({
+			id: userId,
+			email: 'unconfirmed@localhost',
+			passwordHash: 'x',
+			timezone: 'UTC',
+			createdAt: now,
+			updatedAt: now
+		});
+	});
+	afterAll(() => close());
+
+	async function connection(platform: string, creds: Record<string, unknown>) {
+		const id = newId();
+		const now = new Date();
+		await db.insert(connections).values({
+			id,
+			userId,
+			platform,
+			handle: `@${platform}-user`,
+			instanceUrl: platform === 'mastodon' ? 'https://mastodon.test' : null,
+			credentialsEncrypted: await encryptJson(creds, TEST_ENV.APP_ENCRYPTION_KEY),
+			metaJson: JSON.stringify({ maxCharacters: 500 }),
+			status: 'active',
+			createdAt: now,
+			updatedAt: now
+		});
+		return id;
+	}
+
+	async function pending(connectionId: string, body: string, image = false) {
+		const now = new Date();
+		const draftId = newId();
+		await db.insert(drafts).values({
+			id: draftId,
+			userId,
+			baseBody: body,
+			status: 'draft',
+			createdAt: now,
+			updatedAt: now
+		});
+		if (image) {
+			await db.insert(draftMedia).values({
+				id: newId(),
+				draftId,
+				storageKey: `${Date.now()}-0123456789abcdef.png`,
+				mime: 'image/png',
+				size: 80,
+				segmentIndex: 0,
+				sortOrder: 0,
+				createdAt: now
+			});
+		}
+		const id = newId();
+		await db.insert(publishTargets).values({
+			id,
+			draftId,
+			connectionId,
+			status: 'pending',
+			attemptCount: 0,
+			createdAt: now,
+			updatedAt: now
+		});
+		return id;
+	}
+
+	const row = async (id: string) =>
+		(await db.select().from(publishTargets).where(eq(publishTargets.id, id)))[0];
+
+	const xCreds = {
+		accessToken: 'tok',
+		refreshToken: 'refresh',
+		clientId: 'client',
+		expiresAt: Date.now() + 2 * 60 * 60_000,
+		xUserId: '42',
+		xUsername: 'someone'
+	};
+	const threadsCreds = {
+		accessToken: 'tok',
+		threadsUserId: '777',
+		threadsUsername: 'someone',
+		expiresAt: Date.now() + 30 * 24 * 60 * 60_000
+	};
+	const threadsApi = (publish: () => Response) =>
+		mockFetch({
+			'/me?fields=': () => Response.json({ id: '777', username: 'someone' }),
+			debug_token: () =>
+				Response.json({
+					data: {
+						is_valid: true,
+						user_id: '777',
+						scopes: ['threads_basic', 'threads_content_publish']
+					}
+				}),
+			'/threads_publish': publish,
+			'/threads': () => Response.json({ id: 'container-1' })
+		});
+
+	it('an X post that gets no answer fails for good and says it may be live', async () => {
+		const conn = await connection('x', xCreds);
+		const id = await pending(conn, 'hello from a slow network');
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: mockFetch({ '/2/tweets': noAnswer })
+		});
+		expect(result.status).toBe('failed');
+		const target = await row(id);
+		expect(target.status).toBe('failed');
+		expect(target.errorMessage).toMatch(/may have been published/);
+		expect(target.errorMessage).toMatch(/Check X before you retry/);
+		const [account] = await db.select().from(connections).where(eq(connections.id, conn));
+		expect(account.status).toBe('active');
+	});
+
+	it('a thread that loses the answer for its second X post keeps the first and stops', async () => {
+		const conn = await connection('x', xCreds);
+		const id = await pending(conn, 'first post\n---\nsecond post');
+		let calls = 0;
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: mockFetch({
+				'/2/tweets': () => {
+					calls += 1;
+					if (calls === 1) return Response.json({ data: { id: '100' } }, { status: 201 });
+					return noAnswer();
+				}
+			})
+		});
+		expect(result.status).toBe('failed');
+		const attempts = await db
+			.select()
+			.from(publishAttempts)
+			.where(eq(publishAttempts.publishTargetId, id));
+		const summary = JSON.parse(attempts[0]?.responseSummary ?? '{}') as { segmentIds?: string[] };
+		expect(summary.segmentIds).toEqual(['100']);
+	});
+
+	it('an X post accepted without an id is published, not posted again', async () => {
+		const conn = await connection('x', xCreds);
+		const id = await pending(conn, 'posted, id lost');
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: mockFetch({ '/2/tweets': () => new Response('not json', { status: 201 }) })
+		});
+		expect(result.status).toBe('published');
+		expect((await row(id)).status).toBe('published');
+	});
+
+	it('a Threads publish that gets no answer fails for good', async () => {
+		const conn = await connection('threads', threadsCreds);
+		const id = await pending(conn, 'hello threads');
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: threadsApi(noAnswer)
+		});
+		expect(result.status).toBe('failed');
+		expect((await row(id)).errorMessage).toMatch(/Threads did not confirm the post/);
+	});
+
+	it('publishes a Threads image without reading its bytes from storage', async () => {
+		const conn = await connection('threads', threadsCreds);
+		const id = await pending(conn, 'with a picture', true);
+		const urlOnly = {
+			...createTestMedia(),
+			get: async () => {
+				throw new Error('Threads is sent a URL, never the bytes');
+			}
+		};
+		const result = await publishTarget(db, TEST_ENV, urlOnly, id, {
+			fetchImpl: threadsApi(() => Response.json({ id: 'media-1' }))
+		});
+		expect(result.status).toBe('published');
+		expect(result.remotePostId).toBe('media-1');
+	});
+
+	it('stores no link when a platform answers with a script URL', async () => {
+		const conn = await connection('mastodon', {
+			accessToken: 'tok',
+			instanceUrl: 'https://mastodon.test'
+		});
+		const id = await pending(conn, 'hello mastodon');
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: mockFetch({
+				'/api/v1/statuses': () => Response.json({ id: 's1', url: 'javascript:alert(1)' })
+			})
+		});
+		expect(result.status).toBe('published');
+		const target = await row(id);
+		expect(target.remotePostId).toBe('s1');
+		expect(target.remoteUrl).toBeNull();
+	});
+
+	it('never retries an unconfirmed post on a timer', () => {
+		expect(
+			isRetryableError(
+				'LinkedIn did not confirm the post in time, so it may have been published. Check LinkedIn before you retry.'
+			)
+		).toBe(false);
+		expect(isRetryableError('Provider request timed out')).toBe(true);
+	});
+});

@@ -104,9 +104,12 @@ describe('counting wrappers', () => {
 		await store.getRange?.('k', 0, 0);
 		await store.deleteMany?.(['k']);
 		expect(budget.used).toBe(5);
+		const streamed = countingMediaStore({ ...createTestMedia(), open: async () => null }, budget);
+		await streamed.open?.('k');
+		expect(budget.used).toBe(6);
 		const fetched = countingFetch(async () => new Response('ok'), budget);
 		await fetched('https://example.test');
-		expect(budget.used).toBe(6);
+		expect(budget.used).toBe(7);
 	});
 });
 
@@ -121,6 +124,17 @@ describe('publishCallEstimate', () => {
 		});
 		expect(withImages).toBeGreaterThan(one);
 		expect(thread).toBeGreaterThan(one);
+	});
+
+	it('counts no storage reads where the platform is sent URLs', () => {
+		const withImages = { text: 'hi', media: [image, image] };
+		expect(publishCallEstimate('zernio', withImages)).toBe(
+			publishCallEstimate('zernio', { text: 'hi' })
+		);
+		// Mastodon is sent the bytes: each image is a read on top of its upload.
+		expect(publishCallEstimate('mastodon', withImages)).toBe(
+			publishCallEstimate('mastodon', { text: 'hi' }) + 2 * (1 + 3)
+		);
 	});
 
 	it('counts X media uploads by their chunks', () => {

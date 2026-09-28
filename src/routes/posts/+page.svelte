@@ -19,6 +19,7 @@
 	import SocialIcon from '$lib/components/SocialIcon.svelte';
 	import { displayHandle, platformName, platformRank } from '$lib/domain/platforms';
 	import { draftExcerpt } from '$lib/domain/excerpt';
+	import { safeHttpUrl } from '$lib/domain/links';
 	import { humanizeError } from '$lib/domain/human-error';
 	import { sessionExpiredIfUnauthorized } from '$lib/components/session-expired';
 	import { menuNav } from '$lib/components/menu-nav';
@@ -381,7 +382,8 @@
 					name: t.connection.platform,
 					connectionId: t.connection.id,
 					displayName: t.connection.displayName,
-					remoteUrl: t.remoteUrl,
+					// Rows stored before the scheme check could still carry any value.
+					remoteUrl: safeHttpUrl(t.remoteUrl),
 					error: t.errorMessage,
 					status: t.status,
 					targetId: t.id,
@@ -408,7 +410,7 @@
 					: ('published' as const),
 				platforms,
 				// Fallbacks in case we need a general error
-				remoteUrl: primary.remoteUrl,
+				remoteUrl: safeHttpUrl(primary.remoteUrl),
 				error: hasFailed
 					? group.find((t) => t.status === 'failed')?.errorMessage || 'Failed on some platforms'
 					: null,

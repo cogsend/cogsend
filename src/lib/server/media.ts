@@ -52,6 +52,15 @@ export function r2MediaStore(bucket: R2Bucket): MediaStore {
 			const obj = await bucket.head(key);
 			return obj?.size ?? null;
 		},
+		async open(key, range) {
+			const obj = await bucket.get(
+				key,
+				range ? { range: { offset: range.start, length: range.end - range.start + 1 } } : undefined
+			);
+			if (!obj) return null;
+			// `size` is the whole object's, whatever range was read.
+			return { body: obj.body, size: obj.size };
+		},
 		async put(key, bytes, mime) {
 			await bucket.put(key, bytes, { httpMetadata: { contentType: mime } });
 		},
@@ -227,9 +236,8 @@ export function servableMime(mime: string | null | undefined): string {
 }
 
 // Serve with Range/206 support + hardening headers. Range requests read only
-// the bytes they ask for; a plain GET hands back the whole object, which is
-// what a browser downloading the file wants, and is the one path that can
-// buffer a large video in the isolate (128MB limit).
+// the bytes they ask for. A store that can stream (R2) never holds the file in
+// the isolate (128MB limit vs 95MB videos); one that cannot buffers it.
 export async function serveMediaBytes(
 	store: MediaStore,
 	key: string,
@@ -242,9 +250,17 @@ export async function serveMediaBytes(
 		'X-Content-Type-Options': 'nosniff',
 		'Cache-Control': opts.cacheControl
 	};
+	const range = request?.headers.get('Range');
+	if (!range && store.open) {
+		// One read: the stream carries the size, so there is no HEAD first.
+		const whole = await store.open(key);
+		if (!whole) return new Response('Not found', { status: 404 });
+		return new Response(whole.body, {
+			headers: { ...baseHeaders, 'Content-Length': String(whole.size) }
+		});
+	}
 	const total = (await store.size?.(key)) ?? (await store.get(key))?.length ?? null;
 	if (total === null) return new Response('Not found', { status: 404 });
-	const range = request?.headers.get('Range');
 	if (!range) {
 		const bytes = store.getRange ? await store.getRange(key, 0, total - 1) : await store.get(key);
 		if (!bytes) return new Response('Not found', { status: 404 });
@@ -285,16 +301,22 @@ export async function serveMediaBytes(
 		});
 	}
 	const clamped = Math.min(end, total - 1);
+	const partHeaders = {
+		...baseHeaders,
+		'Content-Range': `bytes ${start}-${clamped}/${total}`,
+		'Content-Length': String(clamped - start + 1)
+	};
+	if (store.open) {
+		const part = await store.open(key, { start, end: clamped });
+		if (!part) return new Response('Not found', { status: 404 });
+		return new Response(part.body, { status: 206, headers: partHeaders });
+	}
 	const bytes = store.getRange
 		? await store.getRange(key, start, clamped)
 		: ((await store.get(key))?.slice(start, clamped + 1) ?? null);
 	if (!bytes) return new Response('Not found', { status: 404 });
 	return new Response(bytes as unknown as BodyInit, {
 		status: 206,
-		headers: {
-			...baseHeaders,
-			'Content-Range': `bytes ${start}-${clamped}/${total}`,
-			'Content-Length': String(bytes.length)
-		}
+		headers: { ...partHeaders, 'Content-Length': String(bytes.length) }
 	});
 }
