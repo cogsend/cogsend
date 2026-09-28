@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql, type InferSelectModel } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql, type InferSelectModel } from 'drizzle-orm';
 import { batchQueries, chunkIds, type AppDb } from './db/client';
 import { connections, draftMedia, drafts, publishTargets } from './db/schema';
 import { serializeMedia } from './serialize';
@@ -142,8 +142,17 @@ export async function loadDraftSummaries(db: AppDb, userId: string, limit = DRAF
 	};
 }
 
-/** Queue list shared by `GET /api/queue` and the posts page. */
+/**
+ * Queue list shared by `GET /api/queue` and the posts page: everything still
+ * to go out first, soonest first, then history newest first.
+ *
+ * A published target keeps its `scheduledFor`, so ordering by that column alone
+ * would put the oldest history ahead of the posts that are waiting and, past a
+ * window's worth of it, push them out of the list. A NULL schedule is a
+ * "publish now" row, which is due now and sorts first among the upcoming.
+ */
 export async function loadQueueList(db: AppDb, userId: string, limit = QUEUE_LIST_LIMIT) {
+	const upcoming = sql`${publishTargets.status} in ('scheduled', 'pending', 'publishing')`;
 	const targetsQuery = db
 		.select()
 		.from(publishTargets)
@@ -163,8 +172,8 @@ export async function loadQueueList(db: AppDb, userId: string, limit = QUEUE_LIS
 			)
 		)
 		.orderBy(
-			sql`${publishTargets.scheduledFor} is null`,
-			asc(publishTargets.scheduledFor),
+			sql`case when ${upcoming} then 0 else 1 end`,
+			sql`case when ${upcoming} then ${publishTargets.scheduledFor} end asc`,
 			desc(publishTargets.updatedAt)
 		)
 		.limit(limit + 1);

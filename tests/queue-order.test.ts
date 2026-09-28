@@ -123,3 +123,134 @@ describe('GET /api/queue ordering', () => {
 		expect(body.targets[2].status).toBe('published');
 	});
 });
+
+/**
+ * A published target keeps the `scheduledFor` it went out at, so a long
+ * history of scheduled posts sorted ahead of the ones still waiting and pushed
+ * them out of the window.
+ */
+describe('GET /api/queue with scheduled history', () => {
+	let db: AppDb;
+	let close: () => void;
+	let userId: string;
+	const now = new Date();
+
+	const queue = () =>
+		queueGET({
+			locals: {
+				db,
+				user: {
+					id: userId,
+					email: 'queue-history@localhost',
+					timezone: 'UTC',
+					totpEnabled: true,
+					mfaVerified: true
+				}
+			}
+		} as never) as Promise<Response>;
+
+	beforeAll(async () => {
+		({ db, close } = await createTestDb());
+		userId = newId();
+		await db.insert(users).values({
+			id: userId,
+			email: 'queue-history@localhost',
+			passwordHash: 'x',
+			timezone: 'UTC',
+			createdAt: now,
+			updatedAt: now
+		});
+		const connId = newId();
+		await db.insert(connections).values({
+			id: connId,
+			userId,
+			platform: 'mastodon',
+			handle: 'history@example.social',
+			credentialsEncrypted: 'enc',
+			status: 'active',
+			createdAt: now,
+			updatedAt: now
+		});
+
+		const rows: Array<{
+			body: string;
+			status: string;
+			scheduledFor: Date | null;
+			updatedAt: Date;
+			remotePostId?: string;
+		}> = [];
+		// Scheduled long ago, published at the time: each keeps its schedule.
+		for (let i = 0; i < 105; i++) {
+			const at = new Date(now.getTime() - (200 - i) * 60 * 60_000);
+			rows.push({
+				body: `history ${i}`,
+				status: 'published',
+				scheduledFor: at,
+				updatedAt: at,
+				remotePostId: `remote-${i}`
+			});
+		}
+		rows.push({
+			body: 'due now',
+			status: 'pending',
+			scheduledFor: null,
+			updatedAt: now
+		});
+		rows.push({
+			body: 'later',
+			status: 'scheduled',
+			scheduledFor: new Date(now.getTime() + 120_000),
+			updatedAt: now
+		});
+		rows.push({
+			body: 'sooner',
+			status: 'scheduled',
+			scheduledFor: new Date(now.getTime() + 60_000),
+			updatedAt: now
+		});
+
+		for (const row of rows) {
+			const draftId = newId();
+			await db.insert(drafts).values({
+				id: draftId,
+				userId,
+				baseBody: row.body,
+				status: row.status === 'published' ? 'published' : 'scheduled',
+				createdAt: now,
+				updatedAt: row.updatedAt
+			});
+			await db.insert(publishTargets).values({
+				id: newId(),
+				draftId,
+				connectionId: connId,
+				status: row.status,
+				scheduledFor: row.scheduledFor,
+				remotePostId: row.remotePostId ?? null,
+				attemptCount: row.status === 'published' ? 1 : 0,
+				createdAt: now,
+				updatedAt: row.updatedAt
+			});
+		}
+	});
+	afterAll(() => close());
+
+	it('lists every waiting post first, then the newest history', async () => {
+		const res = await queue();
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			targets: Array<{ status: string; draft: { baseBody: string } }>;
+			hasMore: boolean;
+		};
+		expect(body.targets).toHaveLength(100);
+		expect(body.hasMore).toBe(true);
+		expect(body.targets.slice(0, 3).map((t) => t.draft.baseBody)).toEqual([
+			'due now',
+			'sooner',
+			'later'
+		]);
+		// History follows newest first, so what falls off the end is the oldest.
+		expect(body.targets[3].draft.baseBody).toBe('history 104');
+		expect(body.targets[4].draft.baseBody).toBe('history 103');
+		expect(body.targets.every((t, i) => i < 3 || t.status === 'published')).toBe(true);
+	});
+});
