@@ -1,5 +1,6 @@
 import type { RequestHandler } from './$types';
-import { authenticatePassword, createSession, getAdminUser } from '$lib/server/auth';
+import { createSession, getAdminUser } from '$lib/server/auth';
+import { verifyPassword } from '$lib/server/crypto';
 import {
 	assertPasswordGateOpen,
 	clearPasswordGate,
@@ -22,18 +23,21 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 		const admin = await getAdminUser(locals.db);
 		if (!admin) return fail('This instance has no account yet', 409);
 		// The gate is keyed on the single admin row, so an unknown email must not
-		// advance it — otherwise anyone can lock the real owner out with eight
-		// guesses at a made-up address. Only a wrong password for the actual
-		// admin identity counts, and per client address (see auth-gate.ts).
+		// advance its account-wide count — otherwise anyone can lock the real
+		// owner out with guesses at a made-up address. It counts against its own
+		// client address only (see recordPasswordFailure).
 		const knownEmail = email.trim().toLowerCase() === admin.email.trim().toLowerCase();
 		const ip = rateLimitKey(request.headers);
 		await assertPasswordGateOpen(locals.db, locals.env, admin.id, ip);
-		const user = await authenticatePassword(locals.db, email, password);
-		if (!user) {
-			if (knownEmail) {
-				const failGate = await recordPasswordFailure(locals.db, locals.env, admin.id, ip);
-				if (failGate.locked) return fail('Too many attempts — try again in 15 minutes', 401);
-			}
+		// The key derivation runs against the account's own hash whatever email
+		// was typed, so a wrong email takes as long as a wrong password and the
+		// response time cannot confirm the address.
+		const passwordOk = await verifyPassword(password, admin.passwordHash);
+		if (!knownEmail || !passwordOk) {
+			const failGate = await recordPasswordFailure(locals.db, locals.env, admin.id, ip, {
+				knownEmail
+			});
+			if (failGate.locked) return fail('Too many attempts — try again in 15 minutes', 401);
 			return fail('Invalid credentials', 401);
 		}
 		await clearPasswordGate(locals.db, locals.env, admin.id, ip);
@@ -42,20 +46,20 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 			const { raw, maxAge } = await createSession(
 				locals.db,
 				locals.env,
-				user.id,
+				admin.id,
 				remember,
 				true,
-				user.passwordHash
+				admin.passwordHash
 			);
 			setSessionCookie(cookies, locals.env, url.host, raw, maxAge);
-			return ok({ user: { id: user.id, email: user.email } });
+			return ok({ user: { id: admin.id, email: admin.email } });
 		}
-		if (user.totpEnabled) {
-			const token = await startLoginChallenge(locals.db, locals.env, user.id, remember);
+		if (admin.totpEnabled) {
+			const token = await startLoginChallenge(locals.db, locals.env, admin.id, remember);
 			setMfaCookie(cookies, locals.env, url.host, token);
 			return ok({ needTotp: true });
 		}
-		const token = await startEnrollChallenge(locals.db, locals.env, user.id, remember);
+		const token = await startEnrollChallenge(locals.db, locals.env, admin.id, remember);
 		setMfaCookie(cookies, locals.env, url.host, token);
 		return ok({ needEnroll: true });
 	} catch (err) {

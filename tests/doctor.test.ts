@@ -275,6 +275,28 @@ describe('update check', () => {
 		expect(accountVerdict({}).status).toBe('skip');
 	});
 
+	it('takes 2FA status from the database once the app no longer reports it', () => {
+		// Signed out: nothing says whether 2FA is set up, so none is claimed.
+		expect(accountVerdict({ created: true })).toEqual({
+			id: 'account',
+			status: 'ok',
+			label: 'Account created'
+		});
+		expect(accountVerdict({ created: true }, { ok: true, totpEnrolled: false }).status).toBe(
+			'warn'
+		);
+		expect(accountVerdict({ created: true }, { ok: true, totpEnrolled: true }).label).toBe(
+			'Account created, authenticator enrolled'
+		);
+		// A failed read decides nothing.
+		expect(accountVerdict({ created: true }, { ok: false }).label).toBe('Account created');
+		// A deployment that still reports it is believed over the database.
+		expect(
+			accountVerdict({ created: true, totpEnrolled: true }, { ok: true, totpEnrolled: false })
+				.status
+		).toBe('ok');
+	});
+
 	it('warns only when a newer release exists', () => {
 		const outdated = releaseVerdict({ current: '1.0.0', latest: '1.2.0', shape: 'clone' });
 		expect(outdated.status).toBe('warn');

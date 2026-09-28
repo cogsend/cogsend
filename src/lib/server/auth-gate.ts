@@ -139,19 +139,31 @@ export async function assertPasswordGateOpen(
 	await assertAuthGateOpen(db, env, userId, 'password-all', { max: PASSWORD_GATE_GLOBAL_MAX });
 }
 
+/**
+ * `knownEmail: false` is a sign-in attempt with an address that is not the
+ * account's. It counts against its own client address, so the lockout answer is
+ * the same whatever email was typed and cannot confirm the right one. It never
+ * counts against the whole account: that would let anyone who does not know
+ * the email lock the owner out. Without an address there is nothing it can be
+ * held to, so it is not counted at all. Both paths write twice (the second
+ * into a counter nothing checks), so response time cannot tell them apart.
+ */
 export async function recordPasswordFailure(
 	db: AppDb,
 	env: AppEnv,
 	userId: string,
-	ip: string | null | undefined
+	ip: string | null | undefined,
+	opts: { knownEmail?: boolean } = {}
 ): Promise<{ locked: boolean }> {
-	const own = await recordAuthGateFailure(db, env, userId, 'password', {
-		scope: clientAddressBucket(ip)
-	});
+	const knownEmail = opts.knownEmail ?? true;
+	const scope = clientAddressBucket(ip);
+	if (!knownEmail && !scope) return { locked: false };
+	const own = await recordAuthGateFailure(db, env, userId, 'password', { scope });
 	const all = await recordAuthGateFailure(db, env, userId, 'password-all', {
-		max: PASSWORD_GATE_GLOBAL_MAX
+		max: PASSWORD_GATE_GLOBAL_MAX,
+		scope: knownEmail ? undefined : 'unknown-email'
 	});
-	return { locked: own.locked || all.locked };
+	return { locked: own.locked || (knownEmail && all.locked) };
 }
 
 /** A correct password clears this address's count and the account-wide one. */

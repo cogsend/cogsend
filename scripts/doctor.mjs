@@ -22,7 +22,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PLACEHOLDER_VALUES, readDevVars } from './lib/dev-vars.mjs';
-import { checkTarget, explainTarget } from './lib/target-account.mjs';
+import { readAccount } from './lib/account.mjs';
+import { CHECKED_ENV, checkTarget, explainTarget } from './lib/target-account.mjs';
 import { apiHeaders, onboardingUrl, readSubdomain } from './lib/workers-subdomain.mjs';
 
 /**
@@ -472,11 +473,11 @@ export function formatReport(checks) {
  *
  * @param {string} command
  * @param {string[]} args
- * @param {{ timeout?: number }} [options]
+ * @param {{ timeout?: number, env?: NodeJS.ProcessEnv }} [options]
  * @returns {RunResult}
  */
-function run(command, args, { timeout = 90_000 } = {}) {
-	const result = spawnSync(command, args, { encoding: 'utf8', timeout });
+function run(command, args, { timeout = 90_000, env } = {}) {
+	const result = spawnSync(command, args, { encoding: 'utf8', timeout, env });
 	return {
 		status: result.status ?? -1,
 		stdout: result.stdout ?? '',
@@ -484,7 +485,7 @@ function run(command, args, { timeout = 90_000 } = {}) {
 	};
 }
 
-/** @param {string[]} args @param {{ timeout?: number }} [opts] @returns {RunResult} */
+/** @param {string[]} args @param {{ timeout?: number, env?: NodeJS.ProcessEnv }} [opts] @returns {RunResult} */
 const wrangler = (args, opts) => run('node', ['scripts/wrangler.mjs', ...args], opts);
 
 /** @returns {Check} */
@@ -555,10 +556,16 @@ export function platformVerdict(secretNames) {
  * it. A deployment that has an account but no authenticator is simply one whose
  * owner has not signed in yet, which is worth a nudge rather than a failure.
  *
+ * The app does not tell anonymous callers whether 2FA is set up, so that comes
+ * from the database (`stored`) when doctor is signed in; an older deployment
+ * that still reports it is believed. Unknown either way, the account is only
+ * reported as created.
+ *
  * @param {{ created?: boolean, totpEnrolled?: boolean } | null} account
+ * @param {{ ok: boolean, totpEnrolled?: boolean } | null} [stored]
  * @returns {Check}
  */
-export function accountVerdict(account) {
+export function accountVerdict(account, stored = null) {
 	if (!account || typeof account.created !== 'boolean') {
 		return { id: 'account', status: 'skip', label: 'Account check skipped (no health payload)' };
 	}
@@ -571,7 +578,16 @@ export function accountVerdict(account) {
 			fix: 'Run `npm run setup` from your checkout: it creates the account in D1'
 		};
 	}
-	if (!account.totpEnrolled) {
+	const totpEnrolled =
+		typeof account.totpEnrolled === 'boolean'
+			? account.totpEnrolled
+			: stored?.ok && typeof stored.totpEnrolled === 'boolean'
+				? stored.totpEnrolled
+				: undefined;
+	if (totpEnrolled === undefined) {
+		return { id: 'account', status: 'ok', label: 'Account created' };
+	}
+	if (!totpEnrolled) {
 		return {
 			id: 'account',
 			status: 'warn',
@@ -816,6 +832,8 @@ async function main() {
 	const binding = config?.d1_databases?.[0]?.binding ?? 'DB';
 	const bucket = config?.r2_buckets?.[0]?.bucket_name;
 
+	/** The account row as D1 holds it, when doctor could read it. */
+	let storedAccount = null;
 	if (signedIn) {
 		const listed = wrangler(['d1', 'list', '--json'], { timeout: 60_000 });
 		const databases = parseD1List(listed.stdout);
@@ -838,6 +856,16 @@ async function main() {
 							fix: 'npm run deploy'
 						}
 		);
+
+		// Whether 2FA is set up, which the app only tells a signed-in owner. Read
+		// only from the database this checkout deploys to, and only once the
+		// account check above said the commands reach it.
+		if (found && (target.verdict === 'match' || target.verdict === 'new')) {
+			const env = { ...process.env, [CHECKED_ENV]: target.current.accountId ?? '' };
+			storedAccount = await readAccount({
+				wrangler: async (args) => wrangler(args, { timeout: 60_000, env })
+			});
+		}
 
 		const buckets = wrangler(['r2', 'bucket', 'list'], { timeout: 60_000 });
 		if (buckets.status !== 0) {
@@ -990,7 +1018,7 @@ async function main() {
 	if (appUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)/.test(appUrl)) {
 		const probed = await probeApp(appUrl);
 		checks.push(probed.check);
-		checks.push(accountVerdict(probed.account));
+		checks.push(accountVerdict(probed.account, storedAccount));
 		deployedVersion = probed.version;
 		const token = devVars?.get('API_TOKEN');
 		if (token) {

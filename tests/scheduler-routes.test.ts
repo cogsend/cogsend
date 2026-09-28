@@ -140,7 +140,10 @@ describe('scheduler routes', () => {
 	it('answers the health probe without authentication', async () => {
 		const res = (await healthGET({ locals: { db } } as never)) as Response;
 		expect(res.status).toBe(200);
-		expect(((await res.json()) as { ok: boolean }).ok).toBe(true);
+		const body = (await res.json()) as { ok: boolean; account: Record<string, unknown> };
+		expect(body.ok).toBe(true);
+		// Whether 2FA is enrolled is not for anonymous callers to learn.
+		expect(body.account).toEqual({ created: true });
 	});
 
 	it('reports scheduler status to a session, and refuses an anonymous call', async () => {
