@@ -14,7 +14,8 @@ import {
 	xVerify,
 	type ConnectionCredentials
 } from '$lib/server/providers';
-import { sanitizeMastodonInstanceUrl } from '$lib/server/providers/mastodon';
+import { mastodonVerifyCredentials } from '$lib/server/providers/mastodon';
+import { isLocalAppUrl } from '$lib/domain/app-url';
 import { requireSession } from '$lib/server/require';
 import { isZernioAccountDead, listAccounts } from '$lib/server/zernio';
 
@@ -270,11 +271,15 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 				})
 				.where(owned);
 		} else if (conn.platform === 'mastodon' && creds.instanceUrl && creds.accessToken) {
-			// Re-normalize + re-block stored instances (fail closed on poisoned rows).
-			const instanceUrl = sanitizeMastodonInstanceUrl(creds.instanceUrl);
-			const res = await fetch(`${instanceUrl}/api/v1/accounts/verify_credentials`, {
-				headers: { Authorization: `Bearer ${creds.accessToken}` }
-			});
+			// Re-normalizes and re-blocks the stored instance (fail closed on a
+			// poisoned row) and re-checks every redirect hop, like publishing does.
+			const res = await mastodonVerifyCredentials(
+				creds.instanceUrl,
+				creds.accessToken,
+				undefined,
+				isLocalAppUrl(locals.env.APP_URL)
+			);
+			await res.body?.cancel().catch(() => {});
 			if (res.status === 401 || res.status === 403) {
 				await locals.db
 					.update(connections)

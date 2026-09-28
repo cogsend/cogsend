@@ -419,6 +419,24 @@ export async function mastodonRegisterApp(
 	return { clientId: data.client_id, clientSecret: data.client_secret, instanceUrl: base };
 }
 
+/**
+ * `verify_credentials` with the same host check, redirect guard and timeout
+ * as publishing: the request carries the account's token, and a stored
+ * instance that redirects must not be able to hand it to another host. The
+ * caller reads the status (401/403 means the token is gone).
+ */
+export async function mastodonVerifyCredentials(
+	instanceUrl: string,
+	accessToken: string,
+	fetchImpl: FetchLike = providerFetch,
+	allowLocal = false
+): Promise<Response> {
+	const base = normalizeInstance(instanceUrl, allowLocal);
+	return guardRedirects(fetchImpl, allowLocal)(`${base}/api/v1/accounts/verify_credentials`, {
+		headers: { Authorization: `Bearer ${accessToken}` }
+	});
+}
+
 export function mastodonAuthorizeUrl(
 	instanceUrl: string,
 	clientId: string,

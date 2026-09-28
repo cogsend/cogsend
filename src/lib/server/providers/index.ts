@@ -43,6 +43,7 @@ export {
 	mastodonProvider,
 	mastodonRegisterApp,
 	mastodonAuthorizeUrl,
+	mastodonVerifyCredentials,
 	mastodonExchangeCode,
 	sanitizeMastodonInstanceUrl
 } from './mastodon';

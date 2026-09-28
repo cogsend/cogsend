@@ -147,6 +147,37 @@ describe('POST /api/connections/[id]/verify — session only, gate before write'
 		vi.unstubAllGlobals();
 	});
 
+	it('refuses to follow an instance that redirects to an internal address', async () => {
+		const conn = await addConnection(ownerId, {
+			credentialsEncrypted: await encryptJson(
+				{ instanceUrl: 'https://mastodon.example', accessToken: 'secret-token' },
+				TEST_ENV.APP_ENCRYPTION_KEY
+			)
+		});
+		const seen: string[] = [];
+		const internal = 'http://169.254.169.254/latest/meta-data/';
+		// Follows redirects the way fetch does unless told `redirect: 'manual'`.
+		const fakeFetch = async (input: unknown, init?: RequestInit): Promise<Response> => {
+			const url = String(input);
+			seen.push(url);
+			if (url === internal) return Response.json({ id: 'metadata' });
+			if (init?.redirect === 'manual') {
+				return new Response(null, { status: 302, headers: { location: internal } });
+			}
+			return fakeFetch(internal, init);
+		};
+		vi.stubGlobal('fetch', vi.fn(fakeFetch));
+
+		const res = await verify(conn);
+
+		expect(res.ok).toBe(false);
+		// The token-carrying request never reached the internal address.
+		expect(seen).toEqual(['https://mastodon.example/api/v1/accounts/verify_credentials']);
+		// A refused hop is not a dead token: the account keeps its status.
+		expect((await statusOf(conn)).status).toBe('active');
+		vi.unstubAllGlobals();
+	});
+
 	describe('through Zernio', () => {
 		afterEach(() => vi.unstubAllGlobals());
 
