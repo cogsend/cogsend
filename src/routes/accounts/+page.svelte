@@ -914,7 +914,7 @@
 						placeholder="handle.bsky.social"
 						aria-label="Bluesky handle"
 						bind:value={handle}
-						class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2.5 text-sm font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+						class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2.5 text-sm font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 						required
 					/>
 					<input
@@ -922,7 +922,7 @@
 						placeholder="App password (xxxx-xxxx-xxxx-xxxx)"
 						aria-label="Bluesky app password"
 						bind:value={appPassword}
-						class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2.5 text-sm font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+						class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2.5 text-sm font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 						required
 						autocomplete="off"
 					/>
@@ -964,7 +964,7 @@
 								: 'Zernio API key'}
 							aria-label="Zernio API key"
 							bind:value={zernioApiKey}
-							class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2.5 text-sm font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+							class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2.5 text-sm font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 							required={!zernioHasStoredKey}
 							autocomplete="off"
 						/>
@@ -1038,7 +1038,7 @@
 								<select
 									aria-label="Platform"
 									bind:value={zernioConnectPlatform}
-									class="rounded-lg border border-stone-200/80 bg-white px-2 py-1.5 text-xs font-bold text-stone-900"
+									class="rounded-lg border border-stone-200/80 bg-white px-2 py-1.5 text-xs font-bold text-stone-900 pointer-coarse:text-base"
 								>
 									{#each ZERNIO_PLATFORMS as id (id)}
 										<option value={id}>{platformName(id)}</option>
@@ -1047,7 +1047,7 @@
 								<select
 									aria-label="Zernio profile"
 									bind:value={zernioConnectProfile}
-									class="rounded-lg border border-stone-200/80 bg-white px-2 py-1.5 text-xs font-bold text-stone-900"
+									class="rounded-lg border border-stone-200/80 bg-white px-2 py-1.5 text-xs font-bold text-stone-900 pointer-coarse:text-base"
 								>
 									{#each zernioProfiles as profile (profile.id)}
 										<option value={profile.id}>{profile.name}</option>
@@ -1087,7 +1087,7 @@
 						placeholder="https://mastodon.social"
 						aria-label="Mastodon instance URL"
 						bind:value={instanceUrl}
-						class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2.5 text-sm font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+						class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2.5 text-sm font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 						required
 					/>
 					{#if err}

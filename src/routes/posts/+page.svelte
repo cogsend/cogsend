@@ -866,7 +866,7 @@
 					aria-label="Search posts"
 					bind:this={searchInput}
 					bind:value={query}
-					class="w-full rounded-full border border-stone-200/80 bg-white py-2 pr-9 pl-10 text-[13px] font-bold text-stone-900 shadow-sm transition-all placeholder:font-medium placeholder:text-stone-500 focus:border-stone-300 focus:ring-2 focus:ring-stone-200 focus:outline-none sm:w-48"
+					class="w-full rounded-full border border-stone-200/80 bg-white py-2 pr-9 pl-10 text-[13px] font-bold text-stone-900 shadow-sm transition-all placeholder:font-medium placeholder:text-stone-500 focus:border-stone-300 focus:ring-2 focus:ring-stone-200 focus:outline-none sm:w-48 pointer-coarse:text-base"
 				/>
 				{#if query}
 					<button
@@ -1387,14 +1387,14 @@
 										aria-label="Reschedule in amount"
 										bind:value={rescheduleRelativeValue}
 										oninput={applyRelativeReschedule}
-										class="w-20 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-center text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none"
+										class="w-20 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-center text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 									/>
 									<select
 										data-testid="reschedule-offset-unit"
 										aria-label="Reschedule in unit"
 										bind:value={rescheduleRelativeUnit}
 										onchange={applyRelativeReschedule}
-										class="flex-1 appearance-none rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none"
+										class="flex-1 appearance-none rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 									>
 										<option value="mins">Minutes</option>
 										<option value="hours">Hours</option>
@@ -1414,7 +1414,7 @@
 										data-testid="reschedule-datetime"
 										min={minRescheduleAt}
 										bind:value={rescheduleAt}
-										class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2 text-sm font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+										class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2 text-sm font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 									/>
 								</div>
 							</div>

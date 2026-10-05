@@ -846,7 +846,7 @@
 								placeholder="Your name"
 								maxlength="80"
 								autocomplete="name"
-								class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 shadow-sm transition-all focus:border-stone-900 focus:bg-white focus:ring-2 focus:ring-stone-900 focus:outline-none disabled:opacity-50"
+								class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 shadow-sm transition-all focus:border-stone-900 focus:bg-white focus:ring-2 focus:ring-stone-900 focus:outline-none disabled:opacity-50 pointer-coarse:text-base"
 							/>
 						</div>
 						<div>
@@ -898,7 +898,7 @@
 							id="masto-visibility"
 							bind:value={prefVisibility}
 							disabled={prefsLoading || !prefsLoaded}
-							class="w-full appearance-none rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none disabled:opacity-50"
+							class="w-full appearance-none rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none disabled:opacity-50 pointer-coarse:text-base"
 						>
 							<option value="public">Public</option>
 							<option value="unlisted">Unlisted</option>
@@ -1319,7 +1319,7 @@
 						bind:value={rotateCode}
 						placeholder="Current authenticator or backup code"
 						aria-label="Current authenticator or backup code"
-						class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+						class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 						required
 					/>
 					<button
@@ -1389,7 +1389,7 @@
 							bind:value={rotateConfirm}
 							placeholder="New app code"
 							aria-label="New app code"
-							class="w-full flex-1 rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+							class="w-full flex-1 rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 							required
 						/>
 						<button
@@ -1616,7 +1616,7 @@
 					maxlength={INSTANCE_NAME_MAX}
 					placeholder="CogSend"
 					aria-label="Instance name"
-					class="w-full flex-1 rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+					class="w-full flex-1 rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 				/>
 				<button
 					type="submit"
@@ -1645,7 +1645,7 @@
 							type="email"
 							autocomplete="username"
 							bind:value={accountEmail}
-							class="mt-1.5 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+							class="mt-1.5 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 							required
 						/>
 					</label>
@@ -1657,7 +1657,7 @@
 							type="password"
 							autocomplete="current-password"
 							bind:value={accountPassword}
-							class="mt-1.5 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+							class="mt-1.5 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 							required
 						/>
 					</label>
@@ -1672,7 +1672,7 @@
 								minlength="8"
 								bind:value={accountNewPassword}
 								placeholder="Leave empty to keep"
-								class="mt-1.5 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+								class="mt-1.5 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 							/>
 						</label>
 						<label class="block flex-1 text-sm">
@@ -1683,7 +1683,7 @@
 								type="password"
 								autocomplete="new-password"
 								bind:value={accountConfirm}
-								class="mt-1.5 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+								class="mt-1.5 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 							/>
 						</label>
 					</div>
@@ -1748,7 +1748,7 @@
 						e.preventDefault();
 						savePicture();
 					}}
-					class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 shadow-sm transition-all focus:border-stone-900 focus:bg-white focus:ring-2 focus:ring-stone-900 focus:outline-none"
+					class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 shadow-sm transition-all focus:border-stone-900 focus:bg-white focus:ring-2 focus:ring-stone-900 focus:outline-none pointer-coarse:text-base"
 				/>
 			</label>
 			{#if pictureMessage}

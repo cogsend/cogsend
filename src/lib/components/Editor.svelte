@@ -2394,7 +2394,7 @@
 										mastoVisibility = e.currentTarget.value as typeof mastoVisibility;
 										markDirty();
 									}}
-									class="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 text-[12px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+									class="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 text-[12px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 								>
 									<option value="public">Public</option>
 									<option value="unlisted">Unlisted</option>
@@ -2414,7 +2414,7 @@
 										mastoCW = e.currentTarget.value;
 										markDirty();
 									}}
-									class="w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-900 placeholder:text-stone-500 focus:border-stone-400 focus:bg-white focus:outline-none"
+									class="w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-900 placeholder:text-stone-500 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 								/>
 							</label>
 						</div>
@@ -2481,7 +2481,7 @@
 							ondragover={(e) => e.preventDefault()}
 							placeholder={index === 0 ? "What's happening?" : 'Add another post...'}
 							aria-label={index === 0 ? 'Post text' : `Post ${index + 1} text`}
-							class="w-full resize-none bg-transparent text-[15px] font-medium text-stone-900 placeholder:text-stone-500 focus:outline-none"
+							class="w-full resize-none bg-transparent text-[15px] font-medium text-stone-900 placeholder:text-stone-500 focus:outline-none pointer-coarse:text-base"
 							rows="1"></textarea>
 
 						{#if segMedia.length > 0}
@@ -2559,7 +2559,7 @@
 										oninput={(e) => updateMediaAlt(m.id, e.currentTarget.value)}
 										placeholder="Describe this image…"
 										aria-label={`Alt text for image ${index + 1}`}
-										class="w-full rounded-lg border border-stone-200 bg-stone-50 px-2 py-1 text-[11px] font-medium text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none"
+										class="w-full rounded-lg border border-stone-200 bg-stone-50 px-2 py-1 text-[11px] font-medium text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 									/>
 									<div class="mt-1 flex justify-end">
 										<button
@@ -3057,7 +3057,7 @@
 											scheduleTouched = true;
 											applyRelativeFields();
 										}}
-										class="w-20 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-center text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none"
+										class="w-20 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-center text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 									/>
 									<select
 										data-testid="schedule-offset-unit"
@@ -3067,7 +3067,7 @@
 											scheduleTouched = true;
 											applyRelativeFields();
 										}}
-										class="flex-1 appearance-none rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none"
+										class="flex-1 appearance-none rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 									>
 										<option value="mins">Minutes</option>
 										<option value="hours">Hours</option>
@@ -3080,7 +3080,9 @@
 								<span class="text-[10px] font-bold tracking-widest text-stone-500 uppercase"
 									>Publish at ({tzShort})</span
 								>
-								<div class="flex gap-2">
+								<!-- At the 16px a touch screen needs, the two pickers no longer fit
+								     side by side in the popover. -->
+								<div class="flex gap-2 pointer-coarse:flex-col">
 									<div class="flex-1">
 										<input
 											type="date"
@@ -3089,7 +3091,7 @@
 											oninput={() => (scheduleTouched = true)}
 											min={minSchedDate}
 											aria-label="Schedule date"
-											class="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none"
+											class="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 										/>
 									</div>
 									<div class="flex-1">
@@ -3099,7 +3101,7 @@
 											bind:value={schedTime}
 											oninput={() => (scheduleTouched = true)}
 											aria-label="Schedule time"
-											class="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none"
+											class="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 										/>
 									</div>
 								</div>
