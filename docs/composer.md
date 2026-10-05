@@ -11,6 +11,8 @@ listed under **Posts → Drafts**, where **Edit Post** reopens one and **Remove*
 deletes it. The trash button in the composer discards the draft you are on, after
 asking.
 
+The top right of the composer says where the draft stands: **Saving…**, **Saved**, or **Not saved** with a **Retry** button. A failed save is retried on its own until it goes through. Switching to another tab or app saves at once, so a phone that closes the browser in the background does not cost you the last thing you typed.
+
 ## A thread is a list of cards
 
 Each card is one post, with its own character counter and its own images. The
