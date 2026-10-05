@@ -82,6 +82,22 @@ export async function fillUntilKept(field: Locator, value: string) {
 }
 
 /**
+ * Wait until the composer has hydrated, for tests that need real keystrokes
+ * rather than a retried `fill`.
+ *
+ * Keys typed before hydration are overwritten by the value the composer
+ * hydrates with, so the text comes back missing its first letters ("ped while
+ * loading"). The composer's autoResize action gives the first card an inline
+ * height, and actions only run once the component is live, so that height is
+ * the signal.
+ */
+export async function waitForLiveComposer(page: Page) {
+	await page.waitForFunction(() =>
+		Boolean(document.querySelector<HTMLElement>('[data-testid="segment-input-0"]')?.style.height)
+	);
+}
+
+/**
  * Attach a file to an input and wait for the app's answer to it.
  *
  * `setInputFiles` fires `change` as it sets the value, and the input is in the

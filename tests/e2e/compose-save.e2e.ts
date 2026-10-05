@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { E2E_ACCOUNT } from './e2e-env';
+import { E2E_ACCOUNT, waitForLiveComposer } from './e2e-env';
 
 test.beforeEach(async ({ page }) => {
 	await page.goto('/compose');
@@ -25,6 +25,8 @@ async function storedBody(page: Page): Promise<string | undefined> {
 async function composeOnPausedClock(page: Page) {
 	await page.clock.install();
 	await page.goto('/compose');
+	// The live signal comes from a timer, so it has to land before the pause.
+	await waitForLiveComposer(page);
 	await page.clock.pauseAt(Date.now() + 60_000);
 }
 

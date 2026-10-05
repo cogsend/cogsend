@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { E2E_ACCOUNT } from './e2e-env';
+import { E2E_ACCOUNT, waitForLiveComposer } from './e2e-env';
 
 test.beforeEach(async ({ page }) => {
 	await page.goto('/compose');
@@ -21,6 +21,7 @@ const MISS_ID = '00000000-0000-4000-8000-000000000000';
 test('typing keeps focus when first autosave assigns the draft id', async ({ page }) => {
 	await page.goto('/compose');
 	expect(new URL(page.url()).searchParams.get('id')).toBeNull();
+	await waitForLiveComposer(page);
 	const box = page.getByTestId('segment-input-0');
 	await box.click();
 	await box.pressSequentially('hello focus probe', { delay: 20 });
@@ -36,6 +37,7 @@ test('typing keeps focus when first autosave assigns the draft id', async ({ pag
 test('typing during a slow draft load is kept and saved', async ({ page }) => {
 	// Save a draft with known content first.
 	await page.goto('/compose');
+	await waitForLiveComposer(page);
 	const box = page.getByTestId('segment-input-0');
 	await box.click();
 	await box.pressSequentially('saved content', { delay: 10 });
@@ -61,6 +63,7 @@ test('typing during a slow draft load is kept and saved', async ({ page }) => {
 		await route.fulfill({ status: 200, contentType: 'application/json', body: draftBody });
 	});
 	await page.goto(`/compose?id=${MISS_ID}`);
+	await waitForLiveComposer(page);
 	const box2 = page.getByTestId('segment-input-0');
 	await box2.click();
 	await box2.pressSequentially('typed while loading', { delay: 10 });
