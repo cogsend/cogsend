@@ -2177,6 +2177,21 @@
 		return () => window.removeEventListener('beforeunload', onBeforeUnload);
 	});
 
+	// Phones rarely fire beforeunload, and a tab sent to the background can be
+	// discarded before the autosave timer runs, so save the moment it is hidden.
+	// The guards are the autosave's own: a save during a load, a discard or a
+	// publish would race the flow that owns the draft.
+	$effect(() => {
+		const onHidden = () => {
+			if (document.visibilityState !== 'hidden') return;
+			void flushAltPending();
+			if (!dirty || publishing || loadingDraftId || isDiscardOpen || discarding) return;
+			void persistAll();
+		};
+		document.addEventListener('visibilitychange', onHidden);
+		return () => document.removeEventListener('visibilitychange', onHidden);
+	});
+
 	$effect(() => {
 		const onKey = (event: KeyboardEvent) => {
 			// Escape first, and before the publish guard below: the guard exists

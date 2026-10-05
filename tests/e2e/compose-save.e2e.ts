@@ -53,3 +53,13 @@ test('the composer says when a draft is saved, and when it is not', async ({ pag
 	await expect(status).toHaveText('Saved', { timeout: 15000 });
 	await expect.poll(() => storedBody(page), { timeout: 15000 }).toBe('save status probe');
 });
+
+test('hiding the page saves the draft without waiting for the autosave', async ({ page }) => {
+	await composeOnPausedClock(page);
+	await page.getByTestId('segment-input-0').fill('saved when hidden');
+	await page.evaluate(() => {
+		Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+		document.dispatchEvent(new Event('visibilitychange'));
+	});
+	await expect.poll(() => storedBody(page), { timeout: 15000 }).toBe('saved when hidden');
+});
