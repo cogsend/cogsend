@@ -222,10 +222,10 @@
 				{#if page.url.pathname !== '/compose'}
 					<a
 						href="/compose"
-						class="hidden items-center gap-2 rounded-full bg-stone-900 px-5 py-2.5 text-[13px] font-bold text-white shadow-[0_4px_16px_-4px_rgb(28_25_23/0.3)] transition-all hover:bg-stone-800 hover:shadow-[0_4px_20px_-4px_rgb(28_25_23/0.4)] sm:flex"
+						class="flex h-11 w-11 items-center justify-center gap-2 rounded-full bg-stone-900 text-[13px] font-bold text-white shadow-[0_4px_16px_-4px_rgb(28_25_23/0.3)] transition-all hover:bg-stone-800 hover:shadow-[0_4px_20px_-4px_rgb(28_25_23/0.4)] sm:h-auto sm:w-auto sm:px-5 sm:py-2.5"
 					>
 						<PenLine class="h-4 w-4" />
-						<span>Write</span>
+						<span class="sr-only sm:not-sr-only">Write</span>
 					</a>
 				{/if}
 

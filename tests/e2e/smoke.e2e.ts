@@ -1028,6 +1028,14 @@ test('destinations dock shows on mobile layout', async () => {
 	await page.setViewportSize({ width: 1280, height: 800 });
 });
 
+test('the header keeps a Write button on a phone', async () => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/posts');
+	await page.getByRole('link', { name: 'Write', exact: true }).click();
+	await expect(page).toHaveURL(/\/compose$/);
+	await page.setViewportSize({ width: 1280, height: 800 });
+});
+
 // Regression guard: the posts tab row, the insights stat grid and the API
 // definition list all used to push the document wider than a phone screen.
 test('key pages do not scroll sideways on a 320px phone', async () => {
