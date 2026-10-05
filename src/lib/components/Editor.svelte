@@ -267,7 +267,9 @@
 	// it because the stored segmentIndex — not the optimistic UI order — is
 	// what the provider attaches images by.
 	let mediaSync: Promise<void> = Promise.resolve();
-	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
+	// Cleared only by a save that succeeds: the autosave keeps retrying a failed
+	// save, and the status must not flicker back to "Saving…" on every attempt.
+	let saveFailed = $state(false);
 	// What the split Publish button is busy with (drives its label + spinner).
 	let busyAction = $state<'publish' | 'schedule' | null>(null);
 	// Per-destination publish progress shown inside the confirm popover.
@@ -605,7 +607,6 @@
 
 	function markDirty() {
 		dirty = true;
-		saveStatus = 'idle';
 	}
 
 	function setActiveBody(nextBody: string) {
@@ -660,7 +661,7 @@
 		publishProgress = null;
 		busyAction = null;
 		dirty = false;
-		saveStatus = 'idle';
+		saveFailed = false;
 		savedSnapshot = null;
 		loadFailedId = null;
 		storedVariants = new Set();
@@ -821,7 +822,7 @@
 			}
 			if (mergedCleanly) {
 				dirty = false;
-				saveStatus = 'idle';
+				saveFailed = false;
 				savedSnapshot = takeSnapshot();
 			}
 			// Otherwise the local edits stay dirty on purpose: the autosave
@@ -999,7 +1000,6 @@
 			return draftId;
 		}
 		saving = true;
-		saveStatus = 'saving';
 		const before = takeSnapshot();
 		const snap: SaveSnapshot = {
 			baseBody,
@@ -1013,16 +1013,14 @@
 			const id = await ensureDraft(snap, opts.navigate ?? true);
 			await saveVariants(id, snap);
 			loadedDraftContentFor = id;
+			saveFailed = false;
 			if (takeSnapshot() === before) {
 				savedSnapshot = before;
 				dirty = false;
-				saveStatus = 'saved';
-			} else {
-				saveStatus = 'idle';
 			}
 			return id;
 		} catch (e) {
-			saveStatus = 'error';
+			saveFailed = true;
 			showToast(humanizeError(e instanceof Error ? e.message : 'Save failed'), 'error');
 			return null;
 		} finally {
@@ -2056,6 +2054,15 @@
 						: 'Publish'
 			: 'Publish'
 	);
+	// Autosave is otherwise silent, and a phone has no Cmd+S to fall back on.
+	// A pending autosave already reads as "Saving…"; an empty new draft is never
+	// saved, so it shows nothing.
+	const saveIndicator = $derived.by((): 'saving' | 'saved' | 'failed' | null => {
+		if (loadFailedId || loadingDraftId) return null;
+		if (saveFailed) return 'failed';
+		if (saving || (dirty && (draftId || baseBody.trim()))) return 'saving';
+		return draftId ? 'saved' : null;
+	});
 	// Close dropdowns on click outside.
 	function handleWindowClick(e: MouseEvent) {
 		const target = e.target as HTMLElement;
@@ -2133,10 +2140,8 @@
 		void mastoCW;
 		void mastoPoll;
 		void media;
-		void saveStatus;
 		if (takeSnapshot() !== savedSnapshot) {
 			dirty = true;
-			if (!saving) saveStatus = 'idle';
 		} else if (!saving) {
 			dirty = false;
 		}
@@ -2421,6 +2426,32 @@
 					</div>
 				{/if}
 			</div>
+		{/if}
+
+		{#if saveIndicator}
+			<p
+				data-testid="save-status"
+				class="ml-auto flex items-center gap-1 text-[12px] font-bold whitespace-nowrap {saveIndicator ===
+				'failed'
+					? 'text-red-600'
+					: 'text-stone-500'}"
+			>
+				{#if saveIndicator === 'failed'}
+					Not saved ·
+					<button
+						type="button"
+						disabled={saving}
+						onclick={() => void persistAll()}
+						class="-my-3 inline-flex min-h-11 items-center underline-offset-2 hover:underline disabled:opacity-50"
+					>
+						Retry
+					</button>
+				{:else if saveIndicator === 'saving'}
+					Saving…
+				{:else}
+					<Check class="h-3.5 w-3.5" /> Saved
+				{/if}
+			</p>
 		{/if}
 	</div>
 
