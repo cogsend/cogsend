@@ -29,7 +29,7 @@
 
 https://github.com/user-attachments/assets/4e1e623b-e862-4f70-8b48-b764590834f5
 
-<p align="center"><strong>Supported by <a href="https://zernio.com/?utm_source=cogsend&utm_medium=sponsorship&utm_campaign=cogsend-integration&utm_content=readme-sponsor">Zernio</a></strong>, which lets you connect X, Threads, LinkedIn and Bluesky <a href="docs/zernio.md">without your own developer apps</a>.</p>
+<p align="center"><strong>Supported by <a href="https://zernio.link/cogsend?utm_source=cogsend&utm_medium=sponsorship&utm_campaign=cogsend-integration&utm_content=readme-sponsor">Zernio</a></strong>, which lets you connect X, Threads, LinkedIn and Bluesky <a href="docs/zernio.md">without your own developer apps</a>.</p>
 
 ## Why CogSend
 

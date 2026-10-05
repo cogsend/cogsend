@@ -1,8 +1,8 @@
 # Connect through Zernio
 
-LinkedIn, Threads and X normally need a developer app of your own before CogSend can post to them ([OAuth apps](oauth-apps.md)). [Zernio](https://zernio.com/?utm_source=cogsend&utm_medium=sponsorship&utm_campaign=cogsend-integration&utm_content=provider-guide) is a way around that: it already has approved apps for X, Threads, LinkedIn and Bluesky, and CogSend can publish through them instead.
+LinkedIn, Threads and X normally need a developer app of your own before CogSend can post to them ([OAuth apps](oauth-apps.md)). [Zernio](https://zernio.link/cogsend?utm_source=cogsend&utm_medium=sponsorship&utm_campaign=cogsend-integration&utm_content=provider-guide) is a way around that: it already has approved apps for X, Threads, LinkedIn and Bluesky, and CogSend can publish through them instead.
 
-Nothing else changes. You still write, schedule and retry in CogSend, and your posts and history stay on your Cloudflare account; Zernio only carries the publish. Zernio has a free plan, though connecting X needs a card on your Zernio account ([pricing](https://zernio.com/pricing?utm_source=cogsend&utm_medium=sponsorship&utm_campaign=cogsend-integration&utm_content=provider-guide-pricing)). Zernio also sponsors CogSend.
+Nothing else changes. You still write, schedule and retry in CogSend, and your posts and history stay on your Cloudflare account; Zernio only carries the publish. Zernio has a free plan, though connecting X needs a card on your Zernio account ([pricing](https://zernio.link/cogsend-pricing?utm_source=cogsend&utm_medium=sponsorship&utm_campaign=cogsend-integration&utm_content=provider-guide-pricing)). Zernio also sponsors CogSend.
 
 It is optional. Direct connections stay the default, accounts you connected with your own apps are not touched, and both kinds can sit side by side on **Accounts**, where the Zernio ones are marked **via Zernio**. Mastodon is not available through Zernio.
 

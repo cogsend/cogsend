@@ -1,20 +1,19 @@
-/** Swapped for the maintainer's affiliate URL once it exists; nothing else changes. */
-const ZERNIO_LINK_BASE = 'https://zernio.com';
-
-const ZERNIO_HOSTS = ['zernio.com', 'zernio.link', 'docs.zernio.com'];
+// A path after the short link (zernio.link/cogsend/pricing) does not resolve, so
+// each Zernio page CogSend links to has its own short link in the Dub partner
+// dashboard, and a new page needs one created there first.
+const ZERNIO_LINKS = {
+	'/': 'https://zernio.link/cogsend',
+	'/pricing': 'https://zernio.link/cogsend-pricing'
+} as const;
 
 export function zernioLink({
 	path = '/',
 	placement
 }: {
-	path?: string;
+	path?: keyof typeof ZERNIO_LINKS;
 	placement: string;
 }): string {
-	if (/^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|\/\/)/.test(path)) throw new Error('Expected a Zernio path');
-	const url = new URL(path.replace(/^\/+/, ''), `${ZERNIO_LINK_BASE}/`);
-	if (url.protocol !== 'https:' || !ZERNIO_HOSTS.includes(url.hostname)) {
-		throw new Error('Expected a Zernio destination');
-	}
+	const url = new URL(ZERNIO_LINKS[path]);
 	url.searchParams.set('utm_source', 'cogsend');
 	url.searchParams.set('utm_medium', 'sponsorship');
 	url.searchParams.set('utm_campaign', 'cogsend-integration');
