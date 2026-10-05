@@ -24,9 +24,11 @@
 	import { sessionExpiredIfUnauthorized } from '$lib/components/session-expired';
 	import { menuNav } from '$lib/components/menu-nav';
 	import {
+		formatDayTime,
 		formatFullLocalWithZone,
 		formatLocalDateTimeWithZone,
-		formatRelativeTime
+		formatRelativeTime,
+		localTimezoneShort
 	} from '$lib/domain/relative-time';
 	import {
 		cancelTargetIds,
@@ -291,8 +293,10 @@
 		if (!when) return { text: '', title: '' };
 		const d = new Date(when);
 		if (Number.isNaN(d.getTime())) return { text: '', title: '' };
+		// The zone is named once under the list, so a card stays one short line
+		// on a phone; the tooltip keeps the full timestamp with it.
 		return {
-			text: `${formatLocalDateTimeWithZone(d)} (${formatRelativeTime(d)})`,
+			text: `${formatRelativeTime(d)} · ${formatDayTime(d)}`,
 			title: formatFullLocalWithZone(d)
 		};
 	}
@@ -740,6 +744,12 @@
 		void rescheduleId;
 		return minScheduleDatetime(new Date());
 	});
+
+	// On a phone the actions sit in their own row under the time, as
+	// equal-width pills; from sm up they are text links beside it, where -my-3
+	// keeps the 44px target from padding the footer.
+	const cardAction =
+		'inline-flex min-h-11 flex-1 items-center justify-center rounded-full bg-stone-100 px-3 text-[12px] font-bold whitespace-nowrap transition-colors disabled:opacity-50 sm:-my-3 sm:flex-none sm:bg-transparent sm:px-0';
 
 	function statusBadge(status: string) {
 		if (['scheduled', 'pending', 'publishing'].includes(status)) return 'scheduled';
@@ -1204,7 +1214,9 @@
 				<!-- remoteUrl removed in favor of clickable platform icons -->
 
 				<!-- Post Footer -->
-				<div class="mt-auto flex items-center justify-between border-t border-stone-100 pt-4">
+				<div
+					class="mt-auto flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row sm:items-center sm:justify-between"
+				>
 					<p class="text-[12px] font-bold text-stone-500">
 						{#if card.whenLabel === 'scheduled' && card.when}
 							Will publish
@@ -1218,33 +1230,33 @@
 						{/if}
 					</p>
 
-					<div class="flex items-center gap-4">
+					<div class="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-4">
 						{#if card.kind === 'draft'}
 							<a
 								href="/compose?id={card.draftId}"
-								class="-my-3 inline-flex min-h-11 items-center text-[12px] font-bold text-stone-500 transition-colors hover:text-stone-900"
+								class="{cardAction} text-stone-500 hover:text-stone-900"
 							>
 								Edit Post
 							</a>
 							<button
 								type="button"
-								onclick={() => (pendingRemove = drafts.find((d) => d.id === card.draftId) ?? null)}
-								class="-my-3 inline-flex min-h-11 items-center text-[12px] font-bold text-red-500 transition-colors hover:text-red-700"
+								disabled={duplicating === card.draftId}
+								onclick={() => void duplicateDraft(card.draftId)}
+								class="{cardAction} text-stone-500 hover:text-stone-900"
 							>
-								Remove
+								{duplicating === card.draftId ? 'Duplicating…' : 'Duplicate'}
 							</button>
 							<button
 								type="button"
-								disabled={duplicating === card.draftId}
-								onclick={() => void duplicateDraft(card.draftId)}
-								class="-my-3 inline-flex min-h-11 items-center text-[12px] font-bold text-stone-500 transition-colors hover:text-stone-900 disabled:opacity-50"
+								onclick={() => (pendingRemove = drafts.find((d) => d.id === card.draftId) ?? null)}
+								class="{cardAction} text-red-500 hover:text-red-700"
 							>
-								{duplicating === card.draftId ? 'Duplicating…' : 'Duplicate'}
+								Remove
 							</button>
 						{:else if (badge === 'scheduled' || badge === 'retrying') && card.targetId}
 							<a
 								href="/compose?id={card.draftId}"
-								class="-my-3 inline-flex min-h-11 items-center text-[12px] font-bold text-stone-500 transition-colors hover:text-stone-900"
+								class="{cardAction} text-stone-500 hover:text-stone-900"
 							>
 								Edit Post
 							</a>
@@ -1271,7 +1283,7 @@
 
 									applyRelativeReschedule();
 								}}
-								class="-my-3 inline-flex min-h-11 items-center text-[12px] font-bold text-stone-500 transition-colors hover:text-stone-900"
+								class="{cardAction} text-stone-500 hover:text-stone-900"
 							>
 								Reschedule
 							</button>
@@ -1284,7 +1296,7 @@
 										label: draftExcerpt(card.body, 60) || 'post',
 										cardKey: card.key
 									})}
-								class="-my-3 inline-flex min-h-11 items-center text-[12px] font-bold text-red-500 transition-colors hover:text-red-700"
+								class="{cardAction} text-red-500 hover:text-red-700"
 							>
 								{busy === card.key ? 'Cancelling…' : 'Cancel'}
 							</button>
@@ -1294,7 +1306,7 @@
 								busy === card.key || (busyTarget !== null && failedIds.includes(busyTarget))}
 							<a
 								href="/compose?id={card.draftId}"
-								class="-my-3 inline-flex min-h-11 items-center text-[12px] font-bold text-stone-500 transition-colors hover:text-stone-900"
+								class="{cardAction} text-stone-500 hover:text-stone-900"
 							>
 								Edit & re-draft
 							</a>
@@ -1302,7 +1314,7 @@
 								type="button"
 								disabled={duplicating === card.draftId}
 								onclick={() => void duplicateDraft(card.draftId)}
-								class="-my-3 inline-flex min-h-11 items-center text-[12px] font-bold text-stone-900 underline-offset-2 transition-colors hover:underline disabled:opacity-50"
+								class="{cardAction} text-stone-900 underline-offset-2 hover:underline"
 							>
 								{duplicating === card.draftId ? 'Duplicating…' : 'Post again'}
 							</button>
@@ -1310,7 +1322,7 @@
 								type="button"
 								disabled={cardBusy || failedIds.length === 0}
 								onclick={() => void retryAll(card.key, failedIds)}
-								class="-my-3 inline-flex min-h-11 items-center text-[12px] font-bold text-stone-900 underline-offset-2 transition-colors hover:underline disabled:opacity-50"
+								class="{cardAction} text-stone-900 underline-offset-2 hover:underline"
 							>
 								{cardBusy
 									? 'Retrying…'
@@ -1323,7 +1335,7 @@
 								type="button"
 								disabled={duplicating === card.draftId}
 								onclick={() => void duplicateDraft(card.draftId)}
-								class="-my-3 inline-flex min-h-11 items-center text-[12px] font-bold text-stone-500 transition-colors hover:text-stone-900 disabled:opacity-50"
+								class="{cardAction} text-stone-500 hover:text-stone-900"
 							>
 								{duplicating === card.draftId ? 'Duplicating…' : 'Post again'}
 							</button>
@@ -1465,6 +1477,12 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if visible.length > 0}
+		<p class="mt-5 text-[12px] leading-relaxed font-medium text-stone-500">
+			Times are local ({localTimezoneShort()}).
+		</p>
+	{/if}
 </div>
 
 <ConfirmDialog

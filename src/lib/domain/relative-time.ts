@@ -28,6 +28,7 @@ export function localTimezoneLabel(): string {
 // because the locale and options never change at runtime.
 let tzShortFormatter: Intl.DateTimeFormat | null = null;
 let localDateTimeFormatter: Intl.DateTimeFormat | null = null;
+let localTimeFormatter: Intl.DateTimeFormat | null = null;
 let fullLocalFormatter: Intl.DateTimeFormat | null = null;
 function getTzShortFormatter(): Intl.DateTimeFormat | null {
 	if (tzShortFormatter) return tzShortFormatter;
@@ -48,6 +49,18 @@ function getLocalDateTimeFormatter(): Intl.DateTimeFormat | null {
 			minute: '2-digit'
 		});
 		return localDateTimeFormatter;
+	} catch {
+		return null;
+	}
+}
+function getLocalTimeFormatter(): Intl.DateTimeFormat | null {
+	if (localTimeFormatter) return localTimeFormatter;
+	try {
+		localTimeFormatter = new Intl.DateTimeFormat(undefined, {
+			hour: 'numeric',
+			minute: '2-digit'
+		});
+		return localTimeFormatter;
 	} catch {
 		return null;
 	}
@@ -137,15 +150,39 @@ export function formatFullLocalWithZone(iso: string | Date): string {
 	});
 }
 
-/** Bucket label for a day-relative list: Today / Tomorrow / "Sat, Sep 12". */
-export function dayGroupLabel(iso: string | Date, now = new Date()): string {
-	const d = typeof iso === 'string' ? new Date(iso) : iso;
-	if (Number.isNaN(d.getTime())) return '';
+function nearDayWord(d: Date, now: Date): 'Today' | 'Tomorrow' | 'Yesterday' | null {
 	const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
 	const diffDays = Math.round((startOfDay(d) - startOfDay(now)) / 86_400_000);
 	if (diffDays === 0) return 'Today';
 	if (diffDays === 1) return 'Tomorrow';
 	if (diffDays === -1) return 'Yesterday';
+	return null;
+}
+
+/**
+ * Local date/time with no zone, for lists that name the zone once:
+ * "Today, 2:30 PM", "Tomorrow, 9:00 AM", otherwise "Sep 9, 2:30 PM".
+ */
+export function formatDayTime(iso: string | Date, now = new Date()): string {
+	const d = typeof iso === 'string' ? new Date(iso) : iso;
+	if (Number.isNaN(d.getTime())) return '';
+	const word = nearDayWord(d, now);
+	if (!word) return formatLocalDateTime(d);
+	try {
+		const fmt = getLocalTimeFormatter();
+		if (fmt) return `${word}, ${fmt.format(d)}`;
+	} catch {
+		// fall through to toLocaleTimeString
+	}
+	return `${word}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+}
+
+/** Bucket label for a day-relative list: Today / Tomorrow / "Sat, Sep 12". */
+export function dayGroupLabel(iso: string | Date, now = new Date()): string {
+	const d = typeof iso === 'string' ? new Date(iso) : iso;
+	if (Number.isNaN(d.getTime())) return '';
+	const word = nearDayWord(d, now);
+	if (word) return word;
 	const sameYear = d.getFullYear() === now.getFullYear();
 	return d.toLocaleDateString(undefined, {
 		weekday: 'short',

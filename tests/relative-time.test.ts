@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	formatDayTime,
 	formatFullLocalWithZone,
 	formatLocalDateTime,
 	formatLocalDateTimeWithZone,
@@ -35,5 +36,24 @@ describe('local timezone formatting', () => {
 		expect(formatLocalDateTime('not-a-date')).toBe('');
 		expect(formatLocalDateTimeWithZone('not-a-date')).toBe('');
 		expect(formatFullLocalWithZone('not-a-date')).toBe('');
+		expect(formatDayTime('not-a-date')).toBe('');
+	});
+});
+
+describe('formatDayTime', () => {
+	const now = new Date(2026, 8, 7, 12, 0, 0); // Mon Sep 7 2026, noon local
+
+	it('names the day for yesterday, today and tomorrow, with the time and no zone', () => {
+		const today = formatDayTime(new Date(2026, 8, 7, 18, 40), now);
+		expect(today).toMatch(/^Today, /);
+		expect(today).toContain('40');
+		expect(today).not.toContain(localTimezoneShort());
+		expect(formatDayTime(new Date(2026, 8, 8, 9, 5), now)).toMatch(/^Tomorrow, .*05/);
+		expect(formatDayTime(new Date(2026, 8, 6, 23, 15), now)).toMatch(/^Yesterday, .*15/);
+	});
+
+	it('falls back to the short date for any other day', () => {
+		const d = new Date(2026, 8, 12, 9, 30);
+		expect(formatDayTime(d, now)).toBe(formatLocalDateTime(d));
 	});
 });
