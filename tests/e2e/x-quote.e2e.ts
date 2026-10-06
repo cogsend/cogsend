@@ -17,6 +17,8 @@ const OWN = 'https://x.com/quoter/status/1974500000000000001';
 
 let xConnectionId = '';
 let publishedDraftId = '';
+let userId = '';
+const extraDraftIds: string[] = [];
 
 function d1(sql: string) {
 	execSync(`node scripts/wrangler.mjs d1 execute DB --local ${E2E_D1_FLAGS} --command "${sql}"`, {
@@ -41,6 +43,7 @@ test.beforeAll(async ({ browser }) => {
 	await signIn(page);
 	const me = await page.request.get('/api/auth/me').then((r) => r.json());
 	await page.close();
+	userId = me.user.id;
 	const now = Date.now();
 	xConnectionId = randomUUID();
 	publishedDraftId = randomUUID();
@@ -57,6 +60,7 @@ test.beforeAll(async ({ browser }) => {
 });
 
 test.afterAll(() => {
+	for (const id of extraDraftIds) d1(`DELETE FROM drafts WHERE id='${id}'`);
 	d1(`DELETE FROM drafts WHERE id='${publishedDraftId}'`);
 	d1(`DELETE FROM connections WHERE id='${xConnectionId}'`);
 });
@@ -276,4 +280,56 @@ test('a long paste into a quote draft starts on the quoted card', async ({ page 
 	await expect
 		.poll(async () => (await body()).split('\n---\n')[0], { timeout: 30000 })
 		.toMatch(new RegExp(`^Sentence 0[^]*\\n${OWN.replace(/[.?/]/g, '\\$&')}$`));
+});
+
+test('on a phone the picker opens fully on screen, clear of the bottom bar', async ({ page }) => {
+	// Enough published posts that the list is tall, as it is for a real account.
+	const now = Date.now();
+	for (let i = 0; i < 7; i++) {
+		const draftId = randomUUID();
+		extraDraftIds.push(draftId);
+		d1(
+			`INSERT INTO drafts (id, user_id, base_body, status, created_at, updated_at) VALUES ('${draftId}', '${userId}', 'An older post number ${i} with enough words to wrap onto a second line', 'published', ${now - i - 1}, ${now - i - 1})`
+		);
+		d1(
+			`INSERT INTO publish_targets (id, draft_id, connection_id, status, remote_post_id, remote_url, created_at, updated_at) VALUES ('${randomUUID()}', '${draftId}', '${xConnectionId}', 'published', '19745000000000001${i}0', 'https://x.com/quoter/status/19745000000000001${i}0', ${now - i - 1}, ${now - i - 1})`
+		);
+	}
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/compose');
+	await waitForLiveComposer(page);
+	await page.getByTestId('quote-post-0').click();
+	const picker = page.getByTestId('quote-picker');
+	await expect(picker).toContainText('Our launch post');
+
+	// Measure the whole list, all eight posts in it.
+	await expect.poll(async () => (await picker.boundingBox())!.height).toBeGreaterThan(250);
+	// It used to open upwards from the first card and run off the top of the page.
+	const list = (await picker.boundingBox())!;
+	const bar = (await page.getByTestId('destinations-toggle').boundingBox())!;
+	expect(list.y).toBeGreaterThanOrEqual(0);
+	expect(list.y + list.height).toBeLessThanOrEqual(bar.y);
+	expect(list.x).toBeGreaterThanOrEqual(0);
+	expect(list.x + list.width).toBeLessThanOrEqual(390);
+});
+
+test('on a phone the picker under the last card scrolls clear of the bottom bar', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/compose');
+	await waitForLiveComposer(page);
+	await page.getByTestId('segment-input-0').fill('one --- two --- three --- four');
+	await expect(page.getByTestId('segment-input-3')).toHaveValue('four');
+	await page.getByTestId('quote-post-3').click();
+	const picker = page.getByTestId('quote-picker');
+	await expect(picker).toContainText('Our launch post');
+	await expect.poll(async () => (await picker.boundingBox())!.height).toBeGreaterThan(250);
+	await expect
+		.poll(async () => {
+			const list = (await picker.boundingBox())!;
+			const bar = (await page.getByTestId('destinations-toggle').boundingBox())!;
+			return list.y >= 0 && list.y + list.height <= bar.y;
+		})
+		.toBe(true);
 });

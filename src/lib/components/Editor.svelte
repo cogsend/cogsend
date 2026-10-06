@@ -1880,6 +1880,7 @@
 			return;
 		}
 		quotePickerFor = i;
+		void revealQuotePicker();
 		if (quotePicks) return;
 		quotePicksFailed = false;
 		try {
@@ -1898,6 +1899,16 @@
 		} catch {
 			quotePicksFailed = true;
 		}
+		void revealQuotePicker();
+	}
+
+	// The list opens below the card: above it, on the first card, it ran off the
+	// top of the page, where no scrolling reaches. Below can be under the fold or
+	// behind the fixed bottom bar, so scroll it into view; the list's scroll
+	// margin and the spacer under it keep it clear of the bar.
+	async function revealQuotePicker() {
+		await tick();
+		document.querySelector('[data-testid="quote-picker"]')?.scrollIntoView({ block: 'nearest' });
 	}
 
 	/**
@@ -2867,11 +2878,10 @@
 									</button>
 									{#if quotePickerFor === index}
 										<div
-											class="absolute right-0 bottom-full z-40 mb-2 w-72 max-w-[calc(100vw-3rem)] rounded-[1rem] border border-stone-200/80 bg-white p-2 shadow-[0_16px_40px_-12px_rgb(28_25_23/0.15)]"
+											class="absolute top-full right-0 z-40 mt-2 w-72 max-w-[calc(100vw-3rem)] scroll-mb-32 rounded-[1rem] border border-stone-200/80 bg-white p-2 shadow-[0_16px_40px_-12px_rgb(28_25_23/0.15)] after:pointer-events-none after:absolute after:top-full after:left-0 after:h-32 after:w-px after:content-['']"
 											role="dialog"
 											aria-label="Quote one of your X posts"
 											data-testid="quote-picker"
-											transition:slide={{ duration: 150 }}
 										>
 											<div class="mb-1 px-2 py-1">
 												<span class="text-[10px] font-bold tracking-widest text-stone-500 uppercase"
