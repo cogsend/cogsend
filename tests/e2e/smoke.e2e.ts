@@ -1122,10 +1122,7 @@ test('duplicate API, insights page, and failed-tab deep link', async () => {
 
 	// The dashboard failure banner links here with the tab pre-selected.
 	await page.goto('/posts?tab=failed');
-	await expect(page.getByRole('button', { name: /^failed/ })).toHaveAttribute(
-		'aria-current',
-		'page'
-	);
+	await expect(page.getByRole('link', { name: /^failed/ })).toHaveAttribute('aria-current', 'page');
 });
 
 test('posts account dropdown filters the feed', async () => {
@@ -1155,6 +1152,52 @@ test('posts account dropdown filters the feed', async () => {
 	await option.click();
 	await expect(trigger).toContainText('filtered');
 	await expect(page.getByText('dropdown probe')).toBeVisible();
+
+	// The filter lives in the address, so a reload keeps it.
+	await expect(page).toHaveURL(new RegExp(`/posts\\?tab=published&account=${connId}$`));
+	await page.reload();
+	await expect(trigger).toContainText('filtered');
+	await expect(page.getByText('dropdown probe')).toBeVisible();
+});
+
+test('posts keeps its tab and search across a round trip', async () => {
+	// An account none of the posts go to is dropped instead of stranding an
+	// empty list. Its removal also shows the page has hydrated.
+	await page.goto('/posts?tab=published&account=no-such-account');
+	await expect(page).toHaveURL(/\/posts\?tab=published$/);
+
+	const tabs = page.getByRole('group', { name: 'Filter posts by status' });
+	const scheduled = tabs.getByRole('link', { name: /^scheduled/ });
+	const published = tabs.getByRole('link', { name: /^published/ });
+	const historyLength = await page.evaluate(() => history.length);
+	await scheduled.click();
+	await expect(page).toHaveURL(/\/posts\?tab=scheduled$/);
+	await expect(scheduled).toHaveAttribute('aria-current', 'page');
+	// Switching tabs replaces the entry, so Back still leaves Posts.
+	expect(await page.evaluate(() => history.length)).toBe(historyLength);
+	await published.click();
+	await expect(published).toHaveAttribute('aria-current', 'page');
+
+	const search = page.getByPlaceholder('Search posts...');
+	await fillUntilKept(search, 'dropdown probe');
+	await expect(page.getByText('dropdown probe')).toBeVisible();
+
+	await page.getByRole('link', { name: 'Write', exact: true }).click();
+	await expect(page).toHaveURL(/\/compose$/);
+	await page.goBack();
+	await expect(page).toHaveURL(/\/posts\?tab=published$/);
+	await expect(published).toHaveAttribute('aria-current', 'page');
+	await expect(search).toHaveValue('dropdown probe');
+	await expect(page.getByText('dropdown probe')).toBeVisible();
+
+	// The menu's Posts link starts over on All, even from another tab.
+	await page.getByRole('button', { name: 'Workspace menu' }).click();
+	await page.getByRole('menuitem', { name: 'Posts' }).click();
+	await expect(page).toHaveURL(/\/posts$/);
+	await expect(tabs.getByRole('link', { name: /^all posts/i })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
 });
 
 test('linkedin filter shows the profile name, not the email', async () => {

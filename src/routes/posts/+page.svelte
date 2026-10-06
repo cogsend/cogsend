@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
@@ -49,6 +49,7 @@
 		scheduleValueToIso
 	} from '$lib/domain/schedule-helpers';
 	import { splitThreadSegments } from '$lib/domain/thread-segments';
+	import type { Snapshot } from './$types';
 
 	type PostMedia = {
 		id: string;
@@ -140,12 +141,31 @@
 	};
 
 	const TAB_VALUES: PostsTab[] = ['all', 'scheduled', 'published', 'failed', 'drafts'];
-	function initialTab(): PostsTab {
+	// The tab and account live in the URL so Back, reload and shared links keep
+	// them, and the browser's scroll restore lands in the right list.
+	const activeTab = $derived.by((): PostsTab => {
 		const tab = page.url.searchParams.get('tab');
 		return TAB_VALUES.includes(tab as PostsTab) ? (tab as PostsTab) : 'all';
+	});
+	const accountFilter = $derived(page.url.searchParams.get('account'));
+
+	function postsHref(changes: { tab?: PostsTab; account?: string | null }): string {
+		const url = new URL(page.url);
+		if (changes.tab === 'all') url.searchParams.delete('tab');
+		else if (changes.tab) url.searchParams.set('tab', changes.tab);
+		if (changes.account === null) url.searchParams.delete('account');
+		else if (changes.account) url.searchParams.set('account', changes.account);
+		return url.pathname + url.search;
 	}
-	let activeTab = $state<PostsTab>(initialTab());
-	let accountFilter = $state<string | null>(null);
+
+	// Replacing the entry keeps Back leaving Posts rather than stepping through filters.
+	function setAccountFilter(id: string | null) {
+		void goto(postsHref({ account: id }), { replaceState: true, noScroll: true, keepFocus: true });
+	}
+
+	let tabStrip = $state<HTMLDivElement | null>(null);
+	let fadeLeft = $state(false);
+	let fadeRight = $state(false);
 	let duplicating = $state<string | null>(null);
 	let quoting = $state<string | null>(null);
 	let accountMenuOpen = $state(false);
@@ -254,6 +274,57 @@
 		}, 150);
 		return () => clearTimeout(timer);
 	});
+
+	export const snapshot: Snapshot<{ query: string; y: number }> = {
+		capture: () => ({ query, y: window.scrollY }),
+		async restore(value) {
+			query = debouncedQuery = value.query;
+			if (!value.query) return;
+			// SvelteKit restores scroll before snapshots, against the unfiltered
+			// list; scroll again once the filtered one has rendered.
+			await tick();
+			window.scrollTo(window.scrollX, value.y);
+		}
+	};
+
+	function updateFades() {
+		if (!tabStrip) return;
+		const { scrollLeft, clientWidth, scrollWidth } = tabStrip;
+		fadeLeft = scrollLeft > 1;
+		fadeRight = scrollLeft + clientWidth < scrollWidth - 1;
+	}
+
+	// Counts arriving or changing resize the pills as well as the window.
+	$effect(() => {
+		const strip = tabStrip;
+		if (!strip) return;
+		const observer = new ResizeObserver(updateFades);
+		observer.observe(strip);
+		if (strip.firstElementChild) observer.observe(strip.firstElementChild);
+		return () => observer.disconnect();
+	});
+
+	const FADE_PX = 32;
+
+	// A deep link such as ?tab=failed must not leave its pill cut off or under
+	// a fade. This moves the strip only: scrollIntoView would also scroll the
+	// page and undo the browser's scroll restore on Back.
+	$effect(() => {
+		const strip = tabStrip;
+		const pill = strip?.querySelector<HTMLElement>(`[data-tab="${activeTab}"]`);
+		if (!strip || !pill) return;
+		const bounds = strip.getBoundingClientRect();
+		const left = bounds.left + FADE_PX;
+		const right = bounds.right - FADE_PX;
+		const rect = pill.getBoundingClientRect();
+		if (rect.left < left) strip.scrollLeft -= left - rect.left;
+		else if (rect.right > right) strip.scrollLeft += rect.right - right;
+	});
+
+	function fadeMask(left: boolean, right: boolean): string | undefined {
+		if (!left && !right) return undefined;
+		return `linear-gradient(to right, ${left ? 'transparent' : 'black'}, black ${FADE_PX}px, black calc(100% - ${FADE_PX}px), ${right ? 'transparent' : 'black'})`;
+	}
 
 	onMount(() => {
 		return () => {
@@ -494,10 +565,11 @@
 	});
 
 	// A filter whose account no longer has any loaded posts (e.g. its last
-	// card was cancelled) would strand the list on an empty state with no chip
-	// left to clear. Drop the filter when the account disappears.
+	// card was cancelled, or an old link names it) would strand the list on an
+	// empty state with no chip left to clear. Drop the filter when the account
+	// disappears.
 	$effect(() => {
-		if (accountFilter && !accounts.some((a) => a.id === accountFilter)) accountFilter = null;
+		if (accountFilter && !accounts.some((a) => a.id === accountFilter)) setAccountFilter(null);
 	});
 
 	const visible = $derived.by(() => {
@@ -642,7 +714,7 @@
 	}
 
 	function pickAccount(id: string | null) {
-		accountFilter = id;
+		setAccountFilter(id);
 		accountMenuOpen = false;
 		accountFilterTrigger?.focus();
 	}
@@ -957,26 +1029,35 @@
 	{/if}
 
 	<!-- Tabs: five pills are wider than a phone, so this row swipes instead of
-	     stretching the page. -mx-6/px-6 keeps the pills in the page gutter. -->
-	<div class="-mx-6 mb-6 scrollbar-thin overflow-x-auto px-6">
+	     stretching the page, with a fade instead of a scrollbar where it is cut
+	     off. -mx-6/px-6 keeps the pills in the page gutter. -->
+	<div
+		bind:this={tabStrip}
+		onscroll={updateFades}
+		style:mask-image={fadeMask(fadeLeft, fadeRight)}
+		style:-webkit-mask-image={fadeMask(fadeLeft, fadeRight)}
+		class="-mx-6 mb-6 [scrollbar-width:none] overflow-x-auto px-6 [&::-webkit-scrollbar]:hidden"
+	>
 		<div class="w-max rounded-xl bg-stone-200/50 p-1">
 			<div class="flex" role="group" aria-label="Filter posts by status">
-				{#each ['all', 'scheduled', 'published', 'failed', 'drafts'] as tab (tab)}
-					<button
-						type="button"
-						aria-pressed={activeTab === tab}
+				{#each TAB_VALUES as tab (tab)}
+					<a
+						href={postsHref({ tab })}
+						data-tab={tab}
+						data-sveltekit-replacestate
+						data-sveltekit-noscroll
+						data-sveltekit-keepfocus
 						aria-current={activeTab === tab ? 'page' : undefined}
-						onclick={() => (activeTab = tab as typeof activeTab)}
 						class="rounded-lg px-4 py-1.5 text-[13px] font-bold capitalize transition-all {activeTab ===
 						tab
 							? 'bg-white text-stone-900 shadow-sm'
 							: 'text-stone-500 hover:text-stone-900'}"
 					>
 						{tab === 'all' ? 'All Posts' : tab}
-						{#if countFor(tab as typeof activeTab) > 0}
-							<span class="ml-1 opacity-50">{countFor(tab as typeof activeTab)}</span>
+						{#if countFor(tab) > 0}
+							<span class="ml-1 opacity-50">{countFor(tab)}</span>
 						{/if}
-					</button>
+					</a>
 				{/each}
 			</div>
 		</div>
