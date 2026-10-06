@@ -13,12 +13,12 @@ timezone and how far away it is, or **Published**, or when a draft was last edit
 
 What a card offers depends on its state:
 
-| State     | Actions                                                                         |
-| --------- | ------------------------------------------------------------------------------- |
-| Scheduled | **Edit Post**, **Reschedule** (an offset or a specific time), **Cancel**        |
-| Failed    | **Edit & re-draft**, **Post again**, **Retry** (or **Retry N failed** for many) |
-| Published | **Post again**, which copies it into a new draft                                |
-| Draft     | **Edit Post**, **Duplicate**, **Remove**                                        |
+| State     | Actions                                                                                                     |
+| --------- | ----------------------------------------------------------------------------------------------------------- |
+| Scheduled | **Edit Post**, **Reschedule** (an offset or a specific time), **Cancel**                                    |
+| Failed    | **Edit & re-draft**, **Post again**, **Retry** (or **Retry N failed** for many)                             |
+| Published | **Post again**, which copies it into a new draft; on X, **Quote on X**, which starts a new draft quoting it |
+| Draft     | **Edit Post**, **Duplicate**, **Remove**                                                                    |
 
 A post that went to several accounts is one card, with a result per account, so a
 post that published on four and failed on one shows exactly that. Retrying a card

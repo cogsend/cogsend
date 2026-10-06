@@ -20,6 +20,7 @@
 	import { displayHandle, platformName, platformRank } from '$lib/domain/platforms';
 	import { draftExcerpt } from '$lib/domain/excerpt';
 	import { safeHttpUrl } from '$lib/domain/links';
+	import { parseXPostUrl } from '$lib/domain/x-quote';
 	import { humanizeError } from '$lib/domain/human-error';
 	import { sessionExpiredIfUnauthorized } from '$lib/components/session-expired';
 	import { menuNav } from '$lib/components/menu-nav';
@@ -146,6 +147,7 @@
 	let activeTab = $state<PostsTab>(initialTab());
 	let accountFilter = $state<string | null>(null);
 	let duplicating = $state<string | null>(null);
+	let quoting = $state<string | null>(null);
 	let accountMenuOpen = $state(false);
 	let accountFilterTrigger: HTMLButtonElement | null = $state(null);
 	let accountMenuEl = $state<HTMLDivElement | null>(null);
@@ -595,6 +597,47 @@
 			error = humanizeError(e instanceof Error ? e.message : 'Could not duplicate');
 		} finally {
 			duplicating = null;
+		}
+	}
+
+	/** The X post a published card can be quoted from: its link and the account that posted it. */
+	function quotableX(card: Card): { url: string; connectionId: string } | null {
+		for (const p of card.platforms) {
+			if (p.name !== 'x' || p.status !== 'published' || !p.connectionId) continue;
+			if (p.remoteUrl && parseXPostUrl(p.remoteUrl)) {
+				return { url: p.remoteUrl, connectionId: p.connectionId };
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * A new draft whose text is just the post's link: X shows a post ending in a
+	 * link to another post as a quote, and the composer draws it as one.
+	 */
+	async function quoteOnX(card: Card) {
+		const source = quotableX(card);
+		if (!source || quoting) return;
+		quoting = card.key;
+		error = null;
+		try {
+			const res = await fetch('/api/drafts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					baseBody: source.url,
+					selectedConnectionIds: [source.connectionId]
+				})
+			});
+			const payload = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(payload.error || 'Could not start a quote');
+			const id = payload.draft?.id;
+			if (!id) throw new Error('Could not start a quote');
+			await goto(`/compose?id=${id}`);
+		} catch (e) {
+			error = humanizeError(e instanceof Error ? e.message : 'Could not start a quote');
+		} finally {
+			quoting = null;
 		}
 	}
 
@@ -1331,6 +1374,18 @@
 										: 'Retry'}
 							</button>
 						{:else if badge === 'published'}
+							{#if quotableX(card)}
+								<button
+									type="button"
+									data-testid="quote-on-x"
+									disabled={quoting === card.key}
+									onclick={() => void quoteOnX(card)}
+									class="{cardAction} text-stone-500 hover:text-stone-900"
+									title="Write a new X post that quotes this one"
+								>
+									{quoting === card.key ? 'Opening…' : 'Quote on X'}
+								</button>
+							{/if}
 							<button
 								type="button"
 								disabled={duplicating === card.draftId}

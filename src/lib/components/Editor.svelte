@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { beforeNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import {
 		Image as ImageIcon,
 		Trash2,
@@ -16,7 +16,8 @@
 		Settings,
 		LoaderCircle,
 		RefreshCw,
-		User
+		User,
+		Quote
 	} from '@lucide/svelte';
 	import { slide, fly } from 'svelte/transition';
 	import {
@@ -95,8 +96,19 @@
 		xWeightedLength
 	} from '$lib/domain/validation/text';
 	import { utf8ByteLength } from '$lib/domain/bytes';
+	import { draftExcerpt } from '$lib/domain/excerpt';
+	import {
+		attachXQuote,
+		moveXPostLinkToEnd,
+		quotableXPosts,
+		strayXPostLinks,
+		trailingXQuote,
+		type QuotableTarget,
+		type XQuote
+	} from '$lib/domain/x-quote';
 	import SocialIcon from './SocialIcon.svelte';
 	import LinkPreview from './LinkPreview.svelte';
+	import XQuoteCard from './XQuoteCard.svelte';
 	import AccountAvatar from './AccountAvatar.svelte';
 	import ConfirmDialog from './ConfirmDialog.svelte';
 
@@ -461,6 +473,40 @@
 	});
 
 	let segments = $derived(splitThreadSegments(activeContent));
+
+	// X shows a post whose text ends with a link to another X post as a quote of
+	// it, so on a card that is X's text the trailing link is drawn as a quote
+	// card and kept out of the text box. The stored text still ends with it.
+	const xQuoteActive = $derived(
+		activeTab === 'x' ||
+			(activeTab === 'global' &&
+				selectedPlatforms.has('x') &&
+				!isPlatformCustomized(overrides, 'x'))
+	);
+	// On Global the other selected platforms get the same text, link and all.
+	const quoteLinkPlatforms = $derived(
+		activeTab === 'global'
+			? PLATFORM_ORDER.filter(
+					(p) => p !== 'x' && selectedPlatforms.has(p) && !isPlatformCustomized(overrides, p)
+				)
+			: []
+	);
+	// A link typed by hand stays in the text box until the box loses focus, so
+	// it never vanishes halfway through being typed.
+	let revealTrailing = $state<number | null>(null);
+	let quotePickerFor = $state<number | null>(null);
+	let quotePicks = $state<Array<{ url: string; text: string; when: string }> | null>(null);
+	let quotePicksFailed = $state(false);
+
+	/** The quote the card shows. */
+	function cardQuote(i: number): XQuote | null {
+		return xQuoteActive ? trailingXQuote(segments[i] ?? '') : null;
+	}
+
+	/** The quote whose link the text box leaves out. */
+	function hiddenQuote(i: number): XQuote | null {
+		return revealTrailing === i ? null : cardQuote(i);
+	}
 
 	// Publish-time validation across the SELECTED platforms (unchanged rules).
 	const counters = $derived.by(() => {
@@ -1753,12 +1799,20 @@
 	}
 
 	function handleSegmentInput(i: number, e: Event) {
-		const val = (e.target as HTMLTextAreaElement).value;
-		const pieces = splitAtMarkers(val);
+		const typed = (e.target as HTMLTextAreaElement).value;
+		const inputType = (e as InputEvent).inputType ?? '';
+		// Markers are looked for in what was typed, not with the hidden quote link
+		// put back after it: the quote then stays on the last piece instead of
+		// being split off into a card of its own.
+		const pieces = splitAtMarkers(typed);
 		if (!pieces) {
+			const val = restoreQuote(i, typed, inputType, i);
 			setActiveBody(joinThreadSegments(updateSegment(segments, i, val)));
+			void syncSegmentInput(i);
 			return;
 		}
+		const last = pieces.length - 1;
+		pieces[last] = restoreQuote(i, pieces[last], inputType, i + last);
 		setActiveBody(
 			joinThreadSegments([...segments.slice(0, i), ...pieces, ...segments.slice(i + 1)])
 		);
@@ -1767,6 +1821,83 @@
 		setTimeout(() => {
 			textareaRefs[focusAt]?.focus();
 		}, 0);
+	}
+
+	/**
+	 * The text box shows the card without its quoted link, so put the link back
+	 * after what was typed. A link pasted at the end takes the old one's place
+	 * instead: X quotes one post. `landsOn` is the card the text ends up on,
+	 * which differs from `i` when a marker split the card.
+	 */
+	function restoreQuote(i: number, typed: string, inputType: string, landsOn: number): string {
+		const pasted = inputType.startsWith('insertFromPaste') || inputType === 'insertFromDrop';
+		const hidden = hiddenQuote(i);
+		if (hidden) {
+			const fresh = pasted ? trailingXQuote(typed) : null;
+			if (!fresh) return attachXQuote(typed, hidden.url, hidden.sep);
+			if (fresh.url !== hidden.url) showToast('Now quoting the post you pasted', 'success');
+			return typed;
+		}
+		if (xQuoteActive && !pasted && trailingXQuote(typed)) revealTrailing = landsOn;
+		return typed;
+	}
+
+	// The text box only follows the card when the text it should show changes.
+	// Pulling a pasted link into the quote card can leave that text unchanged
+	// while the box still holds the link, so set it directly.
+	async function syncSegmentInput(i: number) {
+		await tick();
+		const el = textareaRefs[i];
+		const want = hiddenQuote(i)?.visible ?? segments[i] ?? '';
+		if (el && el.value !== want) el.value = want;
+	}
+
+	function setSegmentText(i: number, text: string) {
+		setActiveBody(joinThreadSegments(updateSegment(segments, i, text)));
+		void syncSegmentInput(i);
+	}
+
+	function removeQuote(i: number) {
+		const quote = trailingXQuote(segments[i] ?? '');
+		if (!quote) return;
+		if (revealTrailing === i) revealTrailing = null;
+		setSegmentText(i, quote.visible);
+	}
+
+	function makeQuote(i: number, linkIndex: number) {
+		setSegmentText(i, moveXPostLinkToEnd(segments[i] ?? '', linkIndex));
+	}
+
+	function quotePost(i: number, url: string) {
+		const current = segments[i] ?? '';
+		quotePickerFor = null;
+		setSegmentText(i, current === '' ? url : attachXQuote(current, url, '\n'));
+	}
+
+	async function toggleQuotePicker(i: number) {
+		if (quotePickerFor === i) {
+			quotePickerFor = null;
+			return;
+		}
+		quotePickerFor = i;
+		if (quotePicks) return;
+		quotePicksFailed = false;
+		try {
+			// Upcoming posts come first in this list, so ask for enough to reach the
+			// recent published ones behind a long schedule.
+			const res = await fetch('/api/queue?limit=300');
+			if (!res.ok) throw new Error('Could not load your posts');
+			const payload = (await res.json()) as { targets?: QuotableTarget[] };
+			quotePicks = quotableXPosts(payload.targets ?? []).map((p) => ({
+				url: p.url,
+				text: draftExcerpt(p.body, 90),
+				when: p.at
+					? new Date(p.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+					: ''
+			}));
+		} catch {
+			quotePicksFailed = true;
+		}
 	}
 
 	/**
@@ -1827,6 +1958,7 @@
 	function onRemoveSegment(index: number) {
 		if (uploadingSegment === index) uploadingSegment = null;
 		else if (uploadingSegment !== null && uploadingSegment > index) uploadingSegment -= 1;
+		revealTrailing = null;
 		setActiveBody(joinThreadSegments(removeSegment(segments, index)));
 		focusedSegment = Math.max(0, Math.min(index, segments.length - 2));
 		const kept: MediaItem[] = [];
@@ -1849,6 +1981,7 @@
 		if (from === to) return;
 		const next = reorderSegments(segments, from, to);
 		if (next === segments) return;
+		revealTrailing = null;
 		setActiveBody(joinThreadSegments(next));
 		focusedSegment = to;
 		const remapped = media.map((m) => ({
@@ -1891,15 +2024,24 @@
 			capPlatform = activeTab;
 		}
 		const countFn = (s: string) => countForPlatform(s, capPlatform ?? 'generic');
-		if (!hasDelimiter && splitLongText(text, cap, countFn).length <= 1) return false;
+		// A card holding only a quote looks empty, so the pasted thread fills it
+		// from the top and the quote stays on its first post, with room left for
+		// the link.
+		const hidden = hiddenQuote(segmentIndex);
+		const quoteOnly = hidden !== null && hidden.visible.trim() === '' ? hidden : null;
+		const fit = quoteOnly
+			? cap - (countFn(attachXQuote('a', quoteOnly.url, '\n')) - countFn('a'))
+			: cap;
+		if (!hasDelimiter && splitLongText(text, fit, countFn).length <= 1) return false;
 		const pieces = hasDelimiter
 			? text
 					.split(/\n?---\n?/)
 					.map((s) => s.trim())
 					.filter(Boolean)
-			: splitLongText(text, cap, countFn);
+			: splitLongText(text, fit, countFn);
 		if (pieces.length <= 1) return false;
-		const wasEmpty = (segments[segmentIndex] ?? '').trim() === '';
+		if (quoteOnly) pieces[0] = attachXQuote(pieces[0], quoteOnly.url, '\n');
+		const wasEmpty = quoteOnly !== null || (segments[segmentIndex] ?? '').trim() === '';
 		const next = wasEmpty
 			? [...segments.slice(0, segmentIndex), ...pieces, ...segments.slice(segmentIndex + 1)]
 			: [...segments.slice(0, segmentIndex + 1), ...pieces, ...segments.slice(segmentIndex + 1)];
@@ -2079,6 +2221,9 @@
 		if (!target.closest('.masto-options-container')) {
 			isMastoOptionsOpen = false;
 		}
+		if (!target.closest('.quote-picker-container')) {
+			quotePickerFor = null;
+		}
 	}
 
 	let loadedDraftContentFor: string | null = seededDraft?.id ?? null;
@@ -2204,6 +2349,7 @@
 				isAddOverrideOpen = false;
 				isAccountsPopoverOpen = false;
 				if (isMastoOptionsOpen) isMastoOptionsOpen = false;
+				quotePickerFor = null;
 				return;
 			}
 			if (pendingPublish) return;
@@ -2477,6 +2623,8 @@
 				{@const segLen = countForCard(segment)}
 				{@const isOver = segLen > maxChars}
 				{@const segMedia = cardMedia(index)}
+				{@const quote = cardQuote(index)}
+				{@const strayLinks = xQuoteActive ? strayXPostLinks(segment) : []}
 				<div class="group relative flex gap-4 sm:gap-6">
 					<!-- Avatar / Node -->
 					<div class="relative z-10 hidden flex-shrink-0 flex-col items-center sm:flex">
@@ -2518,11 +2666,16 @@
 						<textarea
 							use:autoResize={segment}
 							bind:this={textareaRefs[index]}
-							value={segment}
+							value={hiddenQuote(index)?.visible ?? segment}
 							data-segment-index={index}
 							data-testid="segment-input-{index}"
 							oninput={(e) => handleSegmentInput(index, e)}
 							onpaste={(e) => handlePaste(e, index)}
+							onblur={() => {
+								if (revealTrailing !== index) return;
+								revealTrailing = null;
+								void syncSegmentInput(index);
+							}}
 							ondrop={(e) => handleDrop(e, index)}
 							ondragover={(e) => e.preventDefault()}
 							placeholder={index === 0 ? "What's happening?" : 'Add another post...'}
@@ -2619,7 +2772,38 @@
 							{/if}
 						{/each}
 
-						<LinkPreview text={segment} hasMedia={segMedia.length > 0} />
+						{#if quote}
+							<XQuoteCard
+								url={quote.url}
+								onRemove={() => removeQuote(index)}
+								otherPlatforms={quoteLinkPlatforms}
+							/>
+						{:else}
+							<LinkPreview text={segment} hasMedia={segMedia.length > 0} />
+						{/if}
+
+						{#if strayLinks.length > 0}
+							<div
+								class="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200/70 bg-amber-50/60 px-3 py-2"
+								data-testid="x-quote-stray"
+							>
+								<p class="min-w-0 flex-1 text-[12px] font-medium text-amber-900">
+									X only quotes a link at the very end, so {strayLinks.length === 1
+										? 'this X link shows'
+										: 'these X links show'} as a plain link.
+								</p>
+								{#if !quote}
+									<button
+										type="button"
+										data-testid="x-quote-make"
+										onclick={() => makeQuote(index, strayLinks[0].index)}
+										class="rounded-full border border-amber-300 bg-white px-3 py-1 text-[11px] font-bold text-amber-900 transition-colors hover:bg-amber-100"
+									>
+										Make it the quote
+									</button>
+								{/if}
+							</div>
+						{/if}
 
 						<!-- Thread Tools -->
 						<div class="mt-3 flex items-center justify-between border-t border-stone-100 pt-3">
@@ -2664,8 +2848,68 @@
 								{/if}
 							</div>
 
-							<!-- Right: Image & Char Count -->
-							<div class="flex items-center gap-3">
+							<!-- Right: Quote, Image & Char Count -->
+							<div class="quote-picker-container relative flex items-center gap-3">
+								{#if xQuoteActive && !quote}
+									<button
+										type="button"
+										data-testid="quote-post-{index}"
+										class="flex items-center justify-center rounded-lg p-1.5 text-stone-500 opacity-0 transition-all group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-stone-50 hover:text-stone-900 pointer-coarse:opacity-100 {quotePickerFor ===
+										index
+											? 'opacity-100'
+											: ''}"
+										aria-label={`Quote one of your X posts in post ${index + 1}`}
+										aria-expanded={quotePickerFor === index}
+										title="Quote one of your X posts"
+										onclick={() => void toggleQuotePicker(index)}
+									>
+										<Quote class="h-4 w-4" />
+									</button>
+									{#if quotePickerFor === index}
+										<div
+											class="absolute right-0 bottom-full z-40 mb-2 w-72 max-w-[calc(100vw-3rem)] rounded-[1rem] border border-stone-200/80 bg-white p-2 shadow-[0_16px_40px_-12px_rgb(28_25_23/0.15)]"
+											role="dialog"
+											aria-label="Quote one of your X posts"
+											data-testid="quote-picker"
+											transition:slide={{ duration: 150 }}
+										>
+											<div class="mb-1 px-2 py-1">
+												<span class="text-[10px] font-bold tracking-widest text-stone-500 uppercase"
+													>Your X posts</span
+												>
+											</div>
+											{#if quotePicksFailed}
+												<p class="px-2 py-2 text-[12px] font-medium text-red-600">
+													Could not load your posts. Paste any X post link instead.
+												</p>
+											{:else if quotePicks === null}
+												<p class="px-2 py-2 text-[12px] font-medium text-stone-500">Loading…</p>
+											{:else if quotePicks.length === 0}
+												<p class="px-2 py-2 text-[12px] font-medium text-stone-500">
+													No published X posts yet. Paste any X post link instead.
+												</p>
+											{:else}
+												<div class="max-h-[40vh] overflow-y-auto">
+													{#each quotePicks as pick (pick.url)}
+														<button
+															type="button"
+															class="flex w-full flex-col gap-0.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-stone-50"
+															onclick={() => quotePost(index, pick.url)}
+														>
+															{#if pick.when}
+																<span class="text-[11px] font-bold text-stone-500">{pick.when}</span
+																>
+															{/if}
+															<span class="line-clamp-2 text-[12px] font-medium text-stone-800"
+																>{pick.text || pick.url}</span
+															>
+														</button>
+													{/each}
+												</div>
+											{/if}
+										</div>
+									{/if}
+								{/if}
 								<button
 									type="button"
 									data-testid="attach-image-{index}"
