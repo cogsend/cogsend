@@ -49,7 +49,7 @@ function assertPublicHttpUrl(raw: string): URL {
 	return u;
 }
 
-function decodeHtmlEntities(s: string): string {
+export function decodeHtmlEntities(s: string): string {
 	return s
 		.replace(/&amp;/gi, '&')
 		.replace(/&lt;/gi, '<')
@@ -157,7 +157,7 @@ export function parseOpenGraphHtml(page: string, baseUrl: string): OpenGraphData
  * before the size check could run, which can OOM the isolate (1102) instead of
  * returning a clean 400.
  */
-async function readCappedBody(res: Response, maxBytes: number): Promise<Uint8Array> {
+export async function readCappedBody(res: Response, maxBytes: number): Promise<Uint8Array> {
 	const tooLarge = () => Object.assign(new Error('Preview response too large'), { status: 400 });
 	const declared = Number(res.headers.get('content-length') ?? '');
 	if (Number.isFinite(declared) && declared > maxBytes) throw tooLarge();
