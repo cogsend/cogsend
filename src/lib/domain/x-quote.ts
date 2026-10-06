@@ -88,6 +88,31 @@ export function moveXPostLinkToEnd(text: string, index: number): string {
 	return attachXQuote(rest, m[0], rest ? '\n' : '');
 }
 
+/**
+ * Quote the X post link at `index` instead of the current quote. The old quote
+ * takes that link's place in the text, so neither link is lost.
+ */
+export function swapXQuote(text: string, index: number): string {
+	const quote = trailingXQuote(text);
+	if (!quote) return moveXPostLinkToEnd(text, index);
+	ANY_RE.lastIndex = index;
+	const m = ANY_RE.exec(quote.visible);
+	if (!m || m.index !== index) return text;
+	const visible =
+		quote.visible.slice(0, index) + quote.url + quote.visible.slice(index + m[0].length);
+	return attachXQuote(visible, m[0], quote.sep);
+}
+
+/**
+ * A quoted post's text as X shows it inside a quote: the links X appends for the
+ * post's own link card or media are drawn as a card or image there, not text.
+ */
+export function quotedPostText(text: string): string {
+	return text
+		.replace(/(?:\s*(?:https?:\/\/t\.co\/|pic\.(?:twitter|x)\.com\/)[A-Za-z0-9]+)+\s*$/, '')
+		.trim();
+}
+
 export type QuotableTarget = {
 	status?: string;
 	remoteUrl?: string | null;

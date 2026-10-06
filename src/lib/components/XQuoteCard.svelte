@@ -16,7 +16,7 @@
 
 <script lang="ts">
 	import { TriangleAlert, X } from '@lucide/svelte';
-	import { parseXPostUrl } from '$lib/domain/x-quote';
+	import { parseXPostUrl, quotedPostText } from '$lib/domain/x-quote';
 	import { platformName } from '$lib/domain/platforms';
 
 	let {
@@ -62,7 +62,7 @@
 				const post: XPost = {
 					name: String(data.xPost.name ?? ''),
 					handle: String(data.xPost.handle ?? ''),
-					text: String(data.xPost.text ?? ''),
+					text: quotedPostText(String(data.xPost.text ?? '')),
 					date: String(data.xPost.date ?? '')
 				};
 				remember(current, { kind: 'post', post });
@@ -143,9 +143,7 @@
 					<div class="mt-1.5 h-3 w-1/2 rounded bg-stone-200"></div>
 				</div>
 			{/if}
-			<p class="mt-2 text-[10px] font-bold tracking-widest text-stone-500 uppercase">
-				Quote · $0.20 on X
-			</p>
+			<p class="mt-2 text-[10px] font-bold tracking-widest text-stone-500 uppercase">Quote</p>
 		</div>
 	{/if}
 	{#if othersLabel}

@@ -4,7 +4,9 @@ import {
 	moveXPostLinkToEnd,
 	parseXPostUrl,
 	quotableXPosts,
+	quotedPostText,
 	strayXPostLinks,
+	swapXQuote,
 	trailingXQuote
 } from '$lib/domain/x-quote';
 
@@ -166,5 +168,48 @@ describe('quotableXPosts', () => {
 		);
 		expect(quotableXPosts(many)).toHaveLength(8);
 		expect(quotableXPosts(many, 3)).toHaveLength(3);
+	});
+});
+
+describe('swapXQuote', () => {
+	const other = 'https://x.com/jack/status/20';
+
+	it('quotes the other link and keeps the old quote in its place', () => {
+		const text = `Two posts ${other} ${LINK}`;
+		const swapped = swapXQuote(text, 10);
+		expect(swapped).toBe(`Two posts ${LINK} ${other}`);
+		expect(trailingXQuote(swapped)?.url).toBe(other);
+		expect(strayXPostLinks(swapped)).toEqual([{ url: LINK, index: 10 }]);
+		// Swapping back restores the original text.
+		expect(swapXQuote(swapped, 10)).toBe(text);
+	});
+
+	it('keeps the separator before the quote', () => {
+		expect(swapXQuote(`${other} first\n${LINK}`, 0)).toBe(`${LINK} first\n${other}`);
+	});
+
+	it('moves the link to the end when nothing is quoted yet', () => {
+		expect(swapXQuote(`${other} wow`, 0)).toBe(`wow\n${other}`);
+	});
+
+	it('leaves the text alone when no link starts at that index', () => {
+		const text = `Two posts ${other} ${LINK}`;
+		expect(swapXQuote(text, 3)).toBe(text);
+	});
+});
+
+describe('quotedPostText', () => {
+	it('drops the links X draws as a card or image', () => {
+		expect(quotedPostText('Bento for all business emails https://t.co/IUFHHSpaEy')).toBe(
+			'Bento for all business emails'
+		);
+		expect(quotedPostText('Look at this pic.twitter.com/AbC123')).toBe('Look at this');
+		expect(quotedPostText('Two https://t.co/a1 https://t.co/b2\n')).toBe('Two');
+		expect(quotedPostText('https://t.co/a1')).toBe('');
+	});
+
+	it('keeps links inside the text', () => {
+		expect(quotedPostText('See https://t.co/a1 for more')).toBe('See https://t.co/a1 for more');
+		expect(quotedPostText('Plain text')).toBe('Plain text');
 	});
 });

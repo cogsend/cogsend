@@ -99,9 +99,10 @@
 	import { draftExcerpt } from '$lib/domain/excerpt';
 	import {
 		attachXQuote,
-		moveXPostLinkToEnd,
+		parseXPostUrl,
 		quotableXPosts,
 		strayXPostLinks,
+		swapXQuote,
 		trailingXQuote,
 		type QuotableTarget,
 		type XQuote
@@ -1825,19 +1826,15 @@
 
 	/**
 	 * The text box shows the card without its quoted link, so put the link back
-	 * after what was typed. A link pasted at the end takes the old one's place
-	 * instead: X quotes one post. `landsOn` is the card the text ends up on,
-	 * which differs from `i` when a marker split the card.
+	 * after what was typed. Another X link pasted while a post is quoted stays
+	 * in the text as a plain link: replacing the quote would lose the first one.
+	 * `landsOn` is the card the text ends up on, which differs from `i` when a
+	 * marker split the card.
 	 */
 	function restoreQuote(i: number, typed: string, inputType: string, landsOn: number): string {
-		const pasted = inputType.startsWith('insertFromPaste') || inputType === 'insertFromDrop';
 		const hidden = hiddenQuote(i);
-		if (hidden) {
-			const fresh = pasted ? trailingXQuote(typed) : null;
-			if (!fresh) return attachXQuote(typed, hidden.url, hidden.sep);
-			if (fresh.url !== hidden.url) showToast('Now quoting the post you pasted', 'success');
-			return typed;
-		}
+		if (hidden) return attachXQuote(typed, hidden.url, hidden.sep);
+		const pasted = inputType.startsWith('insertFromPaste') || inputType === 'insertFromDrop';
 		if (xQuoteActive && !pasted && trailingXQuote(typed)) revealTrailing = landsOn;
 		return typed;
 	}
@@ -1865,7 +1862,7 @@
 	}
 
 	function makeQuote(i: number, linkIndex: number) {
-		setSegmentText(i, moveXPostLinkToEnd(segments[i] ?? '', linkIndex));
+		setSegmentText(i, swapXQuote(segments[i] ?? '', linkIndex));
 	}
 
 	function quotePost(i: number, url: string) {
@@ -2795,24 +2792,39 @@
 
 						{#if strayLinks.length > 0}
 							<div
-								class="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200/70 bg-amber-50/60 px-3 py-2"
+								class="mt-3 flex flex-col gap-2 rounded-xl border border-amber-200/70 bg-amber-50/60 px-3 py-2"
 								data-testid="x-quote-stray"
 							>
-								<p class="min-w-0 flex-1 text-[12px] font-medium text-amber-900">
-									X only quotes a link at the very end, so {strayLinks.length === 1
-										? 'this X link shows'
-										: 'these X links show'} as a plain link.
+								<p class="text-[12px] font-medium text-amber-900">
+									{#if quote}
+										X quotes one post, so {strayLinks.length === 1
+											? 'this other X link shows'
+											: 'these other X links show'} as a plain link.{tabSupportsThreads
+											? ' To quote both, give each its own post with + Thread.'
+											: ''}
+									{:else}
+										X only quotes a link at the very end, so {strayLinks.length === 1
+											? 'this X link shows'
+											: 'these X links show'} as a plain link.
+									{/if}
 								</p>
-								{#if !quote}
-									<button
-										type="button"
-										data-testid="x-quote-make"
-										onclick={() => makeQuote(index, strayLinks[0].index)}
-										class="rounded-full border border-amber-300 bg-white px-3 py-1 text-[11px] font-bold text-amber-900 transition-colors hover:bg-amber-100"
-									>
-										Make it the quote
-									</button>
-								{/if}
+								<div class="flex flex-wrap gap-2">
+									{#each strayLinks as link (link.index)}
+										{@const author = parseXPostUrl(link.url)?.handle}
+										<button
+											type="button"
+											data-testid="x-quote-make"
+											onclick={() => makeQuote(index, link.index)}
+											class="max-w-full truncate rounded-full border border-amber-300 bg-white px-3 py-1 text-[11px] font-bold text-amber-900 transition-colors hover:bg-amber-100"
+										>
+											{#if author}
+												Quote @{author}'s post{quote ? ' instead' : ''}
+											{:else}
+												{quote ? 'Quote this post instead' : 'Make it the quote'}
+											{/if}
+										</button>
+									{/each}
+								</div>
 							</div>
 						{/if}
 

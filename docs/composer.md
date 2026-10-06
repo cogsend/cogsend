@@ -51,8 +51,8 @@ A URL in a card shows the link preview it will produce, while you write.
 
 X shows a post as a quote when its text ends with a link to another X post. With an X account selected, paste such a link at the end of a card and it turns into a quote card: the author and text of the quoted post, the way X will show it. The link leaves the text box but stays saved at the end of the text, which is what X needs. A link you type by hand moves into the card once you click away from the box, and the × on the card removes the quote.
 
-- X quotes only a link at the very end. A link to an X post anywhere else in the text stays a plain link, and the card says so, with **Make it the quote** to move it to the end.
-- A card quotes one post. Pasting a second link at the end replaces the first.
+- X quotes only a link at the very end. A link to an X post anywhere else in the text stays a plain link, and the card says so, with a button to quote that post instead.
+- A card quotes one post. Another X link pasted into it stays in the text as a plain link, so nothing is lost; its button swaps the two. To quote several posts, give each its own card with **+ Thread**.
 - The quote button in a card's tools lists your recent published X posts, so you can quote one without copying its link.
 - On **Global**, the other selected platforms get the same text, link included; the card names them.
 - X bills a post that contains a link at $0.20 instead of $0.015, and a quote is such a post.

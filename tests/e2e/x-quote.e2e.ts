@@ -86,7 +86,9 @@ test.beforeEach(async ({ page }) => {
 					id: own ? '1974500000000000001' : POST_ID,
 					name: own ? 'You' : 'Ada Builds',
 					handle: own ? 'quoter' : 'ada_builds',
-					text: own ? 'Our launch post' : 'Moved my whole posting setup to a Worker.',
+					text: own
+						? 'Our launch post'
+						: 'Moved my whole posting setup to a Worker. https://t.co/AbC123',
 					date: 'Oct 4, 2026'
 				}
 			})
@@ -115,6 +117,26 @@ async function storedBody(page: Page) {
 		const res = await page.request.get(`/api/drafts/${id}`);
 		return ((await res.json()).draft as { baseBody: string }).baseBody;
 	};
+}
+
+/**
+ * Posts renders its cards on the server, so a click can land before the page is
+ * live and do nothing. Retry until the composer opens; a click while a quote is
+ * already opening is ignored by the page, so this never starts two drafts.
+ */
+async function quoteFromPosts(page: Page) {
+	await page.goto('/posts?tab=published');
+	const quote = page.getByTestId('quote-on-x').first();
+	for (let attempt = 0; attempt < 5; attempt++) {
+		await quote.click({ timeout: 5_000 }).catch(() => {});
+		try {
+			await expect(page).toHaveURL(/\/compose\?id=/, { timeout: 3_000 });
+			return;
+		} catch {
+			// Not hydrated yet: click again.
+		}
+	}
+	await expect(page).toHaveURL(/\/compose\?id=/, { timeout: 20000 });
 }
 
 /** A paste at the end of the box, as the browser reports it. */
@@ -187,17 +209,37 @@ test('a typed link stays in the box until it loses focus', async ({ page }) => {
 	await expect.poll(body, { timeout: 30000 }).toBe(`Look ${LINK}`);
 });
 
-test('a second pasted link replaces the quote', async ({ page }) => {
+test('a second pasted link stays a link, and can be swapped in as the quote', async ({ page }) => {
 	const box = page.getByTestId('segment-input-0');
 	const other = 'https://x.com/jack/status/20';
 	await box.fill('Two posts');
 	await pasteAtEnd(box, ` ${LINK}`);
 	await expect(box).toHaveValue('Two posts');
+
+	// The second link stays where it was pasted; the first is still the quote.
 	await pasteAtEnd(box, ` ${other}`);
-	await expect(box).toHaveValue('Two posts');
+	await expect(box).toHaveValue(`Two posts ${other}`);
+	await expect(page.getByTestId('x-quote-card')).toBeVisible();
+	await expect(page.getByTestId('x-quote-stray')).toContainText('X quotes one post');
 	const body = await storedBody(page);
-	await expect.poll(body, { timeout: 30000 }).toBe(`Two posts ${other}`);
-	await expect(page.getByText('Now quoting the post you pasted')).toBeVisible();
+	await expect.poll(body, { timeout: 30000 }).toBe(`Two posts ${other} ${LINK}`);
+
+	// Swapping keeps both links and quotes the other post.
+	await expect(page.getByTestId('x-quote-make')).toHaveText("Quote @jack's post instead");
+	await page.getByTestId('x-quote-make').click();
+	await expect(page.getByTestId('x-quote-make')).toHaveText("Quote @ada_builds's post instead");
+	await expect(box).toHaveValue(`Two posts ${LINK}`);
+	await expect.poll(body, { timeout: 30000 }).toBe(`Two posts ${LINK} ${other}`);
+});
+
+test('the quote card shows the post, not its links or a price', async ({ page }) => {
+	const box = page.getByTestId('segment-input-0');
+	await box.fill('Look');
+	await pasteAtEnd(box, ` ${LINK}`);
+	const card = page.getByTestId('x-quote-card');
+	await expect(card).toContainText('Moved my whole posting setup to a Worker.');
+	await expect(card).not.toContainText('t.co');
+	await expect(card).not.toContainText('$');
 });
 
 test('a link X will not quote is flagged and can be made the quote', async ({ page }) => {
@@ -238,10 +280,7 @@ test('the picker quotes one of your published X posts', async ({ page }) => {
 });
 
 test('Quote on X in Posts opens a draft quoting that post', async ({ page }) => {
-	await page.goto('/posts?tab=published');
-	const quote = page.getByTestId('quote-on-x').first();
-	await quote.click();
-	await expect(page).toHaveURL(/\/compose\?id=/, { timeout: 20000 });
+	await quoteFromPosts(page);
 	await expect(page.getByTestId('x-quote-card')).toContainText('Our launch post');
 	await expect(page.getByTestId('segment-input-0')).toHaveValue('');
 	const body = await storedBody(page);
@@ -249,9 +288,7 @@ test('Quote on X in Posts opens a draft quoting that post', async ({ page }) => 
 });
 
 test('a long paste into a quote draft starts on the quoted card', async ({ page }) => {
-	await page.goto('/posts?tab=published');
-	await page.getByTestId('quote-on-x').first().click();
-	await expect(page).toHaveURL(/\/compose\?id=/, { timeout: 20000 });
+	await quoteFromPosts(page);
 	await expect(page.getByTestId('x-quote-card')).toBeVisible();
 	await waitForLiveComposer(page);
 
