@@ -7,9 +7,12 @@ how publishing has gone over time.
 
 The tabs filter by state — **All Posts**, **Scheduled**, **Published**, **Failed**
 and **Drafts** — each with its count. **All accounts** narrows the list to one
-account, and the search box matches the post text. Every card shows the accounts
-it goes to, the text, and when: **Will publish** with the time in your own
-timezone and how far away it is, or **Published**, or when a draft was last edited.
+account, and the search box matches the post text. The tab and account stay in
+the address, so reloading or sharing the link keeps them, and coming back from
+editing a post returns you to the same tab, account and search. Every card shows
+the accounts it goes to, the text, and when: **Will publish** with the time in
+your own timezone and how far away it is, or **Published**, or when a draft was
+last edited.
 
 What a card offers depends on its state:
 
