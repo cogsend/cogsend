@@ -8,6 +8,8 @@
  * drafts and the API see exactly what they saw before.
  */
 
+import { joinThreadSegments, splitThreadSegments, updateSegment } from './thread-segments';
+
 // Query strings are kept (`?s=20` from the share sheet) but stop at
 // punctuation: a link followed by `.` is not "the last thing in the text".
 const X_POST_URL = String.raw`https?:\/\/(?:www\.|mobile\.)?(?:x|twitter)\.com\/(i\/web|[A-Za-z0-9_]{1,15})\/status(?:es)?\/(\d{1,19})(?:\?[\w\-=&%~]*)?`;
@@ -101,6 +103,48 @@ export function swapXQuote(text: string, index: number): string {
 	const visible =
 		quote.visible.slice(0, index) + quote.url + quote.visible.slice(index + m[0].length);
 	return attachXQuote(visible, m[0], quote.sep);
+}
+
+/**
+ * Keep card `index`'s quote for X alone: X keeps the whole text, and the text
+ * every other platform gets loses that card's link. A card that is only the
+ * quote cannot be split, since the others would get an empty card.
+ */
+export function keepXQuoteOnX(body: string, index: number): { x: string; global: string } | null {
+	const segments = splitThreadSegments(body);
+	const quote = trailingXQuote(segments[index] ?? '');
+	if (!quote || !quote.visible.trim()) return null;
+	return { x: body, global: joinThreadSegments(updateSegment(segments, index, quote.visible)) };
+}
+
+/**
+ * Give the other platforms card `index`'s quoted link again, after the same
+ * card of their text. `xFollows` says X's text and theirs are then the same,
+ * so X can follow Global again without losing anything.
+ */
+export function shareXQuote(
+	globalBody: string,
+	xBody: string,
+	index: number
+): { global: string; xFollows: boolean } | null {
+	const quote = trailingXQuote(splitThreadSegments(xBody)[index] ?? '');
+	const segments = splitThreadSegments(globalBody);
+	if (!quote || index >= segments.length) return null;
+	const current = segments[index];
+	ANY_RE.lastIndex = 0;
+	let m: RegExpExecArray | null;
+	while ((m = ANY_RE.exec(current)) !== null) {
+		if (m[2] === quote.id) return null;
+	}
+	const shared = attachXQuote(current, quote.url, current === '' ? '' : quote.sep || '\n');
+	const global = joinThreadSegments(updateSegment(segments, index, shared));
+	return { global, xFollows: sameSegments(global, xBody) };
+}
+
+function sameSegments(a: string, b: string): boolean {
+	const left = splitThreadSegments(a);
+	const right = splitThreadSegments(b);
+	return left.length === right.length && left.every((s, i) => s.trimEnd() === right[i].trimEnd());
 }
 
 /**

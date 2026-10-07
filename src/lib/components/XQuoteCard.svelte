@@ -17,24 +17,33 @@
 <script lang="ts">
 	import { TriangleAlert, X } from '@lucide/svelte';
 	import { parseXPostUrl, quotedPostText } from '$lib/domain/x-quote';
-	import { platformName } from '$lib/domain/platforms';
+	import { platformNames } from '$lib/domain/platforms';
 
 	let {
 		url,
 		onRemove,
-		otherPlatforms = []
-	}: { url: string; onRemove: () => void; otherPlatforms?: string[] } = $props();
+		otherPlatforms = [],
+		onOnlyOnX,
+		withheldFrom = [],
+		onShareWithAll
+	}: {
+		url: string;
+		onRemove: () => void;
+		/** Platforms that get this text with the link as a plain link. */
+		otherPlatforms?: string[];
+		onOnlyOnX?: () => void;
+		/** Platforms whose text leaves this link out, on X's own tab. */
+		withheldFrom?: string[];
+		onShareWithAll?: () => void;
+	} = $props();
 
 	let loaded = $state<Loaded | null>(null);
 	let loading = $state(false);
 	let seq = 0;
 
 	const ref = $derived(parseXPostUrl(url));
-	const othersLabel = $derived.by(() => {
-		const names = otherPlatforms.map((p) => platformName(p));
-		if (names.length <= 1) return names[0] ?? '';
-		return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-	});
+	const othersLabel = $derived(platformNames(otherPlatforms));
+	const withheldLabel = $derived(platformNames(withheldFrom));
 
 	$effect(() => {
 		const current = url;
@@ -147,9 +156,44 @@
 		</div>
 	{/if}
 	{#if othersLabel}
-		<p class="mt-1.5 text-[11px] font-medium text-stone-500" data-testid="x-quote-others">
-			{othersLabel}
-			{otherPlatforms.length === 1 ? 'gets' : 'get'} the link instead.
+		<p
+			class="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] font-medium text-stone-500"
+			data-testid="x-quote-others"
+		>
+			<span>
+				{othersLabel}
+				{otherPlatforms.length === 1 ? 'gets' : 'get'} it as a link.
+			</span>
+			{#if onOnlyOnX}
+				<button
+					type="button"
+					data-testid="x-quote-only-x"
+					onclick={onOnlyOnX}
+					class="min-h-6 font-bold text-stone-900 underline-offset-2 hover:underline"
+					title="Quote this post on X only, and leave the link out for the others"
+				>
+					Only on X
+				</button>
+			{/if}
+		</p>
+	{:else if withheldLabel && onShareWithAll}
+		<p
+			class="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] font-medium text-stone-500"
+			data-testid="x-quote-withheld"
+		>
+			<span>
+				{withheldLabel}
+				{withheldFrom.length === 1 ? "doesn't" : "don't"} get this link.
+			</span>
+			<button
+				type="button"
+				data-testid="x-quote-share-all"
+				onclick={onShareWithAll}
+				class="min-h-6 font-bold text-stone-900 underline-offset-2 hover:underline"
+				title="Add this link to the text the other platforms get"
+			>
+				Share with all
+			</button>
 		</p>
 	{/if}
 </div>

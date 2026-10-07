@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
 	attachXQuote,
+	keepXQuoteOnX,
 	moveXPostLinkToEnd,
 	parseXPostUrl,
 	quotableXPosts,
 	quotedPostText,
+	shareXQuote,
 	strayXPostLinks,
 	swapXQuote,
 	trailingXQuote
@@ -211,5 +213,62 @@ describe('quotedPostText', () => {
 	it('keeps links inside the text', () => {
 		expect(quotedPostText('See https://t.co/a1 for more')).toBe('See https://t.co/a1 for more');
 		expect(quotedPostText('Plain text')).toBe('Plain text');
+	});
+});
+
+describe('keepXQuoteOnX', () => {
+	it('keeps the whole text for X and drops the link from the others', () => {
+		expect(keepXQuoteOnX(`Worth reading. ${LINK}`, 0)).toEqual({
+			x: `Worth reading. ${LINK}`,
+			global: 'Worth reading.'
+		});
+		expect(keepXQuoteOnX(`Line one\n\nLine two\n${LINK}`, 0)?.global).toBe('Line one\n\nLine two');
+	});
+
+	it('changes only the card it was asked about', () => {
+		const body = `First ${LINK}\n---\nSecond ${LINK}`;
+		expect(keepXQuoteOnX(body, 1)).toEqual({ x: body, global: `First ${LINK}\n---\nSecond` });
+	});
+
+	it('refuses a card that is only the quote, or has none', () => {
+		expect(keepXQuoteOnX(LINK, 0)).toBeNull();
+		expect(keepXQuoteOnX(`Intro\n---\n${LINK}`, 1)).toBeNull();
+		expect(keepXQuoteOnX('No quote here', 0)).toBeNull();
+		expect(keepXQuoteOnX(`Worth reading. ${LINK}`, 3)).toBeNull();
+	});
+});
+
+describe('shareXQuote', () => {
+	it('undoes keepXQuoteOnX exactly, so X can follow Global again', () => {
+		for (const body of [
+			`Worth reading. ${LINK}`,
+			`Worth reading.\n${LINK}`,
+			`Intro\n---\nSecond card\n\n${LINK}`
+		]) {
+			const index = body.includes('---') ? 1 : 0;
+			const split = keepXQuoteOnX(body, index)!;
+			expect(shareXQuote(split.global, split.x, index)).toEqual({ global: body, xFollows: true });
+		}
+	});
+
+	it('adds the link but keeps X apart when the texts differ otherwise', () => {
+		expect(shareXQuote('For everyone.', `Just for X. ${LINK}`, 0)).toEqual({
+			global: `For everyone. ${LINK}`,
+			xFollows: false
+		});
+	});
+
+	it('gives an empty card just the link', () => {
+		expect(shareXQuote('Intro\n---\n', `Intro\n---\n${LINK}`, 1)).toEqual({
+			global: `Intro\n---\n${LINK}`,
+			xFollows: true
+		});
+	});
+
+	it('does nothing when the others already link to that post, or have no such card', () => {
+		const other = 'https://twitter.com/ada_builds/status/1974452871209381904?s=20';
+		expect(shareXQuote(`See ${other} first`, `See it. ${LINK}`, 0)).toBeNull();
+		expect(shareXQuote('Only one card', `One\n---\nTwo ${LINK}`, 1)).toBeNull();
+		expect(shareXQuote('Words', 'No quote on X', 0)).toBeNull();
 	});
 });

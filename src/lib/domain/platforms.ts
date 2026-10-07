@@ -34,6 +34,13 @@ export function platformName(p: string): string {
 	return p.charAt(0).toUpperCase() + p.slice(1);
 }
 
+/** "Threads, Mastodon and Bluesky". */
+export function platformNames(platforms: string[]): string {
+	const names = platforms.map((p) => platformName(p));
+	if (names.length <= 1) return names[0] ?? '';
+	return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 /**
  * Short display form of an account handle. Only the generic `.bsky.social`
  * suffix is stripped (custom domains stay full); everything else is

@@ -60,6 +60,7 @@
 		accountLabel,
 		displayHandle,
 		platformName,
+		platformNames,
 		platformRank,
 		PLATFORM_ORDER
 	} from '$lib/domain/platforms';
@@ -99,8 +100,10 @@
 	import { draftExcerpt } from '$lib/domain/excerpt';
 	import {
 		attachXQuote,
+		keepXQuoteOnX,
 		parseXPostUrl,
 		quotableXPosts,
+		shareXQuote,
 		strayXPostLinks,
 		swapXQuote,
 		trailingXQuote,
@@ -487,6 +490,15 @@
 	// On Global the other selected platforms get the same text, link and all.
 	const quoteLinkPlatforms = $derived(
 		activeTab === 'global'
+			? PLATFORM_ORDER.filter(
+					(p) => p !== 'x' && selectedPlatforms.has(p) && !isPlatformCustomized(overrides, p)
+				)
+			: []
+	);
+	// On X's own tab, the platforms that follow Global and so get X's text
+	// without whatever X alone quotes.
+	const xWithheldFrom = $derived(
+		activeTab === 'x' && isPlatformCustomized(overrides, 'x')
 			? PLATFORM_ORDER.filter(
 					(p) => p !== 'x' && selectedPlatforms.has(p) && !isPlatformCustomized(overrides, p)
 				)
@@ -1861,6 +1873,52 @@
 		setSegmentText(i, quote.visible);
 	}
 
+	function canQuoteOnlyOnX(i: number): boolean {
+		return (
+			activeTab === 'global' &&
+			quoteLinkPlatforms.length > 0 &&
+			keepXQuoteOnX(segments[i] ?? '', 0) !== null
+		);
+	}
+
+	/** X gets its own tab holding the quote; Global, which the others get, loses the link. */
+	function quoteOnlyOnX(i: number) {
+		const split = keepXQuoteOnX(baseBody, i);
+		if (!split) return;
+		revealTrailing = null;
+		quotePickerFor = null;
+		overrides = customizePlatformBody(overrides, 'x', split.x);
+		baseBody = split.global;
+		markDirty();
+		void syncSegmentInput(i);
+		showToast(
+			'Only X quotes this post now. X has its own tab, so edits on Global no longer reach it.'
+		);
+	}
+
+	function sharedQuote(i: number) {
+		if (xWithheldFrom.length === 0) return null;
+		return shareXQuote(baseBody, effectivePlatformBody(baseBody, overrides, 'x'), i);
+	}
+
+	function shareQuoteWithAll(i: number) {
+		const shared = sharedQuote(i);
+		if (!shared) return;
+		// Named before the tab switch below empties the list.
+		const others = xWithheldFrom;
+		baseBody = shared.global;
+		if (shared.xFollows) {
+			overrides = resetPlatformToFollow(overrides, 'x');
+			activeTab = 'global';
+		}
+		markDirty();
+		showToast(
+			shared.xFollows
+				? 'Every platform gets the link again.'
+				: `${platformNames(others)} ${others.length === 1 ? 'gets' : 'get'} the link too. X keeps its own tab.`
+		);
+	}
+
 	function makeQuote(i: number, linkIndex: number) {
 		setSegmentText(i, swapXQuote(segments[i] ?? '', linkIndex));
 	}
@@ -2785,6 +2843,9 @@
 								url={quote.url}
 								onRemove={() => removeQuote(index)}
 								otherPlatforms={quoteLinkPlatforms}
+								onOnlyOnX={canQuoteOnlyOnX(index) ? () => quoteOnlyOnX(index) : undefined}
+								withheldFrom={xWithheldFrom}
+								onShareWithAll={sharedQuote(index) ? () => shareQuoteWithAll(index) : undefined}
 							/>
 						{:else}
 							<LinkPreview text={segment} hasMedia={segMedia.length > 0} />
