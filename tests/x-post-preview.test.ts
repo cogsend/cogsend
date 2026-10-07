@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchXPostPreview, parseOEmbedHtml } from '$lib/server/x-post-preview';
+import {
+	fetchLinkCard,
+	fetchXPostCard,
+	fetchXPostPreview,
+	parseOEmbedHtml
+} from '$lib/server/x-post-preview';
+import type { FetchLike } from '$lib/server/providers/types';
 
 const LINK = 'https://x.com/XDevelopers/status/2044919377544261979?s=20';
 
@@ -93,5 +99,78 @@ describe('fetchXPostPreview', () => {
 describe('parseOEmbedHtml', () => {
 	it('copes with an embed that has no paragraph or date', () => {
 		expect(parseOEmbedHtml('<blockquote></blockquote>')).toEqual({ text: '', date: '' });
+	});
+});
+
+// What x.com serves a server for a post: a title and an image, no description.
+const PAGE = `<html><head>
+<meta property="og:title" content="Developers (@XDevelopers) on X" />
+<meta property="og:image" content="https://pbs.twimg.com/card_img/1/abc?format=jpg" />
+</head></html>`;
+
+function xFetch(oembed: () => Response, page: () => Response = () => html(PAGE)) {
+	const asked: string[] = [];
+	const fetchImpl: FetchLike = async (input) => {
+		const url = String(input instanceof Request ? input.url : input);
+		asked.push(url);
+		return url.startsWith('https://publish.x.com/') ? oembed() : page();
+	};
+	return { fetchImpl, asked };
+}
+
+function html(body: string, status = 200) {
+	return new Response(body, { status, headers: { 'Content-Type': 'text/html' } });
+}
+
+describe('fetchXPostCard', () => {
+	it("gives the post's author and text, with the image from its page", async () => {
+		const { fetchImpl } = xFetch(() => Response.json(OEMBED));
+		expect(await fetchXPostCard(LINK, fetchImpl)).toEqual({
+			url: LINK,
+			title: 'Developers (@XDevelopers)',
+			description:
+				'API Posting will increase to $0.015 per post from $0.01.\n\nQuote & follow <removed>. More details:',
+			image: 'https://pbs.twimg.com/card_img/1/abc?format=jpg',
+			siteName: 'X'
+		});
+	});
+
+	it('keeps the author and text when the page has nothing to add', async () => {
+		const { fetchImpl } = xFetch(
+			() => Response.json(OEMBED),
+			() => html('nope', 500)
+		);
+		const card = await fetchXPostCard(LINK, fetchImpl);
+		expect(card.title).toBe('Developers (@XDevelopers)');
+		expect(card.image).toBeNull();
+	});
+
+	it("falls back to the page's own tags when X's oEmbed fails", async () => {
+		for (const status of [404, 500]) {
+			const { fetchImpl } = xFetch(() => new Response('{}', { status }));
+			const card = await fetchXPostCard(LINK, fetchImpl);
+			expect(card.title).toBe('Developers (@XDevelopers) on X');
+			expect(card.image).toBe('https://pbs.twimg.com/card_img/1/abc?format=jpg');
+		}
+	});
+
+	it('throws when neither answers', async () => {
+		const { fetchImpl } = xFetch(
+			() => new Response('{}', { status: 500 }),
+			() => html('nope', 500)
+		);
+		await expect(fetchXPostCard(LINK, fetchImpl)).rejects.toBeTruthy();
+	});
+});
+
+describe('fetchLinkCard', () => {
+	it('never asks X about a link that is not an X post', async () => {
+		const { fetchImpl, asked } = xFetch(
+			() => Response.json(OEMBED),
+			() => html('<meta property="og:title" content="Example" />')
+		);
+		const card = await fetchLinkCard('https://example.com/post', fetchImpl);
+		expect(card.title).toBe('Example');
+		expect(asked.some((u) => u.includes('publish.x.com'))).toBe(false);
 	});
 });

@@ -233,3 +233,108 @@ describe('bluesky svg thumbs', () => {
 		expect(uploads).toBe(0);
 	});
 });
+
+describe('X post link cards', () => {
+	const POST = 'https://x.com/ada_builds/status/1974452871209381904';
+	// x.com gives a server a title and an image but no text; oEmbed has the text.
+	const X_PAGE = `<html><head>
+<meta property="og:title" content="Ada Builds (@ada_builds) on X" />
+<meta property="og:image" content="https://pbs.twimg.com/card_img/1/abc?format=png" />
+</head></html>`;
+	const OEMBED = {
+		author_name: 'Ada Builds',
+		author_url: 'https://x.com/ada_builds',
+		html: '<blockquote class="twitter-tweet"><p lang="en">Moved my whole posting setup to a Worker. <a href="https://t.co/AbC123">https://t.co/AbC123</a></p>&mdash; Ada Builds (@ada_builds) <a href="https://x.com/ada_builds/status/1974452871209381904">October 4, 2026</a></blockquote>'
+	};
+
+	function blueskyFetch(oembed: () => Response, onEmbed: (embed: unknown) => void) {
+		return mockFetch({
+			'publish.x.com/oembed': oembed,
+			'com.atproto.server.createSession': () =>
+				Response.json({
+					accessJwt: 'a',
+					refreshJwt: 'r',
+					did: 'did:plc:x',
+					handle: 'x.bsky.social'
+				}),
+			'x.com/ada_builds/status': () =>
+				new Response(X_PAGE, { headers: { 'Content-Type': 'text/html' } }),
+			'pbs.twimg.com/card_img': () =>
+				new Response(PNG_1x1 as unknown as BodyInit, { headers: { 'Content-Type': 'image/png' } }),
+			'com.atproto.repo.uploadBlob': () =>
+				Response.json({
+					blob: { $type: 'blob', ref: { $link: 'thumb1' }, mimeType: 'image/png', size: 100 }
+				}),
+			'com.atproto.repo.createRecord': async (req) => {
+				onEmbed((await req.json()).record.embed);
+				return Response.json({ uri: 'at://did:plc:x/app.bsky.feed.post/9', cid: 'c9' });
+			}
+		});
+	}
+
+	it("gives Bluesky the quoted post's author and text, with its image", async () => {
+		let embed: unknown;
+		await blueskyProvider.publish(
+			{ text: `Worth reading.\n${POST}` },
+			{ handle: 'x.bsky.social', appPassword: 'p' },
+			undefined,
+			blueskyFetch(
+				() => Response.json(OEMBED),
+				(e) => (embed = e)
+			)
+		);
+		const ext = (embed as { external: Record<string, unknown> }).external;
+		expect(ext.uri).toBe(POST);
+		expect(ext.title).toBe('Ada Builds (@ada_builds)');
+		expect(ext.description).toBe('Moved my whole posting setup to a Worker.');
+		expect(ext.thumb).toBeTruthy();
+	});
+
+	it("keeps the page's own card when X's oEmbed fails", async () => {
+		let embed: unknown;
+		await blueskyProvider.publish(
+			{ text: `Worth reading.\n${POST}` },
+			{ handle: 'x.bsky.social', appPassword: 'p' },
+			undefined,
+			blueskyFetch(
+				() => new Response('{}', { status: 500 }),
+				(e) => (embed = e)
+			)
+		);
+		const ext = (embed as { external: Record<string, unknown> }).external;
+		expect(ext.title).toBe('Ada Builds (@ada_builds) on X');
+		expect(ext.thumb).toBeTruthy();
+	});
+
+	it("gives LinkedIn the quoted post's author and text", async () => {
+		let content: Record<string, unknown> | undefined;
+		const fetchImpl = mockFetch({
+			'publish.x.com/oembed': () => Response.json(OEMBED),
+			'x.com/ada_builds/status': () =>
+				new Response(X_PAGE, { headers: { 'Content-Type': 'text/html' } }),
+			'pbs.twimg.com/card_img': () =>
+				new Response(PNG_1x1 as unknown as BodyInit, { headers: { 'Content-Type': 'image/png' } }),
+			'/rest/images?action=initializeUpload': () =>
+				Response.json({ value: { uploadUrl: 'https://up.test/i', image: 'urn:li:image:THUMB' } }),
+			'up.test/i': () => new Response('', { status: 201 }),
+			'/rest/posts': async (req) => {
+				content = (await req.json()).content;
+				return new Response(JSON.stringify({ id: 'urn:li:share:9' }), {
+					status: 201,
+					headers: { 'x-restli-id': 'urn:li:share:9', 'Content-Type': 'application/json' }
+				});
+			}
+		});
+		await linkedinProvider.publish(
+			{ text: `Worth reading.\n${POST}` },
+			{ accessToken: 'tok', personUrn: 'urn:li:person:abc' },
+			undefined,
+			fetchImpl
+		);
+		const article = (content as { article: Record<string, unknown> }).article;
+		expect(article.source).toBe(POST);
+		expect(article.title).toBe('Ada Builds (@ada_builds)');
+		expect(article.description).toBe('Moved my whole posting setup to a Worker.');
+		expect(article.thumbnail).toBe('urn:li:image:THUMB');
+	});
+});

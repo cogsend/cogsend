@@ -1,15 +1,21 @@
 /**
- * Author and text of an X post, for the composer's quote card.
+ * Author and text of an X post, for the composer's quote card and for the link
+ * cards CogSend builds when it publishes an X link to Bluesky or LinkedIn.
  *
- * x.com serves a server only "Name (@handle) on X", so the card asks X's
- * oEmbed endpoint instead: official, free and keyless, unlike the API's post
- * lookup, which spends credits on every preview. The request is built from the
- * parsed post id alone and always goes to publish.x.com, so a caller cannot
- * point it anywhere else.
+ * x.com serves a server only "Name (@handle) on X", so this asks X's oEmbed
+ * endpoint instead: official, free and keyless, unlike the API's post lookup,
+ * which spends credits on every preview. The request is built from the parsed
+ * post id alone and always goes to publish.x.com, so a caller cannot point it
+ * anywhere else.
  */
 
-import { parseXPostUrl } from '$lib/domain/x-quote';
-import { decodeHtmlEntities, readCappedBody, type OpenGraphData } from './opengraph';
+import { parseXPostUrl, quotedPostText } from '$lib/domain/x-quote';
+import {
+	decodeHtmlEntities,
+	fetchOpenGraph,
+	readCappedBody,
+	type OpenGraphData
+} from './opengraph';
 import type { FetchLike } from './providers/types';
 
 const OEMBED_ENDPOINT = 'https://publish.x.com/oembed';
@@ -104,4 +110,32 @@ export async function fetchXPostPreview(
 		siteName: 'X',
 		xPost: { id: ref.id, name, handle, text, date }
 	};
+}
+
+/**
+ * A link card for an X post: the author and text from oEmbed, with the image
+ * from the post's own page tags, which oEmbed does not give. When oEmbed fails
+ * the page tags alone are the card, as they were before.
+ */
+export async function fetchXPostCard(url: string, fetchImpl: FetchLike): Promise<OpenGraphData> {
+	const [post, page] = await Promise.allSettled([
+		fetchXPostPreview(url, fetchImpl),
+		fetchOpenGraph(url, fetchImpl)
+	]);
+	if (post.status === 'fulfilled') {
+		return {
+			url,
+			title: post.value.title,
+			description: quotedPostText(post.value.xPost.text),
+			image: page.status === 'fulfilled' ? page.value.image : null,
+			siteName: 'X'
+		};
+	}
+	if (page.status === 'fulfilled') return page.value;
+	throw page.reason;
+}
+
+/** The card publishing attaches for a link: X posts get their author and text. */
+export function fetchLinkCard(url: string, fetchImpl: FetchLike): Promise<OpenGraphData> {
+	return parseXPostUrl(url) ? fetchXPostCard(url, fetchImpl) : fetchOpenGraph(url, fetchImpl);
 }

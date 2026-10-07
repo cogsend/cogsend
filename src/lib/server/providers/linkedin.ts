@@ -1,7 +1,8 @@
 import { extractFirstUrl } from '$lib/domain/links';
 import { joinThreadTexts } from '$lib/domain/thread-segments';
 import { validateLinkedinText } from '$lib/domain/validation/text';
-import { fetchOgImage, fetchOpenGraph } from '../opengraph';
+import { fetchOgImage } from '../opengraph';
+import { fetchLinkCard } from '../x-post-preview';
 import type {
 	ConnectionCredentials,
 	ConnectionMeta,
@@ -315,7 +316,7 @@ async function resolveArticleCard(
 	if (!url) return undefined;
 	let og;
 	try {
-		og = await fetchOpenGraph(url, fetchImpl);
+		og = await fetchLinkCard(url, fetchImpl);
 	} catch {
 		return undefined;
 	}

@@ -1,6 +1,7 @@
 import { utf8ByteLength } from '$lib/domain/bytes';
 import { extractFirstUrl } from '$lib/domain/links';
-import { fetchOgImage, fetchOpenGraph } from '../opengraph';
+import { fetchOgImage } from '../opengraph';
+import { fetchLinkCard } from '../x-post-preview';
 import { isBlockedInstanceHost } from '$lib/domain/instance-host';
 import { validateBlueskyText } from '$lib/domain/validation/text';
 import { BLUESKY_MAX_IMAGE_BYTES } from '$lib/domain/media-limits';
@@ -268,7 +269,7 @@ async function resolveExternalEmbed(
 	if (!url) return undefined;
 	let og;
 	try {
-		og = await fetchOpenGraph(url, fetchImpl);
+		og = await fetchLinkCard(url, fetchImpl);
 	} catch {
 		return undefined;
 	}
