@@ -54,7 +54,8 @@ X shows a post as a quote when its text ends with a link to another X post. With
 - X quotes only a link at the very end. A link to an X post anywhere else in the text stays a plain link, and the card says so, with a button to quote that post instead.
 - A card quotes one post. Another X link pasted into it stays in the text as a plain link, so nothing is lost; its button swaps the two. To quote several posts, give each its own card with **+ Thread**.
 - The quote button in a card's tools lists your recent published X posts, so you can quote one without copying its link.
-- On **Global**, the other selected platforms get the same text, link included; the card names them.
+- On **Global**, the other selected platforms get the same text, link included, and the card names them. **Only on X** keeps the quote for X alone: X gets its own tab with the quote, and the others get the text without the link. On the X tab, **Share with all** gives them the link again. A card holding only the quote can't be split this way.
+- On Bluesky and LinkedIn, a link to an X post gets a card with the post's author and text.
 - X bills a post that contains a link at $0.20 instead of $0.015, and a quote is such a post.
 
 ## Global, and a tab per platform
