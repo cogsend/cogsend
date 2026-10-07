@@ -89,5 +89,8 @@
 		"fsevents@2.3.2": true,
 		"fsevents@2.3.3": true,
 		"workerd@1.20261001.1": true
+	},
+	"overrides": {
+		"sharp": "^0.35.5"
 	}
 }
