@@ -7,7 +7,7 @@ Local setup, the checks that must pass, and what the code expects.
 Clone it — your fork works too — then:
 
 ```sh
-git clone https://github.com/deepakness/cogsend.git
+git clone https://github.com/cogsend/cogsend.git
 cd cogsend
 npm install
 cp .dev.vars.example .dev.vars

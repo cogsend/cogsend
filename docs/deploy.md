@@ -10,7 +10,7 @@ R2 asks for a payment method on file even on the free tier.
 ## One command
 
 ```sh
-git clone --depth 1 https://github.com/deepakness/cogsend.git cogsend
+git clone --depth 1 https://github.com/cogsend/cogsend.git cogsend
 cd cogsend && npm install && npm run setup
 ```
 

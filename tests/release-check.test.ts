@@ -51,13 +51,13 @@ describe('release documents', () => {
 		expect(
 			parseRelease({
 				tag_name: 'v1.2.0',
-				html_url: 'https://github.com/deepakness/cogsend/releases/tag/v1.2.0',
+				html_url: 'https://github.com/cogsend/cogsend/releases/tag/v1.2.0',
 				published_at: '2026-09-17T06:00:00Z'
 			})
 		).toEqual({
 			tag: 'v1.2.0',
 			version: '1.2.0',
-			url: 'https://github.com/deepakness/cogsend/releases/tag/v1.2.0',
+			url: 'https://github.com/cogsend/cogsend/releases/tag/v1.2.0',
 			publishedAt: '2026-09-17T06:00:00Z'
 		});
 	});

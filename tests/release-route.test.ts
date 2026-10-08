@@ -23,7 +23,7 @@ describe('release check', () => {
 		new Response(
 			JSON.stringify({
 				tag_name: tag,
-				html_url: `https://github.com/deepakness/cogsend/releases/tag/${tag}`,
+				html_url: `https://github.com/cogsend/cogsend/releases/tag/${tag}`,
 				published_at: '2026-09-17T06:00:00Z'
 			}),
 			{ status: 200, headers: { 'content-type': 'application/json' } }

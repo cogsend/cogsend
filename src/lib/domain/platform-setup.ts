@@ -77,7 +77,7 @@ export const PLATFORM_SETUP: Record<OAuthPlatformId, PlatformSetup> = {
 
 export type PlatformConfigured = Record<OAuthPlatformId, boolean>;
 
-const SETUP_GUIDE_BASE = 'https://github.com/deepakness/cogsend/blob/main/docs/oauth-apps.md';
+const SETUP_GUIDE_BASE = 'https://github.com/cogsend/cogsend/blob/main/docs/oauth-apps.md';
 
 /** Setup guide for the three platforms above, in the repository's docs. */
 export const SETUP_GUIDE_URL = `${SETUP_GUIDE_BASE}#oauth-app-setup`;

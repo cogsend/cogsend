@@ -7,11 +7,11 @@
 	"author": "DeepakNess <me@deepakness.com> (https://github.com/deepakness)",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/deepakness/cogsend.git"
+		"url": "git+https://github.com/cogsend/cogsend.git"
 	},
 	"homepage": "https://cogsend.com",
 	"bugs": {
-		"url": "https://github.com/deepakness/cogsend/issues"
+		"url": "https://github.com/cogsend/cogsend/issues"
 	},
 	"keywords": [
 		"social-media",

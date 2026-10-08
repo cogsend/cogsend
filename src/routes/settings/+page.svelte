@@ -1591,7 +1591,7 @@
 					>
 					<span class="text-stone-500">
 						— you run {release.current}; update the way you installed it (<a
-							href="https://github.com/deepakness/cogsend/blob/main/docs/deploy.md#updating-and-rolling-back"
+							href="https://github.com/cogsend/cogsend/blob/main/docs/deploy.md#updating-and-rolling-back"
 							class="font-bold text-stone-900 underline underline-offset-2 hover:text-stone-700"
 							>Updating</a
 						>)</span

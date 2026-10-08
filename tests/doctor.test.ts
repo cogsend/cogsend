@@ -250,6 +250,14 @@ describe('update check', () => {
 		expect(installShape('origin\tssh://git@github.com/deepakness/cogsend.git (fetch)')).toBe(
 			'clone'
 		);
+		// The new home, and an owner that only ends in "cogsend".
+		expect(installShape('origin\thttps://github.com/cogsend/cogsend.git (fetch)')).toBe('clone');
+		expect(
+			installShape(
+				'origin\tgit@github.com:me/cogsend.git (fetch)\nupstream\tgit@github.com:cogsend/cogsend.git (fetch)'
+			)
+		).toBe('fork');
+		expect(installShape('origin\thttps://github.com/notcogsend/cogsend.git (fetch)')).toBe('copy');
 	});
 
 	it('gives each shape its own update command', () => {

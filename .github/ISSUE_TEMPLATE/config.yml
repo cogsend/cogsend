@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/deepakness/cogsend/security/advisories/new
+    url: https://github.com/cogsend/cogsend/security/advisories/new
     about: Please report security issues privately, not as a public issue.

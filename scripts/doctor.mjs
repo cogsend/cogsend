@@ -313,9 +313,11 @@ export function installShape(remotes) {
 	if (!text.trim()) return 'unknown';
 	// Any URL form: https://, ssh://, or the scp-like git@host:owner/repo. The
 	// remote *name* is what identifies the relationship, so match that and then
-	// look for the upstream slug anywhere in its URL.
+	// look for the upstream slug anywhere in its URL. The repository moved from
+	// deepakness/cogsend, and checkouts made before the move still name it.
 	/** @param {string} name @returns {RegExp} */
-	const remote = (name) => new RegExp(`(^|\\n)${name}\\s+\\S*deepakness/cogsend\\b`);
+	const remote = (name) =>
+		new RegExp(`(^|\\n)${name}\\s+\\S*[/:](?:deepakness|cogsend)/cogsend\\b`);
 	if (remote('upstream').test(text)) return 'fork';
 	if (remote('origin').test(text)) return 'clone';
 	if (/(^|\n)origin\s+\S+/.test(text)) return 'copy';
@@ -332,7 +334,7 @@ export function updateHint(shape) {
 	if (shape === 'fork')
 		return 'Sync fork → Update branch in your fork, then deploy — or from a checkout: git pull upstream main && npm ci && npm run deploy:release';
 	if (shape === 'copy')
-		return 'git remote add upstream https://github.com/deepakness/cogsend && git pull upstream main && npm ci && npm run deploy:release';
+		return 'git remote add upstream https://github.com/cogsend/cogsend && git pull upstream main && npm ci && npm run deploy:release';
 	return 'see docs/deploy.md → Updating (git pull && npm ci && npm run deploy:release from a checkout)';
 }
 
@@ -1062,7 +1064,7 @@ async function main() {
 	const shape = installShape(`${remotes.stdout}${remotes.stderr}`);
 	try {
 		const headers = { accept: 'application/vnd.github+json', 'user-agent': 'cogsend' };
-		const res = await fetch('https://api.github.com/repos/deepakness/cogsend/releases/latest', {
+		const res = await fetch('https://api.github.com/repos/cogsend/cogsend/releases/latest', {
 			headers,
 			signal: AbortSignal.timeout(10_000)
 		});
@@ -1073,13 +1075,10 @@ async function main() {
 			: `GitHub answered HTTP ${res.status}`;
 		if (!latest && res.status === 404) {
 			// Tagged, but no published release object: compare against the tags.
-			const tags = await fetch(
-				'https://api.github.com/repos/deepakness/cogsend/tags?per_page=100',
-				{
-					headers,
-					signal: AbortSignal.timeout(10_000)
-				}
-			);
+			const tags = await fetch('https://api.github.com/repos/cogsend/cogsend/tags?per_page=100', {
+				headers,
+				signal: AbortSignal.timeout(10_000)
+			});
 			const tagBody = await tags.json().catch(() => null);
 			latest = tags.ok ? highestVersionTag(tagBody) : null;
 			error = latest ? 'no published release' : 'no version tags published yet';

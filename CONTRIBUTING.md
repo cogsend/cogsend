@@ -12,7 +12,7 @@ apart.
 
 - One logical change per PR, conventional-commit title (`fix(threads): …`, `feat(editor): …`).
 - Say what you changed and why in the body; include the failing case you fixed when there is one.
-- Update the docs when behavior or configuration changes — the README for anything a user sees first, or the matching page under `docs/`. Those pages are also published at [cogsend.com/docs](https://cogsend.com/docs/): a new page needs an entry in the [website repo](https://github.com/deepakness/cogsend-website)'s `src/docs/nav.mjs`, and a few headings are pinned by it (listed in [AGENTS.md](AGENTS.md)).
+- Update the docs when behavior or configuration changes — the README for anything a user sees first, or the matching page under `docs/`. Those pages are also published at [cogsend.com/docs](https://cogsend.com/docs/): a new page needs an entry in the [website repo](https://github.com/cogsend/website)'s `src/docs/nav.mjs`, and a few headings are pinned by it (listed in [AGENTS.md](AGENTS.md)).
 - Provider changes: mention which platform you tested against and with what account type.
 
 ## Security

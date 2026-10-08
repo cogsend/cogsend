@@ -133,5 +133,5 @@ platform. If the post is there, press **Discard** next to that account in
 
 ## Still stuck?
 
-[Open an issue](https://github.com/deepakness/cogsend/issues) with the output of `npm run doctor` and the version shown in
+[Open an issue](https://github.com/cogsend/cogsend/issues) with the output of `npm run doctor` and the version shown in
 **Settings → Instance**.
