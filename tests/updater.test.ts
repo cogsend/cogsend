@@ -155,6 +155,18 @@ function world(bundle: Bundle) {
 			state.deployments = [{ id: `d-${state.deployCalls.length}`, versions: body.versions }];
 			return respond({ id: 'd-new', versions: body.versions });
 		}
+		// Another Worker on the account, which is not CogSend.
+		if (path.endsWith('/scripts/other/deployments')) {
+			return respond({
+				deployments: [{ id: 'd-x', versions: [{ version_id: 'other-v', percentage: 100 }] }]
+			});
+		}
+		if (path.endsWith('/scripts/other/versions/other-v')) {
+			return respond({
+				id: 'other-v',
+				resources: { bindings: [{ name: 'CACHE', type: 'kv_namespace' }] }
+			});
+		}
 		const versionMatch = /\/scripts\/cogsend\/versions\/([0-9a-f-]+)$/.exec(path);
 		if (versionMatch) {
 			const v = state.versions.get(versionMatch[1]);
@@ -305,6 +317,21 @@ describe('in-app updater', () => {
 		const result = await stepTarget(ctx(), {});
 		expect(result).toEqual({ target: { accountId: ACCOUNT, scriptName: SCRIPT } });
 		expect(await readTarget(test.db)).toEqual({ accountId: ACCOUNT, scriptName: SCRIPT });
+	});
+
+	it("without version metadata, accepts only a Worker that has CogSend's bindings", async () => {
+		const noMetadata = ctx({ runningVersionId: null, host: 'social.example.com' });
+		await expect(stepTarget(noMetadata, { scriptName: 'other' })).rejects.toThrow(
+			/not the Worker serving this page/
+		);
+		expect(await readTarget(test.db)).toBeNull();
+		expect(await stepTarget(noMetadata, { scriptName: SCRIPT })).toEqual({
+			target: { accountId: ACCOUNT, scriptName: SCRIPT }
+		});
+		// The host guess goes through the same check.
+		expect(await stepTarget(ctx({ runningVersionId: null }), {})).toEqual({
+			target: { accountId: ACCOUNT, scriptName: SCRIPT }
+		});
 	});
 
 	it('asks which Worker when the host does not say, and checks the answer', async () => {

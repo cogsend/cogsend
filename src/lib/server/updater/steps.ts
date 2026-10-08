@@ -21,6 +21,7 @@
  * Cloudflare-Workers-Version-Overrides header.
  */
 import {
+	CORE_BINDINGS,
 	KEPT_BINDING_TYPES,
 	bindingSignature,
 	bindingsToSend,
@@ -192,17 +193,28 @@ async function workerNameFromHost(ctx: UpdaterContext, accountId: string): Promi
 	return domains.find((d) => d.hostname.toLowerCase() === host)?.service ?? null;
 }
 
-/** True when the Worker's serving deployment includes the version answering
- *  this request, i.e. the name really is this instance. */
+/**
+ * True when the Worker is this instance: its serving deployment includes the
+ * version answering this request. A config without CF_VERSION_METADATA cannot
+ * prove that, so the Worker must at least carry the bindings every CogSend
+ * has; anything else on the account is refused rather than overwritten.
+ */
 async function servesThisRequest(
 	ctx: UpdaterContext,
 	accountId: string,
 	name: string
 ): Promise<boolean> {
 	const [current] = await ctx.api.deployments(accountId, name);
-	if (!current) return false;
-	if (!ctx.runningVersionId) return true;
-	return current.versions.some((v) => v.version_id === ctx.runningVersionId);
+	if (!current?.versions.length) return false;
+	if (ctx.runningVersionId) {
+		return current.versions.some((v) => v.version_id === ctx.runningVersionId);
+	}
+	const serving = [...current.versions].sort((a, b) => b.percentage - a.percentage)[0];
+	const bindings =
+		(await ctx.api.version(accountId, name, serving.version_id)).resources?.bindings ?? [];
+	return CORE_BINDINGS.every((core) =>
+		bindings.some((b) => b.name === core.name && b.type === core.type)
+	);
 }
 
 export type TargetResult =

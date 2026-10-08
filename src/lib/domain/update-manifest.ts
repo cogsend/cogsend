@@ -165,6 +165,14 @@ export function compareVersions(a: string, b: string): number | null {
 /** A binding as the Cloudflare API lists it on a Worker version. */
 export type ApiBinding = { name: string; type: string } & Record<string, unknown>;
 
+/** Bindings every CogSend Worker has, whatever its config. The release script
+ *  writes the same list as each manifest's `requiredBindings`. */
+export const CORE_BINDINGS: readonly { name: string; type: string }[] = [
+	{ name: 'DB', type: 'd1' },
+	{ name: 'MEDIA', type: 'r2_bucket' },
+	{ name: 'ASSETS', type: 'assets' }
+];
+
 /**
  * Why this instance cannot take the update in place, or an empty list.
  *

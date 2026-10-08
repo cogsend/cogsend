@@ -5,6 +5,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { hash as blake3 } from 'blake3-wasm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+	REQUIRED_BINDINGS,
 	assetHash,
 	buildBundle,
 	checkPack,
@@ -17,6 +18,7 @@ import {
 	verifyManifest
 } from '../scripts/lib/release-bundle.mjs';
 import {
+	CORE_BINDINGS,
 	bindingSignature,
 	bindingsToSend,
 	compareVersions,
@@ -145,6 +147,10 @@ describe('release bundle', () => {
 		expect(parseManifest(new Uint8Array(manifestBytes(broken)))).toBeNull();
 		const noMain = { ...manifest, worker: { ...manifest.worker, mainModule: 'missing.js' } };
 		expect(parseManifest(new Uint8Array(manifestBytes(noMain)))).toBeNull();
+	});
+
+	it("requires the same bindings the app treats as CogSend's own", () => {
+		expect(REQUIRED_BINDINGS).toEqual(CORE_BINDINGS);
 	});
 
 	it('refuses file types it does not know, and .assetsignore negation', () => {
