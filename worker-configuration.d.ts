@@ -52,7 +52,7 @@ interface Env {
 	/** Optional Cloudflare Queue: with it bound, the tick hands publishes to the
 	 *  consumer instead of publishing inline. Off by default (see wrangler.jsonc). */
 	PUBLISH_QUEUE?: Queue;
-	/** Guards /api/auth/login and /api/auth/totp/verify (see wrangler.jsonc). */
+	/** Guards /api/auth/login, /api/auth/claim and /api/auth/totp/verify (see wrangler.jsonc). */
 	AUTH_RATE_LIMITER?: RateLimitBinding;
 	ASSETS: { fetch: typeof fetch };
 	/** Optional public origin. Left unset (or left at localhost), the app adopts

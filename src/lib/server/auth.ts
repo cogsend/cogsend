@@ -79,8 +79,7 @@ export async function passwordFingerprint(
 }
 
 /** True while the instance has no account at all: before `npm run setup` wrote
- *  one into D1. Nothing at runtime creates an account, so this is the state the
- *  login page reports instead of showing a form. */
+ *  one into D1, or the login page's claim form (api/auth/claim) created it. */
 export async function needsSetup(db: AppDb): Promise<boolean> {
 	const row = await first(db.select({ id: users.id }).from(users).limit(1));
 	return !row;

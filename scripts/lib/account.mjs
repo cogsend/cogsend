@@ -1,9 +1,9 @@
 /**
  * Creating the single account from the terminal.
  *
- * The account is seeded into D1 *before* the Worker is reachable, which is what
- * replaces the old first-run claim: there is no window in which a stranger who
- * finds the URL can create the account first.
+ * The account is seeded into D1 *before* the Worker is reachable. The browser
+ * can also claim a fresh instance (api/auth/claim), but only with
+ * APP_ENCRYPTION_KEY, so finding the URL first is never enough.
  *
  * Everything here that touches storage goes through `wrangler d1 execute`, so it
  * works against a Worker that does not exist yet. The password is hashed with

@@ -13,10 +13,9 @@
 # all used (see docs/deploy.md → the 10072 entry).
 #
 # This is an update path, not an install path: run `npm run setup` once locally
-# first. It creates the D1 database, the R2 bucket and the account, and it is
-# the only thing that can — nothing at runtime creates an account, which is what
-# keeps a fresh deployment from being claimable. From then on this workflow is
-# self-sufficient.
+# first. It creates the D1 database, the R2 bucket and the account (which the
+# login page can otherwise claim, but only with APP_ENCRYPTION_KEY). From then on
+# this workflow is self-sufficient.
 name: Deploy
 
 on:
