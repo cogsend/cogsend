@@ -8,7 +8,7 @@ for you.
 
 R2 bucket names are unique across all Cloudflare accounts, so `cogsend-media`
 is only a starting point. Set `bucket_name` in `wrangler.personal.jsonc` (or pass
-`--bucket my-cogsend-media` to `setup`) and deploy again. R2 also refuses to create anything until the account has a payment
+`--bucket my-cogsend-media` to `setup`) and deploy again. With the Deploy to Cloudflare button, change the bucket's name in the form instead. R2 also refuses to create anything until the account has a payment
 method on file, even for free-tier usage.
 
 ## The deploy complains about cron triggers (10072)
@@ -130,6 +130,21 @@ that would let a second attempt be recognised as the same post, so CogSend does
 not retry on its own: a blind retry could post it twice. Open the account on the
 platform. If the post is there, press **Discard** next to that account in
 **Posts → Failed**; if it is not, press **Retry**.
+
+## The update from Settings stops
+
+The old version keeps serving whatever step fails; **Abort the unfinished update** tidies up, and you can start again.
+
+- **"…not signed by a CogSend release key"** or **"did not download intact"**: the bundle is not the one the release published. Try again; if it repeats, report it, and update from a checkout meanwhile.
+- **"…does not exist: the release has no update bundle (yet)"**: bundles are attached a few minutes after a release is published.
+- **Cloudflare: Authentication error**, or a 403: the token lacks a permission, or belongs to another account. Create it from the link next to the field, which fills in Workers Scripts (edit) and Account Settings (read). If it cannot list accounts, enter the account ID under **More options**; it is in the dashboard URL.
+- **"…is splitting traffic between versions"**: a gradual deployment is in progress. Finish it or roll it back under Workers & Pages → your Worker → Deployments.
+- **"The new version did not answer its health check"**: nothing changed. Report it with the version you tried, and stay on the current one.
+- **"…needs a deploy from a checkout"**: that release changes something an in-place update cannot, such as a new binding. Follow the release notes, usually `git pull && npm ci && npm run deploy:release` once.
+
+## A deploy refuses: "the Worker runs vX, newer than …"
+
+The instance was updated from Settings, and this checkout (or the Deploy-button copy Workers Builds deploys) holds an older release. Deploying it would roll the instance back, so the deploy stops before changing anything. Pull the newer release first; or, if going back is what you want, pass `--allow-downgrade` (or set `COGSEND_ALLOW_DOWNGRADE=1`, which is also how a Workers Builds variable allows it). For a Deploy-button install, disconnect the copy from Workers Builds instead ([Updating](updates.md#installed-with-the-deploy-to-cloudflare-button)).
 
 ## Still stuck?
 
