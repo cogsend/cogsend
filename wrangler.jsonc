@@ -30,6 +30,10 @@
 	// for the same queue; src/hooks.server.ts picks the binding up automatically.
 	// On the Workers Free plan give the consumer `"max_batch_size": 1`: a batch
 	// is one invocation, so its messages share one 50-call budget.
+	//
+	// Tells the Worker which of its versions is answering, so Settings → Updates
+	// can find this Worker on the account without asking for its name.
+	"version_metadata": { "binding": "CF_VERSION_METADATA" },
 	"workers_dev": true,
 	"preview_urls": false,
 	// `redact_query_string` keeps callback `code`/`state` values and media

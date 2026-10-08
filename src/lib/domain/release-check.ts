@@ -11,6 +11,8 @@ const RELEASE_REPO = 'cogsend/cogsend';
 export const RELEASE_API_URL = `https://api.github.com/repos/${RELEASE_REPO}/releases/latest`;
 export const RELEASES_URL = `https://github.com/${RELEASE_REPO}/releases`;
 export const TAGS_API_URL = `https://api.github.com/repos/${RELEASE_REPO}/tags?per_page=100`;
+/** Where a release's files live: `${RELEASE_DOWNLOAD_BASE}/<tag>/<file>`. */
+export const RELEASE_DOWNLOAD_BASE = `https://github.com/${RELEASE_REPO}/releases/download`;
 
 export interface ReleaseInfo {
 	/** The tag as published, e.g. `v1.2.0`. */

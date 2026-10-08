@@ -55,6 +55,13 @@ interface Env {
 	/** Guards /api/auth/login, /api/auth/claim and /api/auth/totp/verify (see wrangler.jsonc). */
 	AUTH_RATE_LIMITER?: RateLimitBinding;
 	ASSETS: { fetch: typeof fetch };
+	/** Which version of this Worker is answering, so the in-app updater can
+	 *  find itself among the account's Workers (see wrangler.jsonc). Absent on a
+	 *  config that predates it. */
+	CF_VERSION_METADATA?: { id: string; tag: string; timestamp: string };
+	/** "button" on an instance deployed from the Deploy to Cloudflare button's
+	 *  repository: Settings then suggests disconnecting Workers Builds. */
+	COGSEND_INSTALL?: string;
 	/** Optional public origin. Left unset (or left at localhost), the app adopts
 	 *  the origin of each request and remembers the first authenticated one;
 	 *  set it to pin a custom domain. See $lib/domain/app-url. */

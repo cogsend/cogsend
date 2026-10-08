@@ -6,6 +6,7 @@
 	import AccountAvatar from '$lib/components/AccountAvatar.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import CopyButton from '$lib/components/CopyButton.svelte';
+	import UpdatePanel from '$lib/components/UpdatePanel.svelte';
 	import { humanizeError } from '$lib/domain/human-error';
 	import { sessionExpiredIfUnauthorized } from '$lib/components/session-expired';
 	import { accountLabel, displayHandle, platformRank } from '$lib/domain/platforms';
@@ -1590,8 +1591,8 @@
 						>Version {release.latest.version} is available</a
 					>
 					<span class="text-stone-500">
-						— you run {release.current}; update the way you installed it (<a
-							href="https://github.com/cogsend/cogsend/blob/main/docs/deploy.md#updating-and-rolling-back"
+						— you run {release.current}. Update from here below, or from a checkout (<a
+							href="https://github.com/cogsend/cogsend/blob/main/docs/updates.md"
 							class="font-bold text-stone-900 underline underline-offset-2 hover:text-stone-700"
 							>Updating</a
 						>)</span
@@ -1609,6 +1610,7 @@
 					{/if}
 				{/if}
 			</p>
+			<UpdatePanel latestTag={release?.updateAvailable ? (release.latest?.tag ?? null) : null} />
 			<form class="flex flex-col gap-3 sm:flex-row sm:items-center" onsubmit={saveInstanceName}>
 				<input
 					type="text"

@@ -370,7 +370,7 @@ export function releaseVerdict({ current, latest, error, shape = 'unknown' } = {
 	return {
 		id: 'release',
 		status: 'warn',
-		label: `Version ${latest} is available (this deployment runs ${current})`,
+		label: `Version ${latest} is available (this deployment runs ${current}): install it from Settings → Instance, or from a checkout`,
 		fix: updateHint(/** @type {any} */ (shape))
 	};
 }
