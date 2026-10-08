@@ -18,9 +18,11 @@
 		needsSetup,
 		platformSecretNames,
 		secretsPutCommandFor,
+		secretLabel,
 		setupGuideUrl,
 		type OAuthPlatformId
 	} from '$lib/domain/platform-setup';
+	import { buildAgentPrompt } from '$lib/domain/agent-prompt';
 	import { sessionExpiredIfUnauthorized } from '$lib/components/session-expired';
 	import { dialogFocus } from '$lib/components/dialog-focus';
 	import { ZERNIO_API_KEYS_URL } from '$lib/domain/zernio';
@@ -75,6 +77,19 @@
 	// client id that is already uploaded.
 	// svelte-ignore state_referenced_locally
 	let secretPresence = $state<Record<string, boolean>>(data.secrets ?? {});
+	// Where each platform's app credentials come from: Worker secrets, or the
+	// form in the setup panel. Only the form's own can be changed from here.
+	// svelte-ignore state_referenced_locally
+	let credentialSources = $state<Record<OAuthPlatformId, 'env' | 'app' | null>>(
+		data.sources ?? { linkedin: null, threads: null, x: null }
+	);
+	// svelte-ignore state_referenced_locally
+	let savedClientIds = $state<Record<OAuthPlatformId, string | null>>(
+		data.savedClientIds ?? { linkedin: null, threads: null, x: null }
+	);
+	let appForm = $state<Record<string, string>>({});
+	let appFormBusy = $state(false);
+	let appFormError = $state<string | null>(null);
 	let handle = $state('');
 	let appPassword = $state('');
 	let instanceUrl = $state('');
@@ -173,6 +188,12 @@
 			}
 			if (payload.secrets && typeof payload.secrets === 'object') {
 				secretPresence = payload.secrets as Record<string, boolean>;
+			}
+			if (payload.sources && typeof payload.sources === 'object') {
+				credentialSources = payload.sources;
+			}
+			if (payload.savedClientIds && typeof payload.savedClientIds === 'object') {
+				savedClientIds = payload.savedClientIds;
 			}
 		} catch (e) {
 			loadFailed = true;
@@ -357,9 +378,67 @@
 
 	function showSetupPanel(platform: OAuthPlatformId) {
 		err = null;
+		appForm = {};
+		appFormError = null;
 		modalForm = 'none';
 		setupPanel = platform;
 		showConnectDialog = true;
+	}
+
+	/** The presence map and sources the platform-apps route answers with. */
+	function applyCredentialStatus(payload: {
+		configured?: typeof configured;
+		secrets?: Record<string, boolean>;
+		sources?: typeof credentialSources;
+		savedClientIds?: typeof savedClientIds;
+	}) {
+		if (payload.configured) configured = payload.configured;
+		if (payload.secrets) secretPresence = payload.secrets;
+		if (payload.sources) credentialSources = payload.sources;
+		if (payload.savedClientIds) savedClientIds = payload.savedClientIds;
+	}
+
+	async function saveAppCredentials(platform: OAuthPlatformId, e: Event) {
+		e.preventDefault();
+		appFormBusy = true;
+		appFormError = null;
+		try {
+			const values: Record<string, string> = {};
+			for (const name of platformSecretNames(platform)) {
+				const value = (appForm[name] ?? '').trim();
+				if (value) values[name] = value;
+			}
+			const res = await fetch(`/api/settings/platform-apps/${platform}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(values)
+			});
+			const payload = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(payload.error || 'Could not save the credentials');
+			appForm = {};
+			applyCredentialStatus(payload);
+			setupPanel = null;
+			await connectOAuth(platform, {});
+		} catch (e) {
+			appFormError = humanizeError(e instanceof Error ? e.message : 'Failed');
+		} finally {
+			appFormBusy = false;
+		}
+	}
+
+	async function removeAppCredentials(platform: OAuthPlatformId) {
+		appFormBusy = true;
+		appFormError = null;
+		try {
+			const res = await fetch(`/api/settings/platform-apps/${platform}`, { method: 'DELETE' });
+			const payload = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(payload.error || 'Could not remove the credentials');
+			applyCredentialStatus(payload);
+		} catch (e) {
+			appFormError = humanizeError(e instanceof Error ? e.message : 'Failed');
+		} finally {
+			appFormBusy = false;
+		}
 	}
 
 	function closeConnectDialog() {
@@ -689,6 +768,12 @@
 					{@const alreadySet = secretNames.filter((name) => secretPresence[name])}
 					{@const redirectUri = callbackUri(setupPanel, appUrl || page.url.origin)}
 					{@const command = secretsPutCommandFor(missing)}
+					{@const savedHere = credentialSources[setupPanel] === 'app'}
+					{@const agentPrompt = buildAgentPrompt(
+						setupPanel,
+						appUrl || page.url.origin,
+						page.data.appName ?? 'CogSend'
+					)}
 					<div class="space-y-4" data-testid="platform-setup-panel">
 						<button
 							type="button"
@@ -697,11 +782,19 @@
 							>← All platforms</button
 						>
 						<h3 class="text-[17px] font-extrabold tracking-tight text-stone-900">
-							{platformName(setupPanel)} isn't enabled yet
+							{savedHere
+								? `${platformName(setupPanel)} app credentials`
+								: `${platformName(setupPanel)} isn't enabled yet`}
 						</h3>
 						<p class="text-xs font-medium text-stone-500">
-							This deployment has no {platformName(setupPanel)} app credentials yet. They are Worker secrets,
-							so whoever deployed it adds them once.
+							{#if savedHere}
+								Saved on this instance{savedClientIds[setupPanel]
+									? ` (client ID ending ${savedClientIds[setupPanel]})`
+									: ''}. Enter new ones to replace them, or remove them.
+							{:else}
+								{platformName(setupPanel)} needs an app of your own. Create it, then enter its credentials
+								here.
+							{/if}
 						</p>
 						<div
 							class="divide-y divide-stone-200/80 overflow-hidden rounded-xl border border-stone-200/80"
@@ -739,9 +832,21 @@
 										>
 										<CopyButton value={redirectUri} ariaLabel="Copy the redirect URI" />
 									</div>
+									<p class="pt-1">
+										Or let a browser agent such as Claude in Chrome do it: copy this prompt and
+										paste it into the agent. It stops whenever a step needs you.
+									</p>
+									<div
+										class="flex items-center gap-1 rounded-xl border border-stone-200/80 bg-stone-50 py-1 pr-1 pl-3"
+									>
+										<span class="min-w-0 flex-1 truncate text-[11px] font-bold text-stone-900"
+											>Agent prompt for {platformName(setupPanel)}</span
+										>
+										<CopyButton value={agentPrompt} ariaLabel="Copy the agent prompt" />
+									</div>
 								</div>
 							</details>
-							<details class="group">
+							<details class="group" open={savedHere}>
 								<summary
 									data-testid="setup-step-2"
 									class="flex cursor-pointer list-none items-center gap-2.5 p-3 text-xs font-bold text-stone-900 hover:bg-stone-50 [&::-webkit-details-marker]:hidden"
@@ -750,7 +855,67 @@
 										class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white"
 										>2</span
 									>
-									Add {missing.length === 1 ? 'the missing secret' : 'the secrets'} to .dev.vars
+									Enter the app's credentials
+									<ChevronDown
+										class="ml-auto h-4 w-4 shrink-0 text-stone-400 transition-transform group-open:rotate-180"
+									/>
+								</summary>
+								<form
+									class="space-y-2 px-3 pb-3"
+									data-testid="setup-app-form"
+									onsubmit={(e) => saveAppCredentials(setupPanel!, e)}
+								>
+									{#each secretNames as secret (secret)}
+										{@const optional = setup.optionalSecrets?.includes(secret)}
+										<label class="block">
+											<span class="text-[11px] font-bold text-stone-600"
+												>{secretLabel(secret)}{optional ? ' (optional)' : ''}</span
+											>
+											<input
+												type={secret.endsWith('_ID') ? 'text' : 'password'}
+												autocomplete="off"
+												spellcheck="false"
+												required={!optional}
+												bind:value={appForm[secret]}
+												class="mt-1 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2 font-mono text-xs text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+											/>
+										</label>
+									{/each}
+									<p class="text-[11px] font-medium text-stone-500">
+										Stored encrypted on this instance, and never shown again.
+									</p>
+									{#if appFormError}
+										<p class="text-xs font-bold text-red-600" role="alert">{appFormError}</p>
+									{/if}
+									<div class="flex items-center gap-3">
+										<button
+											type="submit"
+											disabled={appFormBusy}
+											class="rounded-full bg-stone-900 px-4 py-2 text-xs font-bold text-white hover:bg-stone-800 disabled:opacity-50"
+											>{appFormBusy ? 'Saving…' : 'Save and connect'}</button
+										>
+										{#if savedHere}
+											<button
+												type="button"
+												disabled={appFormBusy}
+												onclick={() => removeAppCredentials(setupPanel!)}
+												class="text-xs font-bold text-stone-500 underline-offset-2 hover:text-red-700 hover:underline"
+												>Remove</button
+											>
+										{/if}
+									</div>
+								</form>
+							</details>
+							<details class="group">
+								<summary
+									data-testid="setup-step-3"
+									class="flex cursor-pointer list-none items-center gap-2.5 p-3 text-xs font-bold text-stone-900 hover:bg-stone-50 [&::-webkit-details-marker]:hidden"
+								>
+									<span
+										class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white"
+										>3</span
+									>
+									Or set them as Worker secrets
 									<ChevronDown
 										class="ml-auto h-4 w-4 shrink-0 text-stone-400 transition-transform group-open:rotate-180"
 									/>
@@ -784,13 +949,13 @@
 										No checkout on this machine? Add them in the Cloudflare dashboard instead:
 										Workers → your Worker → Settings → Variables and Secrets, then press Deploy.
 									</p>
+									<p class="text-[11px] text-stone-500">
+										Then reload this page: secrets go live as soon as the command finishes, with no
+										redeploy step. Worker secrets take precedence over credentials entered above.
+									</p>
 								</div>
 							</details>
 						</div>
-						<p class="text-xs font-medium text-stone-500">
-							Then reload this page — secrets go live as soon as the command finishes, with no
-							redeploy step.
-						</p>
 						{#if setup.note}
 							<p class="text-xs font-medium text-stone-500">{setup.note}</p>
 						{/if}
@@ -858,6 +1023,19 @@
 						</button>
 					{/each}
 				</div>
+				{#if (Object.keys(credentialSources) as OAuthPlatformId[]).some((id) => credentialSources[id] === 'app')}
+					<p class="mt-3 text-xs font-medium text-stone-500" data-testid="saved-app-credentials">
+						App credentials saved here:
+						{#each (Object.keys(credentialSources) as OAuthPlatformId[]).filter((id) => credentialSources[id] === 'app') as id, index (id)}{index >
+							0
+								? ', '
+								: ' '}<button
+								type="button"
+								onclick={() => showSetupPanel(id)}
+								class="font-bold text-stone-900 underline">{platformName(id)}</button
+							>{/each}
+					</p>
+				{/if}
 				<div class="my-5 flex items-center gap-3" aria-hidden="true">
 					<span class="h-px flex-1 bg-stone-200"></span>
 					<span class="text-[11px] font-bold tracking-widest text-stone-400 uppercase">or</span>

@@ -4,6 +4,7 @@ import { OAUTH_PENDING_TTL_MS } from '$lib/domain/oauth-pending';
 import { encryptSecret } from '$lib/server/crypto';
 import { oauthPending } from '$lib/server/db/schema';
 import { handleError, ok } from '$lib/server/http';
+import { resolvePlatformCredentials } from '$lib/server/platform-credentials';
 import { platformNotConfigured } from '$lib/server/platform-setup';
 import { linkedinAuthorizeUrl } from '$lib/server/providers';
 import { SESSION_COOKIE } from '$lib/server/auth';
@@ -13,8 +14,9 @@ import { requireSession } from '$lib/server/require';
 export const POST: RequestHandler = async ({ locals, cookies }) => {
 	try {
 		const user = requireSession(locals.user, locals.authMethod);
-		const clientId = locals.env.LINKEDIN_CLIENT_ID;
-		const clientSecret = locals.env.LINKEDIN_CLIENT_SECRET;
+		const credentials = await resolvePlatformCredentials(locals.db, locals.env, 'linkedin');
+		const clientId = credentials?.values.LINKEDIN_CLIENT_ID;
+		const clientSecret = credentials?.values.LINKEDIN_CLIENT_SECRET;
 		if (!clientId || !clientSecret) return platformNotConfigured('linkedin');
 		const state = randomHex(16);
 		const sessionId = cookies.get(SESSION_COOKIE) ?? `machine:${user.id}`;

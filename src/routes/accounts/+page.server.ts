@@ -17,6 +17,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			connections: [],
 			configured: { linkedin: false, threads: false, x: false },
 			secrets: {},
+			sources: { linkedin: null, threads: null, x: null },
+			savedClientIds: { linkedin: null, threads: null, x: null },
 			appUrl: locals.env.APP_URL,
 			loadFailed: true
 		};
