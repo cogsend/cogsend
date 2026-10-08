@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeyPairSync } from 'node:crypto';
@@ -147,6 +147,13 @@ describe('release bundle', () => {
 		expect(parseManifest(new Uint8Array(manifestBytes(broken)))).toBeNull();
 		const noMain = { ...manifest, worker: { ...manifest.worker, mainModule: 'missing.js' } };
 		expect(parseManifest(new Uint8Array(manifestBytes(noMain)))).toBeNull();
+	});
+
+	it('hashes with the blake3 wrangler itself uses', () => {
+		const ours = JSON.parse(readFileSync('package.json', 'utf8')).devDependencies['blake3-wasm'];
+		const wranglers = JSON.parse(readFileSync('node_modules/wrangler/package.json', 'utf8'))
+			.dependencies['blake3-wasm'];
+		expect(ours).toBe(wranglers);
 	});
 
 	it("requires the same bindings the app treats as CogSend's own", () => {
