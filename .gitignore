@@ -37,3 +37,11 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 # Playwright
 test-results
+
+# The release bundle and the deploy repository, built by
+# .github/workflows/release.yml (and by hand, to try them).
+/.release
+
+# Written for one parity check and removed right after; see
+# scripts/check-release-parity.mjs.
+wrangler.parity-check.jsonc

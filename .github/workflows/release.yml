@@ -1,0 +1,156 @@
+name: Release bundle
+
+# Runs when a release is published. Builds the signed bundle the in-app updater
+# installs, attaches it to the release, and refreshes github.com/cogsend/deploy,
+# the prebuilt copy the Deploy to Cloudflare button points at.
+#
+# Secrets (repository, set once):
+#   RELEASE_SIGNING_KEY  Ed25519 private key (PKCS#8 PEM) whose public half is in
+#                        src/lib/domain/release-keys.json. Without it this job
+#                        stops before building anything, so a fork stays quiet.
+#   DEPLOY_REPO_TOKEN    fine-grained token, Contents: read and write on
+#                        cogsend/deploy only; or instead
+#   DEPLOY_REPO_KEY      an SSH deploy key with write access to cogsend/deploy
+#                        (needs deploy keys allowed in the organization).
+#                        Without either, the bundle is still attached; the
+#                        deploy repository is just not refreshed.
+#
+# A pre-release gets its bundle (so it can be installed from Settings →
+# Instance → More options to test it) but never reaches the deploy repository,
+# which tracks stable releases only.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build the bundle for (for example v1.13.0)
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-bundle-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      PRERELEASE: ${{ github.event.release.prerelease || false }}
+    steps:
+      - name: Check configuration
+        id: config
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          DEPLOY_REPO_KEY: ${{ secrets.DEPLOY_REPO_KEY }}
+          DEPLOY_REPO_TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN }}
+        run: |
+          if [ -z "${RELEASE_SIGNING_KEY:-}" ]; then
+            echo "::notice::No RELEASE_SIGNING_KEY — skipping the release bundle."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "${DEPLOY_REPO_KEY:-}" ] || [ -n "${DEPLOY_REPO_TOKEN:-}" ]; then
+            echo "deploy_repo=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_repo=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.config.outputs.ready == 'true'
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v7
+        if: steps.config.outputs.ready == 'true'
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+        if: steps.config.outputs.ready == 'true'
+
+      # The tag must be the version the build reports, or the updater would
+      # install something that calls itself another release.
+      - name: Check the tag matches package.json
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v${version}" != "${TAG}" ]; then
+            echo "::error::Tag ${TAG} does not match package.json version ${version}"
+            exit 1
+          fi
+
+      - name: Test and build
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          npm test
+          npm run build
+          npx wrangler deploy --dry-run --outdir .release/worker
+
+      - name: Build and sign the bundle
+        if: steps.config.outputs.ready == 'true'
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          node scripts/release-bundle.mjs --worker .release/worker --out .release/dist
+          node scripts/verify-bundle.mjs --dir .release/dist
+
+      - name: Generate the deploy repository
+        if: steps.config.outputs.ready == 'true'
+        run: node scripts/deploy-repo.mjs --worker .release/worker --out .release/deploy-repo
+
+      # Proves both paths upload exactly what wrangler would: the updater's
+      # bundle, and a button install from the generated repository.
+      - name: Compare with wrangler
+        if: steps.config.outputs.ready == 'true'
+        run: node scripts/check-release-parity.mjs --bundle .release/dist --repo .release/deploy-repo
+
+      - name: Attach the bundle to the release
+        if: steps.config.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" .release/dist/* --clobber
+
+      - name: Publish the deploy repository
+        if: steps.config.outputs.ready == 'true' && steps.config.outputs.deploy_repo == 'true' && env.PRERELEASE != 'true'
+        env:
+          DEPLOY_REPO_KEY: ${{ secrets.DEPLOY_REPO_KEY }}
+          DEPLOY_REPO_TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${DEPLOY_REPO_TOKEN:-}" ]; then
+            remote="https://x-access-token:${DEPLOY_REPO_TOKEN}@github.com/cogsend/deploy.git"
+          else
+            mkdir -p ~/.ssh
+            printf '%s\n' "$DEPLOY_REPO_KEY" > ~/.ssh/deploy_repo
+            chmod 600 ~/.ssh/deploy_repo
+            ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+            export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_repo -o IdentitiesOnly=yes"
+            remote="git@github.com:cogsend/deploy.git"
+          fi
+          # An empty repository has nothing to clone; start its history here.
+          if ! git clone --depth 1 "$remote" .release/deploy-clone 2>/dev/null; then
+            rm -rf .release/deploy-clone
+            mkdir -p .release/deploy-clone
+            git -C .release/deploy-clone init -b main
+            git -C .release/deploy-clone remote add origin "$remote"
+          fi
+          # Replace everything but the history: the copy is exactly this release.
+          find .release/deploy-clone -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R .release/deploy-repo/. .release/deploy-clone/
+          cd .release/deploy-clone
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The deploy repository already holds ${TAG}."
+            exit 0
+          fi
+          git -c user.name="cogsend-release" -c user.email="release@cogsend.com" \
+            commit -m "CogSend ${TAG}"
+          git push origin HEAD:main
