@@ -41,6 +41,8 @@ That runs the test suite, the remote D1 migrations, the build and the deploy, on
 
 Every deploy from a checkout is tagged with the checkout's version, and it refuses to replace a Worker that already runs a newer release. That happens when you updated from Settings and then deploy from an old checkout: without the check, the deploy would quietly roll the instance back. Pull first, or pass `--allow-downgrade` (`COGSEND_ALLOW_DOWNGRADE=1`) if the older version is what you want.
 
+Deploying with `wrangler.personal.jsonc`? It replaces the committed config, so a binding or setting a release adds to `wrangler.jsonc` does not reach you by itself; `npm run doctor` lists anything yours is missing.
+
 Cloned `main`? Pull it, or move to a release tag (`git tag` lists them); those are the states the docs and the setup script are tested against.
 
 ## Installed with the Deploy to Cloudflare button
