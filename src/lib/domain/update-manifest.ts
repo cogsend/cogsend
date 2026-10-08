@@ -8,6 +8,7 @@
  */
 import { z } from 'zod';
 import { base64ToBytes } from './bytes';
+import { compareVersions } from './release-check';
 import releaseKeys from './release-keys.json';
 
 export const MANIFEST_FORMAT = 1;
@@ -126,52 +127,8 @@ export function parseManifest(manifestBytes: Uint8Array): UpdateManifest | null 
 	}
 }
 
-const SEMVER = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
-
-/**
- * Semver precedence: negative when `a` is older than `b`, positive when newer,
- * zero when equal, null when either is not a release version. Unlike the
- * update notice's comparison it orders pre-releases, so `1.13.0-rc.1` →
- * `1.13.0-rc.2` → `1.13.0` is an upgrade at every step.
- */
-export function compareVersions(a: string, b: string): number | null {
-	const x = SEMVER.exec(a.trim());
-	const y = SEMVER.exec(b.trim());
-	if (!x || !y) return null;
-	for (let i = 1; i <= 3; i += 1) {
-		const diff = Number(x[i]) - Number(y[i]);
-		if (diff) return diff;
-	}
-	if (!x[4] || !y[4]) return x[4] ? -1 : y[4] ? 1 : 0;
-	const left = x[4].split('.');
-	const right = y[4].split('.');
-	for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
-		if (left[i] === undefined) return -1;
-		if (right[i] === undefined) return 1;
-		const ln = /^\d+$/.test(left[i]);
-		const rn = /^\d+$/.test(right[i]);
-		if (ln && rn) {
-			const diff = Number(left[i]) - Number(right[i]);
-			if (diff) return diff;
-		} else if (ln !== rn) {
-			return ln ? -1 : 1;
-		} else if (left[i] !== right[i]) {
-			return left[i] < right[i] ? -1 : 1;
-		}
-	}
-	return 0;
-}
-
 /** A binding as the Cloudflare API lists it on a Worker version. */
 export type ApiBinding = { name: string; type: string } & Record<string, unknown>;
-
-/** Bindings every CogSend Worker has, whatever its config. The release script
- *  writes the same list as each manifest's `requiredBindings`. */
-export const CORE_BINDINGS: readonly { name: string; type: string }[] = [
-	{ name: 'DB', type: 'd1' },
-	{ name: 'MEDIA', type: 'r2_bucket' },
-	{ name: 'ASSETS', type: 'assets' }
-];
 
 /**
  * Why this instance cannot take the update in place, or an empty list.
@@ -207,6 +164,14 @@ export function updateBlockers(
 	}
 	return blockers;
 }
+
+/** Bindings every CogSend Worker has, whatever its config. The release script
+ *  writes the same list as each manifest's `requiredBindings`. */
+export const CORE_BINDINGS: readonly { name: string; type: string }[] = [
+	{ name: 'DB', type: 'd1' },
+	{ name: 'MEDIA', type: 'r2_bucket' },
+	{ name: 'ASSETS', type: 'assets' }
+];
 
 /** Secrets ride along through `keep_bindings`; the API never returns their values. */
 export const KEPT_BINDING_TYPES = ['secret_text', 'secret_key'] as const;

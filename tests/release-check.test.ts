@@ -38,11 +38,17 @@ describe('newer-than', () => {
 		expect(isNewer('1.1.0', 'dev')).toBe(false);
 	});
 
-	it('treats a pre-release of a version as that version', () => {
-		// "Should I update?" — yes: v1.1.0-rc.1 is ahead of v1.0.0, and a local
-		// build without a version cannot be compared at all.
+	it('orders pre-releases the semver way', () => {
+		// "Should I update?" — yes: v1.1.0-rc.1 is ahead of v1.0.0, a release is
+		// ahead of its own pre-releases, and a local build without a version
+		// cannot be compared at all.
 		expect(isNewer('v1.1.0-rc.1', '1.0.0')).toBe(true);
 		expect(isNewer('v1.0.0-rc.1', '1.0.0')).toBe(false);
+		expect(isNewer('v1.13.0', '1.13.0-rc.2')).toBe(true);
+		expect(isNewer('v1.13.0-rc.3', '1.13.0-rc.2')).toBe(true);
+		expect(isNewer('v1.13.0-rc.2', '1.13.0-rc.2')).toBe(false);
+		// Build noise after the numbers: the numbers alone decide.
+		expect(isNewer('1.13.1', '1.13.0+local')).toBe(true);
 	});
 });
 
