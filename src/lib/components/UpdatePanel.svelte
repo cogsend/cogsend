@@ -258,10 +258,7 @@
 {/if}
 
 {#if visible}
-	<div
-		class="mb-5 rounded-xl border border-stone-200/80 bg-stone-50 p-4"
-		data-testid="update-panel"
-	>
+	<div class="rounded-xl border border-stone-200/80 bg-stone-50 p-4" data-testid="update-panel">
 		{#if status?.job && !status.job.expired && !busy}
 			<p class="mb-2 text-[12px] font-medium text-stone-600">
 				An update to {status.job.tag} was started and not finished.

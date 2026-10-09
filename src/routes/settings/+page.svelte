@@ -1580,6 +1580,25 @@
 			<p class="mb-6 max-w-md text-[13px] leading-relaxed font-medium text-stone-500">
 				Shown in the page title, the header and the login screen. Leave it empty for the default.
 			</p>
+			<form
+				class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center"
+				onsubmit={saveInstanceName}
+			>
+				<input
+					type="text"
+					bind:value={instanceName}
+					maxlength={INSTANCE_NAME_MAX}
+					placeholder="CogSend"
+					aria-label="Instance name"
+					class="w-full flex-1 rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+				/>
+				<button
+					type="submit"
+					disabled={instanceBusy || instanceName.trim() === savedInstanceName}
+					class="w-full shrink-0 rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800 disabled:opacity-50 sm:w-auto"
+					>Save</button
+				>
+			</form>
 			<p class="mb-2 text-[12px] font-medium text-stone-500">
 				Version {__APP_VERSION__}{schedulerMessage ? ` · ${schedulerMessage}` : ''}
 			</p>
@@ -1611,22 +1630,6 @@
 				{/if}
 			</p>
 			<UpdatePanel latestTag={release?.updateAvailable ? (release.latest?.tag ?? null) : null} />
-			<form class="flex flex-col gap-3 sm:flex-row sm:items-center" onsubmit={saveInstanceName}>
-				<input
-					type="text"
-					bind:value={instanceName}
-					maxlength={INSTANCE_NAME_MAX}
-					placeholder="CogSend"
-					aria-label="Instance name"
-					class="w-full flex-1 rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
-				/>
-				<button
-					type="submit"
-					disabled={instanceBusy || instanceName.trim() === savedInstanceName}
-					class="w-full shrink-0 rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800 disabled:opacity-50 sm:w-auto"
-					>Save</button
-				>
-			</form>
 		</div>
 
 		<div

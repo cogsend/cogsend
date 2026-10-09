@@ -97,8 +97,9 @@
 				<div>
 					<h2 class="text-sm font-bold text-stone-900">Create your account</h2>
 					<p class="mt-1 text-xs font-medium text-stone-500">
-						This instance has no account yet. Prove it is yours with the encryption key you set when
-						you deployed it.
+						Paste the APP_ENCRYPTION_KEY you entered on the Deploy to Cloudflare page (or set as a
+						Worker secret). It proves you deployed this instance, so nobody else who finds the URL
+						can claim it.
 					</p>
 				</div>
 				<label class="block text-sm">
