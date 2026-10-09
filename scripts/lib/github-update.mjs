@@ -14,8 +14,8 @@
  * ships a copy of this file, used by its update script and its deploy script.
  */
 import { createHash, createPublicKey, verify } from 'node:crypto';
-import { cpSync, existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { cpSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 
 /** Left by an update that installs an older release on purpose, naming that
  *  release; the deploy script lets exactly that version past its downgrade
@@ -51,12 +51,31 @@ export function rollbackAllowed(marker, version) {
 	return typeof marker === 'string' && marker.trim() === version;
 }
 
-/** @param {string} dir */
+/**
+ * Every file in `dir` but the repository's own `.git` and `.github`, as
+ * forward-slash paths. Anything that is not a plain file or a directory stops
+ * the update: a symlink would be skipped by the checks yet committed, and in
+ * assets/ wrangler would follow it and publish whatever it points at.
+ *
+ * @param {string} dir
+ */
 function filesUnder(dir) {
-	if (!existsSync(dir)) return [];
-	return readdirSync(dir, { withFileTypes: true, recursive: true })
-		.filter((entry) => entry.isFile())
-		.map((entry) => relative(dir, join(entry.parentPath, entry.name)).split(sep).join('/'));
+	/** @type {string[]} */
+	const files = [];
+	// By hand rather than readdirSync's `recursive`, which follows a symlinked
+	// directory instead of reporting it.
+	/** @param {string} rel */
+	const walk = (rel) => {
+		for (const entry of readdirSync(join(dir, rel), { withFileTypes: true })) {
+			const path = rel ? `${rel}/${entry.name}` : entry.name;
+			if (!rel && (entry.name === '.git' || entry.name === '.github')) continue;
+			if (entry.isDirectory()) walk(path);
+			else if (entry.isFile()) files.push(path);
+			else throw new Error(`${path} is not a plain file, and no release has one`);
+		}
+	};
+	walk('');
+	return files;
 }
 
 /**
@@ -105,7 +124,8 @@ export function verifyRelease({ tag, manifestBytes, sigText, pack, keys, dir }) 
 			`${tag} does not sign its deploy repository, which releases before 1.14.0 do not: install it from Settings → Instance instead`
 		);
 	}
-	const others = filesUnder(dir).filter((rel) => !/^(\.git|\.github|assets|worker)\//.test(rel));
+	const all = filesUnder(dir);
+	const others = all.filter((rel) => !/^(assets|worker)\//.test(rel));
 	for (const rel of others) {
 		if (!(rel in signedFiles)) throw new Error(`${rel} is not part of ${tag}`);
 		if (sha256(readFileSync(join(dir, rel))) !== signedFiles[rel]) {
@@ -115,11 +135,21 @@ export function verifyRelease({ tag, manifestBytes, sigText, pack, keys, dir }) 
 	for (const rel of Object.keys(signedFiles)) {
 		if (!others.includes(rel)) throw new Error(`${rel} is missing`);
 	}
-	for (const m of manifest.worker.modules) {
-		const file = join(dir, 'worker', m.name);
-		if (!existsSync(file) || sha256(readFileSync(file)) !== m.sha256) {
-			throw new Error(`worker/${m.name} does not match the signed release`);
+	const modules = new Map(
+		manifest.worker.modules.map((/** @type {{ name: string, sha256: string }} */ m) => [
+			`worker/${m.name}`,
+			m.sha256
+		])
+	);
+	const workerFiles = all.filter((rel) => rel.startsWith('worker/'));
+	for (const rel of workerFiles) {
+		if (!modules.has(rel)) throw new Error(`${rel} is not part of ${tag}`);
+		if (sha256(readFileSync(join(dir, rel))) !== modules.get(rel)) {
+			throw new Error(`${rel} does not match the signed release`);
 		}
+	}
+	for (const rel of modules.keys()) {
+		if (!workerFiles.includes(rel)) throw new Error(`${rel} is missing`);
 	}
 
 	/** @type {Map<string, Buffer>} */
@@ -136,7 +166,9 @@ export function verifyRelease({ tag, manifestBytes, sigText, pack, keys, dir }) 
 		const text = manifest.worker.assetConfig?.[name];
 		if (typeof text === 'string') expected.set(name, Buffer.from(text, 'utf8'));
 	}
-	const present = filesUnder(join(dir, 'assets'));
+	const present = all
+		.filter((rel) => rel.startsWith('assets/'))
+		.map((rel) => rel.slice('assets/'.length));
 	for (const rel of present) {
 		const signed = expected.get(rel);
 		if (!signed) throw new Error(`assets/${rel} is not part of ${tag}`);

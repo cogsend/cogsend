@@ -153,7 +153,7 @@ Nothing is committed when it fails, so your instance keeps running what it ran.
 
 - **"…is older than…, which this repository holds"**: run it again with **Roll back** ticked if going back is what you want.
 - **"…does not sign its deploy repository"**: releases before 1.14.0 cannot be installed through GitHub. Install that one from Settings with a token.
-- **"…does not match the signed release"**, **"…is not part of…"** or **"…is missing"**: what was downloaded is not what the release signed. Run it again; if it repeats, report it with the tag.
+- **"…does not match the signed release"**, **"…is not part of…"**, **"…is missing"** or **"…is not a plain file"**: what was downloaded is not what the release signed. Run it again; if it repeats, report it with the tag.
 - **"…has no commit for vX"**: the release was published moments ago and its files are not in `cogsend/deploy` yet. Try again in a few minutes.
 - **No Run workflow button**: Actions are turned off for the repository. Turn them on under the repository's Settings → Actions → General.
 

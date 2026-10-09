@@ -7,6 +7,7 @@ import {
 	mkdtempSync,
 	readFileSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -149,6 +150,33 @@ describe('verifying a release before an update through GitHub', () => {
 		);
 		expect(() => check(variant((d) => rmSync(join(d, 'assets/robots.txt'))))).toThrow(
 			'assets/robots.txt is missing'
+		);
+	});
+
+	it('refuses a symlink anywhere, which the checks would skip and wrangler would follow', () => {
+		expect(() =>
+			check(variant((d) => symlinkSync('/proc/self/environ', join(d, 'assets/env.txt'))))
+		).toThrow('assets/env.txt is not a plain file');
+		expect(() =>
+			check(variant((d) => symlinkSync('../deploy.mjs', join(d, 'lib/again.mjs'))))
+		).toThrow('lib/again.mjs is not a plain file');
+		expect(() => check(variant((d) => symlinkSync('/etc', join(d, 'assets/etc'))))).toThrow(
+			'assets/etc is not a plain file'
+		);
+		// The repository's own .git is not part of the release, links and all.
+		const withGitLink = variant((d) => {
+			mkdirSync(join(d, '.git'));
+			symlinkSync('/etc', join(d, '.git/link'));
+		});
+		expect(check(withGitLink).version).toBe('1.14.0');
+	});
+
+	it('takes only the worker modules the release names', () => {
+		expect(() =>
+			check(variant((d) => writeFileSync(join(d, 'worker/extra.js'), 'evil();\n')))
+		).toThrow('worker/extra.js is not part of v1.14.0');
+		expect(() => check(variant((d) => rmSync(join(d, 'worker/_worker.js'))))).toThrow(
+			'worker/_worker.js is missing'
 		);
 	});
 
