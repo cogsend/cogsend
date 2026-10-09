@@ -15,11 +15,18 @@ export const GET: RequestHandler = async ({ locals, platform }) => {
 			readPrevious(locals.db),
 			readTarget(locals.db)
 		]);
+		// A rollback only applies while the update's version still serves; the
+		// rollback step checks Cloudflare too, for a Worker without the metadata.
+		const running = platform?.env?.CF_VERSION_METADATA?.id ?? null;
+		const rollback =
+			previous?.installedVersionId && (!running || running === previous.installedVersionId)
+				? previous
+				: null;
 		return ok({
 			version: __APP_VERSION__,
 			install: platform?.env?.COGSEND_INSTALL === 'button' ? 'button' : 'other',
 			target,
-			previous,
+			previous: rollback,
 			job: job
 				? {
 						tag: job.tag,

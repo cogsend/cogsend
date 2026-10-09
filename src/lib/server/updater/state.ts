@@ -46,6 +46,10 @@ export type UpdateJob = {
 
 export type UpdatePrevious = {
 	versionId: string;
+	/** The version the update installed. Roll back applies only while it still
+	 *  serves: a deploy since then (a checkout, Workers Builds, the dashboard)
+	 *  makes returning to `versionId` skip over that deploy. */
+	installedVersionId?: string;
 	/** The release that version runs, for the Roll back button's label. */
 	version: string;
 	replacedBy: string;

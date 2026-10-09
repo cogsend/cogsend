@@ -549,6 +549,7 @@ export async function stepPromote(
 	);
 	await writePrevious(ctx.db, {
 		versionId: job.previousVersionId,
+		installedVersionId: job.newVersionId,
 		version: ctx.currentVersion,
 		replacedBy: job.tag,
 		schemaChange: manifest.schemaChange,
@@ -562,6 +563,15 @@ export async function stepRollback(ctx: UpdaterContext): Promise<{ version: stri
 	const previous = await readPrevious(ctx.db);
 	if (!previous) throw new UpdateError('There is no earlier version to return to');
 	const target = await requireTarget(ctx);
+	const [current] = await ctx.api.deployments(target.accountId, target.scriptName);
+	const serving = current?.versions?.length === 1 ? current.versions[0].version_id : null;
+	if (!previous.installedVersionId || serving !== previous.installedVersionId) {
+		await clearPrevious(ctx.db);
+		throw new UpdateError(
+			`This Worker was deployed again after the update to ${previous.replacedBy}, so Roll back no longer applies. Pick a version under Workers & Pages → your Worker → Deployments instead.`,
+			409
+		);
+	}
 	await ctx.api.deploy(
 		target.accountId,
 		target.scriptName,

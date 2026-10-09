@@ -13,7 +13,7 @@ import { SubrequestBudget } from '$lib/server/budget';
 import { createTestDb, TEST_ENV, type TestDb } from '$lib/server/db/test';
 import { cloudflareApi } from '$lib/server/updater/cloudflare-api';
 import { updaterContext } from '$lib/server/updater/context';
-import { readJob, readPrevious, readTarget } from '$lib/server/updater/state';
+import { readJob, readPrevious, readTarget, writePrevious } from '$lib/server/updater/state';
 import {
 	MAX_BUCKETS_PER_CALL,
 	MAX_FILES_PER_CALL_SINGLE,
@@ -30,6 +30,7 @@ import {
 	type UpdaterContext
 } from '$lib/server/updater/steps';
 import { POST as stepPOST } from '../src/routes/api/update/[step]/+server';
+import { GET as statusGET } from '../src/routes/api/update/+server';
 
 /**
  * The in-app updater against a stand-in Cloudflare API and GitHub, with a real
@@ -396,6 +397,7 @@ describe('in-app updater', () => {
 		expect(store.keys()).toEqual([]);
 		expect(await readPrevious(test.db)).toMatchObject({
 			versionId: OLD,
+			installedVersionId: NEW,
 			version: '1.12.3',
 			replacedBy: TAG
 		});
@@ -406,6 +408,19 @@ describe('in-app updater', () => {
 
 		// The token never went anywhere but the Cloudflare API.
 		expect(w.state.requests.filter((r) => r.includes(TOKEN))).toEqual([]);
+	});
+
+	it('will not roll back over a deploy made since the update', async () => {
+		await updateToStaged();
+		await within((c) => stepPromote(c, {}));
+		// Deployed again from a checkout, Workers Builds or the dashboard.
+		w.state.deployments = [
+			{ id: 'd-later', versions: [{ version_id: 'later-v', percentage: 100 }] }
+		];
+		const calls = w.state.deployCalls.length;
+		await expect(stepRollback(ctx())).rejects.toThrow(/Roll back no longer applies/);
+		expect(w.state.deployCalls.length).toBe(calls);
+		expect(await readPrevious(test.db)).toBeNull();
 	});
 
 	it('uploads one raw file per request when the session asks for it, as wrangler does', async () => {
@@ -562,6 +577,37 @@ describe('in-app updater', () => {
 		const failed = await call({ user, authMethod: 'session' }, { token: TOKEN });
 		expect(await failed.text()).not.toContain(TOKEN);
 		expect(UpdateError).toBeDefined();
+	});
+});
+
+describe('update status', () => {
+	it('offers Roll back only while the version the update installed still serves', async () => {
+		const test = await createTestDb();
+		const user = { id: 'u', email: 'a@b', timezone: 'UTC', totpEnabled: true, mfaVerified: true };
+		const status = async (running: string | null) => {
+			const res = (await statusGET({
+				locals: { db: test.db, env: TEST_ENV, user, authMethod: 'session' },
+				platform: { env: running ? { CF_VERSION_METADATA: { id: running } } : {} }
+			} as never)) as Response;
+			return (await res.json()).previous;
+		};
+		const previous = {
+			versionId: OLD,
+			version: '1.12.3',
+			replacedBy: TAG,
+			schemaChange: false,
+			at: 1
+		};
+
+		await writePrevious(test.db, { ...previous, installedVersionId: NEW });
+		expect(await status(NEW)).toMatchObject({ version: '1.12.3' });
+		// Without version metadata the rollback step asks Cloudflare instead.
+		expect(await status(null)).toMatchObject({ version: '1.12.3' });
+		expect(await status('deployed-since')).toBeNull();
+
+		// Written by a build that did not record what it installed.
+		await writePrevious(test.db, previous);
+		expect(await status(NEW)).toBeNull();
 	});
 });
 
