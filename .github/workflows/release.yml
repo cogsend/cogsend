@@ -118,6 +118,37 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$TAG" .release/dist/* --clobber
 
+      # Every run, pre-releases included, so a credential that cannot push
+      # shows up on a release candidate instead of the first stable release.
+      # A dry-run push contacts GitHub with write intent and changes nothing.
+      - name: Check the deploy repository credential
+        if: steps.config.outputs.ready == 'true' && steps.config.outputs.deploy_repo == 'true'
+        env:
+          DEPLOY_REPO_KEY: ${{ secrets.DEPLOY_REPO_KEY }}
+          DEPLOY_REPO_TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${DEPLOY_REPO_TOKEN:-}" ]; then
+            remote="https://x-access-token:${DEPLOY_REPO_TOKEN}@github.com/cogsend/deploy.git"
+          else
+            mkdir -p ~/.ssh
+            printf '%s\n' "$DEPLOY_REPO_KEY" > ~/.ssh/deploy_repo
+            chmod 600 ~/.ssh/deploy_repo
+            ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+            export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_repo -o IdentitiesOnly=yes"
+            remote="git@github.com:cogsend/deploy.git"
+          fi
+          probe="$(mktemp -d)"
+          git -C "$probe" init -q -b main
+          git -C "$probe" -c user.name=cogsend-release -c user.email=release@cogsend.com \
+            commit -q --allow-empty -m "credential check"
+          if git -C "$probe" push --dry-run "$remote" HEAD:refs/heads/credential-check 2>&1 | sed "s#${DEPLOY_REPO_TOKEN:-unset-token}#***#g"; then
+            echo "The credential can push to cogsend/deploy."
+          else
+            echo "::error::The deploy repository credential cannot push to cogsend/deploy"
+            exit 1
+          fi
+
       - name: Publish the deploy repository
         if: steps.config.outputs.ready == 'true' && steps.config.outputs.deploy_repo == 'true' && env.PRERELEASE != 'true'
         env:
