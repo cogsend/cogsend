@@ -7,6 +7,7 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import CopyButton from '$lib/components/CopyButton.svelte';
 	import UpdatePanel from '$lib/components/UpdatePanel.svelte';
+	import { markUpdateSeen, noteRelease } from '$lib/components/update-notice.svelte';
 	import { humanizeError } from '$lib/domain/human-error';
 	import { sessionExpiredIfUnauthorized } from '$lib/components/session-expired';
 	import { accountLabel, displayHandle, platformRank } from '$lib/domain/platforms';
@@ -100,6 +101,12 @@
 		error?: string;
 	};
 	let release = $state<ReleaseCheck | null>(null);
+	// Seeing the notice here is what clears the header's dot.
+	$effect(() => {
+		if (!release) return;
+		noteRelease(release);
+		if (release.updateAvailable) markUpdateSeen();
+	});
 	let releaseBusy = $state(false);
 	let tickOrigin = $state('');
 	const tickUrl = $derived(tickOrigin ? `${tickOrigin}/api/internal/tick` : '/api/internal/tick');
@@ -1574,7 +1581,8 @@
 		</div>
 
 		<div
-			class="rounded-[2rem] border border-stone-200/80 bg-white p-6 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] sm:p-8"
+			id="instance"
+			class="scroll-mt-24 rounded-[2rem] border border-stone-200/80 bg-white p-6 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] sm:p-8"
 		>
 			<h2 class="mb-2 text-[17px] font-extrabold tracking-tight text-stone-900">Instance</h2>
 			<p class="mb-6 max-w-md text-[13px] leading-relaxed font-medium text-stone-500">

@@ -5,8 +5,8 @@ export default defineConfig({
 	// Fresh local D1 on every run, in its own state directory so a test run never
 	// deletes the data a developer uses for `npm run dev`.
 	webServer: {
-		// Order matters: a clean state directory, a build, the account (the app
-		// cannot create one any more), and only then the server.
+		// Order matters: a clean state directory, a build, the account (seeded, so
+		// the run skips the claim page), and only then the server.
 		command:
 			`rm -rf ${E2E_PERSIST_TO} && npm run build && ` +
 			`node scripts/seed-local.mjs --persist-to ${E2E_PERSIST_TO} --reset ` +
