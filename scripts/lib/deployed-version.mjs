@@ -67,13 +67,33 @@ export function servingTag(wrangler) {
 	if (!versionId) return { tag: null, reason: 'no serving version' };
 	const view = wrangler(['versions', 'view', versionId, '--json']);
 	if (view.status !== 0) return { tag: null, reason: 'could not read the serving version' };
+	let serving;
 	try {
-		const tag = JSON.parse(view.stdout)?.annotations?.['workers/tag'];
-		return typeof tag === 'string' && tag
-			? { tag }
-			: { tag: null, reason: 'the serving version has no tag' };
+		serving = JSON.parse(view.stdout);
 	} catch {
 		return { tag: null, reason: 'unreadable version' };
+	}
+	const own = serving?.annotations?.['workers/tag'];
+	if (typeof own === 'string' && own) return { tag: own };
+
+	// A secret changed with `wrangler secret put` or in the dashboard makes a
+	// new version with no tag, running the code of the version before it. Walk
+	// back to the newest tagged one, or the guard would go blind after any
+	// secret change.
+	const list = wrangler(['versions', 'list', '--json']);
+	if (list.status !== 0) return { tag: null, reason: 'the serving version has no tag' };
+	try {
+		const versions = JSON.parse(list.stdout);
+		const number = versions.find((/** @type {any} */ v) => v?.id === versionId)?.number;
+		if (typeof number !== 'number') return { tag: null, reason: 'the serving version has no tag' };
+		const tagged = versions
+			.filter((/** @type {any} */ v) => typeof v?.number === 'number' && v.number < number)
+			.sort((/** @type {any} */ a, /** @type {any} */ b) => b.number - a.number)
+			.find((/** @type {any} */ v) => typeof v?.annotations?.['workers/tag'] === 'string');
+		const tag = tagged?.annotations?.['workers/tag'];
+		return tag ? { tag } : { tag: null, reason: 'no tagged version before the serving one' };
+	} catch {
+		return { tag: null, reason: 'unreadable version list' };
 	}
 }
 

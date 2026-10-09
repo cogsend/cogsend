@@ -36,6 +36,28 @@ describe('serving tag and downgrade check', () => {
 		expect(seen[1]).toEqual(['versions', 'view', 'big', '--json']);
 	});
 
+	it('reads through a version a secret change created, which carries no tag', () => {
+		// What Cloudflare listed for a live Worker: a tagged deploy, then
+		// `wrangler secret put`, then two uploads that never served.
+		const versions = [
+			{ id: 'deploy', number: 1, annotations: { 'workers/tag': 'v1.13.0' } },
+			{ id: 'secret', number: 2, annotations: { 'workers/triggered_by': 'secret' } },
+			{ id: 'later', number: 3, annotations: { 'workers/tag': 'v9.9.9' } }
+		];
+		const wrangler = (args: string[]) => {
+			if (args[0] === 'deployments') {
+				return {
+					status: 0,
+					stdout: JSON.stringify({ versions: [{ version_id: 'secret', percentage: 100 }] })
+				};
+			}
+			if (args[1] === 'view') return { status: 0, stdout: JSON.stringify(versions[1]) };
+			return { status: 0, stdout: JSON.stringify(versions) };
+		};
+		// The newer upload that never served does not count.
+		expect(servingTag(wrangler)).toEqual({ tag: 'v1.13.0' });
+	});
+
 	it('knows nothing when there is no deployment or no tag', () => {
 		expect(servingTag(fake({}, {}, 1)).tag).toBeNull();
 		expect(
