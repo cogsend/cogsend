@@ -156,6 +156,50 @@ process.exit(0);
 		expect(deployWith('v999.0.0', undefined, { COGSEND_ALLOW_DOWNGRADE: '1' }).run.status).toBe(0);
 	});
 
+	it('lets exactly the release an update rolled back to past the downgrade check', () => {
+		const marker = join(out, '.cogsend-rollback');
+		try {
+			writeFileSync(marker, `${version}\n`);
+			expect(deployWith('v999.0.0').run.status).toBe(0);
+			writeFileSync(marker, '0.0.1\n');
+			expect(deployWith('v999.0.0').run.status).toBe(1);
+		} finally {
+			rmSync(marker, { force: true });
+		}
+	});
+
+	it('tells the Worker which GitHub repository it was deployed from, without credentials', () => {
+		const git = (...args: string[]) => spawnSync('git', args, { cwd: out, encoding: 'utf8' });
+		try {
+			git('init', '--quiet');
+			git('remote', 'add', 'origin', 'https://x-access-token:s3cret@github.com/me/my-cogsend.git');
+			const { run, deploys } = deployWith(null, undefined, { WORKERS_CI_BRANCH: 'main' });
+			expect(run.status).toBe(0);
+			expect(deploys[0].slice(-4)).toEqual([
+				'--var',
+				'COGSEND_REPO:me/my-cogsend',
+				'--var',
+				'COGSEND_BRANCH:main'
+			]);
+			expect(JSON.stringify(deploys)).not.toContain('s3cret');
+		} finally {
+			rmSync(join(out, '.git'), { recursive: true, force: true });
+		}
+	});
+
+	it('ships the update script, its helpers and the release keys it trusts', () => {
+		for (const helper of ['github-update.mjs', 'update-from-release.mjs', 'deployed-version.mjs']) {
+			expect(readFileSync(join(out, 'lib', helper), 'utf8')).toBe(
+				readFileSync(join('scripts/lib', helper), 'utf8')
+			);
+		}
+		expect(JSON.parse(readFileSync(join(out, 'lib/release-keys.json'), 'utf8'))).toEqual(
+			JSON.parse(readFileSync('src/lib/domain/release-keys.json', 'utf8'))
+		);
+		// The button cannot copy workflow files, so the repository carries none.
+		expect(existsSync(join(out, '.github'))).toBe(false);
+	});
+
 	it('deploys without the cron trigger when the account has no slot left', () => {
 		const { run, deploys } = deployWith(
 			null,

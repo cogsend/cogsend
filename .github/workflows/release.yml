@@ -41,7 +41,6 @@ jobs:
     timeout-minutes: 20
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
-      PRERELEASE: ${{ github.event.release.prerelease || false }}
     steps:
       - name: Check configuration
         id: config
@@ -94,17 +93,19 @@ jobs:
           npm run build
           npx wrangler deploy --dry-run --outdir .release/worker
 
+      # Generated first so the bundle can sign its files too: an update through
+      # GitHub checks the whole repository, deploy script included.
+      - name: Generate the deploy repository
+        if: steps.config.outputs.ready == 'true'
+        run: node scripts/deploy-repo.mjs --worker .release/worker --out .release/deploy-repo
+
       - name: Build and sign the bundle
         if: steps.config.outputs.ready == 'true'
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
         run: |
-          node scripts/release-bundle.mjs --worker .release/worker --out .release/dist
-          node scripts/verify-bundle.mjs --dir .release/dist
-
-      - name: Generate the deploy repository
-        if: steps.config.outputs.ready == 'true'
-        run: node scripts/deploy-repo.mjs --worker .release/worker --out .release/deploy-repo
+          node scripts/release-bundle.mjs --worker .release/worker --out .release/dist --deploy-repo .release/deploy-repo
+          node scripts/verify-bundle.mjs --dir .release/dist --deploy-repo .release/deploy-repo
 
       # Proves both paths upload exactly what wrangler would: the updater's
       # bundle, and a button install from the generated repository.
@@ -149,8 +150,11 @@ jobs:
             exit 1
           fi
 
+      # Stable releases go to main, the branch the Deploy button copies;
+      # pre-releases to next, where only an update through GitHub that names
+      # their tag finds them.
       - name: Publish the deploy repository
-        if: steps.config.outputs.ready == 'true' && steps.config.outputs.deploy_repo == 'true' && env.PRERELEASE != 'true'
+        if: steps.config.outputs.ready == 'true' && steps.config.outputs.deploy_repo == 'true'
         env:
           DEPLOY_REPO_KEY: ${{ secrets.DEPLOY_REPO_KEY }}
           DEPLOY_REPO_TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN }}
@@ -166,12 +170,24 @@ jobs:
             export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_repo -o IdentitiesOnly=yes"
             remote="git@github.com:cogsend/deploy.git"
           fi
-          # An empty repository has nothing to clone; start its history here.
-          if ! git clone --depth 1 "$remote" .release/deploy-clone 2>/dev/null; then
+          # Read from the tag rather than the release event, so a run started
+          # by hand for an rc tag cannot reach main either.
+          case "$TAG" in
+            *-*) branch=next ;;
+            *) branch=main ;;
+          esac
+          # A branch that does not exist yet starts from main; an empty
+          # repository has nothing to clone, so its history starts here.
+          if ! git clone --depth 1 --branch "$branch" "$remote" .release/deploy-clone 2>/dev/null; then
             rm -rf .release/deploy-clone
-            mkdir -p .release/deploy-clone
-            git -C .release/deploy-clone init -b main
-            git -C .release/deploy-clone remote add origin "$remote"
+            if git clone --depth 1 "$remote" .release/deploy-clone 2>/dev/null; then
+              git -C .release/deploy-clone checkout -q -b "$branch"
+            else
+              rm -rf .release/deploy-clone
+              mkdir -p .release/deploy-clone
+              git -C .release/deploy-clone init -b "$branch"
+              git -C .release/deploy-clone remote add origin "$remote"
+            fi
           fi
           # Replace everything but the history: the copy is exactly this release.
           find .release/deploy-clone -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
@@ -184,4 +200,4 @@ jobs:
           fi
           git -c user.name="cogsend-release" -c user.email="release@cogsend.com" \
             commit -m "CogSend ${TAG}"
-          git push origin HEAD:main
+          git push origin "HEAD:${branch}"

@@ -611,6 +611,30 @@ describe('update status', () => {
 	});
 });
 
+describe('update status for a Deploy-button install', () => {
+	it('names the GitHub repository to update through, for button installs only', async () => {
+		const test = await createTestDb();
+		const user = { id: 'u', email: 'a@b', timezone: 'UTC', totpEnabled: true, mfaVerified: true };
+		const github = async (env: Record<string, string>) => {
+			const res = (await statusGET({
+				locals: { db: test.db, env: TEST_ENV, user, authMethod: 'session' },
+				platform: { env }
+			} as never)) as Response;
+			return (await res.json()).github;
+		};
+		expect(
+			await github({
+				COGSEND_INSTALL: 'button',
+				COGSEND_REPO: 'me/cogsend',
+				COGSEND_BRANCH: 'main'
+			})
+		).toEqual({ repo: 'me/cogsend', branch: 'main' });
+		expect(await github({ COGSEND_INSTALL: 'button' })).toBeNull();
+		expect(await github({ COGSEND_REPO: 'me/cogsend' })).toBeNull();
+		expect(await github({ COGSEND_INSTALL: 'button', COGSEND_REPO: '../../evil' })).toBeNull();
+	});
+});
+
 describe('updater context', () => {
 	it('calls the global fetch the way workerd requires, even as ctx.fetchImpl(…)', async () => {
 		const original = globalThis.fetch;

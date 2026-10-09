@@ -60,8 +60,12 @@ interface Env {
 	 *  config that predates it. */
 	CF_VERSION_METADATA?: { id: string; tag: string; timestamp: string };
 	/** "button" on an instance deployed from the Deploy to Cloudflare button's
-	 *  repository: Settings then suggests disconnecting Workers Builds. */
+	 *  repository: Settings then offers updating through that repository. */
 	COGSEND_INSTALL?: string;
+	/** The button install's GitHub repository (owner/repo) and branch, recorded
+	 *  by its deploy script; Settings links to its "Update CogSend" Action. */
+	COGSEND_REPO?: string;
+	COGSEND_BRANCH?: string;
 	/** Optional public origin. Left unset (or left at localhost), the app adopts
 	 *  the origin of each request and remembers the first authenticated one;
 	 *  set it to pin a custom domain. See $lib/domain/app-url. */

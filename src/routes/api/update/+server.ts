@@ -1,4 +1,5 @@
 import type { RequestHandler } from './$types';
+import { githubUpdateTarget } from '$lib/domain/github-update';
 import { handleError, ok } from '$lib/server/http';
 import { requireSession } from '$lib/server/require';
 import { jobExpired, readJob, readPrevious, readTarget } from '$lib/server/updater/state';
@@ -22,9 +23,13 @@ export const GET: RequestHandler = async ({ locals, platform }) => {
 			previous?.installedVersionId && (!running || running === previous.installedVersionId)
 				? previous
 				: null;
+		const env = platform?.env;
+		const install = env?.COGSEND_INSTALL === 'button' ? 'button' : 'other';
 		return ok({
 			version: __APP_VERSION__,
-			install: platform?.env?.COGSEND_INSTALL === 'button' ? 'button' : 'other',
+			install,
+			github:
+				install === 'button' ? githubUpdateTarget(env?.COGSEND_REPO, env?.COGSEND_BRANCH) : null,
 			target,
 			previous: rollback,
 			job: job
