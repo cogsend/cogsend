@@ -11,7 +11,7 @@ R2 asks for a payment method on file even on the free tier.
 
 1. Press the button and sign in to Cloudflare. It copies [cogsend/deploy](https://github.com/cogsend/deploy), a prebuilt release, into your GitHub or GitLab account (tick **Create private Git repository** if you like) and deploys it with Workers Builds.
 2. The form asks for one secret, `APP_ENCRYPTION_KEY`. Generate one at [cogsend.com/key](https://cogsend.com/key/) and save a copy: you need it again in step 4, and losing it later means reconnecting every account. Leave the other fields at their defaults, unless the form says a name is taken.
-3. Press **Create and deploy** and wait for the build to finish.
+3. Press **Create and deploy** and wait for the build to finish. If the Worker's **Domains** tab then shows its workers.dev URL as off, reload the page: the build turns the URL on as its last step, and the dashboard does not refresh by itself.
 4. Open the Worker's URL. The login page asks for the encryption key, an email and a password, and creates your account. Then scan the QR with an authenticator app and save the backup codes.
 
 Only someone who knows the encryption key can create the account, so finding the URL first is not enough to take over a fresh instance.

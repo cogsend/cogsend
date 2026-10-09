@@ -147,6 +147,16 @@ The old version keeps serving whatever step fails; **Abort the unfinished update
 
 The instance was updated from Settings, and this checkout (or the Deploy-button copy Workers Builds deploys) holds an older release. Deploying it would roll the instance back, so the deploy stops before changing anything. Pull the newer release first; or, if going back is what you want, pass `--allow-downgrade` (or set `COGSEND_ALLOW_DOWNGRADE=1`, which is also how a Workers Builds variable allows it). For a Deploy-button install, disconnect the copy from Workers Builds instead ([Updating](updates.md#installed-with-the-deploy-to-cloudflare-button)).
 
+## `wrangler login` fails on Cloudflare's approval page
+
+The browser shows **Application authorization failed**, with "Unable to authenticate request" or "Something went wrong!". The login asks for every permission wrangler knows about, and Cloudflare can refuse that list for some accounts. Ask only for what CogSend needs, one `--scopes` per permission:
+
+```sh
+npx wrangler login --scopes account:read --scopes user:read --scopes workers:write --scopes workers_scripts:write --scopes workers_routes:write --scopes workers_kv:write --scopes workers_tail:read --scopes d1:write --scopes zone:read
+```
+
+If wrangler says a profile is active in this directory, `wrangler login` signs in the default profile, not that one. Sign that profile in instead: `npx wrangler auth create <profile>` with the same `--scopes`.
+
 ## Still stuck?
 
 [Open an issue](https://github.com/cogsend/cogsend/issues) with the output of `npm run doctor` and the version shown in
