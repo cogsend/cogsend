@@ -3,6 +3,7 @@ import {
 	RELEASES_URL,
 	highestVersionTag,
 	isNewer,
+	newestRelease,
 	parseRelease,
 	parseVersion,
 	releaseCheckResult
@@ -121,5 +122,21 @@ describe('combined result', () => {
 		const offline = releaseCheckResult('1.0.0', null, 'now', 'fetch failed');
 		expect(offline.updateAvailable).toBe(false);
 		expect(offline.error).toBe('fetch failed');
+	});
+});
+
+describe('the newest release, pre-releases included', () => {
+	it('goes by version, not by date, and leaves drafts out', () => {
+		const list = [
+			{ tag_name: 'v1.15.0', html_url: 'https://x/1.15.0' },
+			{ tag_name: 'v1.16.0-rc.1', html_url: 'https://x/rc1' },
+			{ tag_name: 'v1.16.0-rc.2', html_url: 'https://x/rc2' },
+			{ tag_name: 'v1.17.0', html_url: 'https://x/draft', draft: true },
+			{ tag_name: 'not-a-version' }
+		];
+		expect(newestRelease(list)?.tag).toBe('v1.16.0-rc.2');
+		expect(newestRelease([...list, { tag_name: 'v1.16.0' }])?.tag).toBe('v1.16.0');
+		expect(newestRelease([])).toBeNull();
+		expect(newestRelease({ tag_name: 'v1.0.0' })).toBeNull();
 	});
 });

@@ -35,15 +35,19 @@ function d1Shim(client: Client): D1Database {
 }
 
 describe('which paths are rate limited', () => {
-	it('covers exactly the endpoints anybody can call', () => {
+	it('covers exactly the endpoints that take a secret', () => {
 		expect(RATE_LIMITED_PATHS).toEqual([
 			'/api/auth/login',
 			'/api/auth/claim',
-			'/api/auth/totp/verify'
+			'/api/auth/totp/verify',
+			'/api/update/unlock',
+			'/api/update/remember'
 		]);
 		expect(isRateLimitedPath('/api/auth/login')).toBe(true);
 		expect(isRateLimitedPath('/api/auth/login/')).toBe(true);
 		expect(isRateLimitedPath('/api/auth/totp/verify')).toBe(true);
+		expect(isRateLimitedPath('/api/update/unlock')).toBe(true);
+		expect(isRateLimitedPath('/api/update/prepare')).toBe(false);
 		// Everything else is either session-guarded or bearer-guarded.
 		expect(isRateLimitedPath('/api/auth/totp/enroll/start')).toBe(false);
 		expect(isRateLimitedPath('/api/auth/me')).toBe(false);

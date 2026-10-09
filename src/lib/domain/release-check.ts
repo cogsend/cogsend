@@ -9,6 +9,9 @@
  */
 const RELEASE_REPO = 'cogsend/cogsend';
 export const RELEASE_API_URL = `https://api.github.com/repos/${RELEASE_REPO}/releases/latest`;
+/** Every release, pre-releases included, newest first; for instances that
+ *  offer pre-releases (Settings → Instance). */
+export const RELEASES_API_URL = `https://api.github.com/repos/${RELEASE_REPO}/releases?per_page=30`;
 export const RELEASES_URL = `https://github.com/${RELEASE_REPO}/releases`;
 export const TAGS_API_URL = `https://api.github.com/repos/${RELEASE_REPO}/tags?per_page=100`;
 /** Where a release's files live: `${RELEASE_DOWNLOAD_BASE}/<tag>/<file>`. */
@@ -109,6 +112,23 @@ export function parseRelease(json: unknown): ReleaseInfo | null {
  * that case. The tags endpoint has no ordering guarantee, so the versions are
  * compared rather than trusted in the order they arrive.
  */
+/**
+ * The highest version among GitHub's release list, pre-releases included and
+ * drafts left out: "latest" on GitHub never names a pre-release, and the list
+ * is ordered by date, not version.
+ */
+export function newestRelease(json: unknown): ReleaseInfo | null {
+	if (!Array.isArray(json)) return null;
+	let best: ReleaseInfo | null = null;
+	for (const entry of json) {
+		if ((entry as Record<string, unknown>)?.draft === true) continue;
+		const release = parseRelease(entry);
+		if (!release || compareVersions(release.version, release.version) === null) continue;
+		if (!best || (compareVersions(release.version, best.version) ?? 0) > 0) best = release;
+	}
+	return best;
+}
+
 export function highestVersionTag(json: unknown): ReleaseInfo | null {
 	if (!Array.isArray(json)) return null;
 	let best: { tag: string; parts: number[] } | null = null;

@@ -2,6 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { first, newId, type AppDb } from './db/client';
 import { mfaChallenges } from './db/schema';
 import { hashToken } from './auth';
+import { verifyPassword } from './crypto';
 import type { AppEnv } from './env';
 
 export const AUTH_GATE_MAX_FAILURES = 8;
@@ -175,4 +176,24 @@ export async function clearPasswordGate(
 ) {
 	await clearAuthGate(db, env, userId, 'password', { scope: clientAddressBucket(ip) });
 	await clearAuthGate(db, env, userId, 'password-all');
+}
+
+/**
+ * The account password, checked behind the same gate as the login form: a
+ * live session must not become an unlimited oracle for it, and it is the same
+ * secret, so the counters are shared.
+ */
+export async function checkAccountPassword(
+	db: AppDb,
+	env: AppEnv,
+	user: { id: string; passwordHash: string },
+	password: string,
+	ip: string | null | undefined
+): Promise<'ok' | 'wrong' | 'locked'> {
+	await assertPasswordGateOpen(db, env, user.id, ip);
+	if (!(await verifyPassword(password, user.passwordHash))) {
+		return (await recordPasswordFailure(db, env, user.id, ip)).locked ? 'locked' : 'wrong';
+	}
+	await clearPasswordGate(db, env, user.id, ip);
+	return 'ok';
 }

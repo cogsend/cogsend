@@ -6,8 +6,9 @@
  * then commits, and Workers Builds deploys the commit.
  *
  * Run from the repository root. TAG names the release (empty: the latest);
- * ROLLBACK=true allows one older than the repository holds. Writes `changed`,
- * `tag` and `from` to GITHUB_OUTPUT.
+ * ROLLBACK=true allows one older than the repository holds; PATCH_ONLY=true,
+ * set by the daily schedule, installs only a newer patch of the same
+ * major.minor. Writes `changed`, `tag` and `from` to GITHUB_OUTPUT.
  */
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -15,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isLaterVersion } from './deployed-version.mjs';
-import { ROLLBACK_MARKER, replaceTree, verifyRelease } from './github-update.mjs';
+import { ROLLBACK_MARKER, isPatchUpdate, replaceTree, verifyRelease } from './github-update.mjs';
 
 const APP_REPO = 'cogsend/cogsend';
 const DEPLOY_REPO = 'cogsend/deploy';
@@ -42,6 +43,7 @@ async function download(url, accept) {
 }
 
 const rollback = (process.env.ROLLBACK ?? '').toLowerCase() === 'true';
+const patchOnly = (process.env.PATCH_ONLY ?? '').toLowerCase() === 'true';
 const tag =
 	(process.env.TAG ?? '').trim() ||
 	(
@@ -60,6 +62,13 @@ output('from', current);
 
 if (version === current) {
 	console.log(`This repository already holds ${tag}: nothing to do.`);
+	output('changed', 'false');
+	process.exit(0);
+}
+if (patchOnly && !isPatchUpdate(current, version)) {
+	console.log(
+		`${tag} is not a patch release of ${current}, so the daily run leaves it: run the action by hand to install it.`
+	);
 	output('changed', 'false');
 	process.exit(0);
 }

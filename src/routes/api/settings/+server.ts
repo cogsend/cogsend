@@ -12,6 +12,7 @@ import { users } from '$lib/server/db/schema';
 import { fail, handleError, ok } from '$lib/server/http';
 import { requireScope, requireUser } from '$lib/server/require';
 import { readStoredAppName, rememberAppName } from '$lib/server/app-settings';
+import { readOfferPrereleases, setOfferPrereleases } from '$lib/server/release';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	try {
@@ -27,7 +28,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 			settings: parseProfileSettings(row?.settingsJson ?? null),
 			displayName: row?.displayName ?? null,
 			// The effective name: what Settings → Instance should show.
-			instanceName: (await readStoredAppName(locals.db)) ?? locals.env.APP_NAME
+			instanceName: (await readStoredAppName(locals.db)) ?? locals.env.APP_NAME,
+			offerPrereleases: await readOfferPrereleases(locals.db)
 		});
 	} catch (err) {
 		return handleError(err);
@@ -85,6 +87,15 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 		if (hasName && !display.ok) return fail('Invalid display name', 400);
 		if (hasInstanceName && !instanceName.ok) return fail('Invalid instance name', 400);
 		if (hasTimeZone && !timeZone) return fail('Invalid time zone', 400);
+		const hasPrereleases = Object.hasOwn(body as Record<string, unknown>, 'offerPrereleases');
+		const offerPrereleases = (body as Record<string, unknown>).offerPrereleases;
+		if (hasPrereleases && typeof offerPrereleases !== 'boolean') {
+			return fail('Invalid offerPrereleases', 400);
+		}
+		if (hasPrereleases) {
+			// Like the instance name: an instance setting, not a user one.
+			await setOfferPrereleases(locals.db, offerPrereleases as boolean);
+		}
 		if (hasInstanceName && instanceName.ok) {
 			// One write of its own: the instance name is not a user setting.
 			await rememberAppName(locals.db, instanceName.name ?? '');
@@ -111,7 +122,8 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 		return ok({
 			settings: normalized.settings,
 			displayName: row?.displayName ?? null,
-			instanceName: (await readStoredAppName(locals.db)) ?? locals.env.APP_NAME
+			instanceName: (await readStoredAppName(locals.db)) ?? locals.env.APP_NAME,
+			offerPrereleases: await readOfferPrereleases(locals.db)
 		});
 	} catch (err) {
 		return handleError(err);

@@ -50,6 +50,7 @@
 	// svelte-ignore state_referenced_locally
 	let savedInstanceName = $state((data.appName ?? '').trim());
 	let instanceBusy = $state(false);
+	let offerPrereleases = $state(false);
 	// The signed-in address is already on the layout. Show it immediately and
 	// don't let the account refresh overwrite a value the user has edited.
 	// svelte-ignore state_referenced_locally
@@ -278,6 +279,7 @@
 						instanceName = s.instanceName ?? '';
 						savedInstanceName = instanceName.trim();
 					}
+					offerPrereleases = s.offerPrereleases === true;
 					if (!isPictureDialogOpen) {
 						profilePictureUrl = s.settings?.profilePictureUrl ?? '';
 						pictureBroken = false;
@@ -722,6 +724,23 @@
 			else msg = 'Tick URL copied';
 		} catch {
 			err = 'Copy failed — select the text manually';
+		}
+	}
+
+	async function saveOfferPrereleases(on: boolean) {
+		err = null;
+		try {
+			const res = await fetch('/api/settings', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ offerPrereleases: on })
+			});
+			if (!res.ok) throw new Error();
+			// Which releases count changed: ask again rather than wait for the cache.
+			await checkForUpdates();
+		} catch {
+			offerPrereleases = !on;
+			err = 'Could not save the pre-release setting';
 		}
 	}
 
@@ -1638,6 +1657,19 @@
 				{/if}
 			</p>
 			<UpdatePanel latestTag={release?.updateAvailable ? (release.latest?.tag ?? null) : null} />
+			<label class="mt-4 flex items-start gap-2 text-[12px] font-medium text-stone-500">
+				<input
+					type="checkbox"
+					bind:checked={offerPrereleases}
+					onchange={() => void saveOfferPrereleases(offerPrereleases)}
+					class="mt-0.5"
+					data-testid="offer-prereleases"
+				/>
+				<span
+					>Offer pre-releases too: release candidates, for testing a release before it is published.
+					Not for an instance you rely on.</span
+				>
+			</label>
 		</div>
 
 		<div

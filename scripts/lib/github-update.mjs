@@ -42,6 +42,20 @@ export function githubRepoOf(remote) {
 }
 
 /**
+ * True when `to` is a later patch of the same major.minor line as `from`, the
+ * only kind of release a scheduled (automatic) update installs: a new feature
+ * release still waits for someone to press Run. Pre-releases never qualify.
+ *
+ * @param {string} from @param {string} to
+ */
+export function isPatchUpdate(from, to) {
+	const a = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(from ?? '').trim());
+	const b = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(to ?? '').trim());
+	if (!a || !b) return false;
+	return a[1] === b[1] && a[2] === b[2] && Number(b[3]) > Number(a[3]);
+}
+
+/**
  * True when the marker names exactly this version: an older release installed
  * on purpose may deploy once, and no other.
  *

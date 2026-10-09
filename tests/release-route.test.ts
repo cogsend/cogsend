@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CRON_STATE_SETTING, readAppSetting } from '$lib/server/app-settings';
-import { checkForRelease } from '$lib/server/release';
+import { checkForRelease, setOfferPrereleases } from '$lib/server/release';
 import type { AppDb } from '$lib/server/db/client';
 import { createTestDb, TEST_ENV } from '$lib/server/db/test';
 import { GET as releaseGET } from '../src/routes/api/release/+server';
@@ -140,6 +140,41 @@ describe('release check', () => {
 			url: new URL('https://x/api/release')
 		} as never)) as Response;
 		expect(anon.status).toBe(401);
+	});
+
+	it('offers pre-releases only when the instance asks, and asks GitHub again when that changes', async () => {
+		const list = new Response(
+			JSON.stringify([
+				{ tag_name: 'v9.10.0-rc.2', html_url: 'https://x/rc2', published_at: null },
+				{ tag_name: 'v9.11.0', html_url: 'https://x/draft', published_at: null, draft: true },
+				{ tag_name: 'v9.9.9', html_url: 'https://x/stable', published_at: null }
+			]),
+			{ status: 200, headers: { 'content-type': 'application/json' } }
+		);
+		const urls: string[] = [];
+		const answer = (url: string) => {
+			urls.push(url);
+			return url.endsWith('/releases/latest') ? releaseBody('v9.9.9') : list.clone();
+		};
+		const fetchImpl = vi.fn(async (input: RequestInfo | URL) =>
+			answer(String(input))
+		) as unknown as typeof fetch;
+
+		await checkForRelease(db, { fetchImpl, current: '1.0.0', refresh: true });
+		await setOfferPrereleases(db, true);
+		const withRc = await checkForRelease(db, { fetchImpl, current: '1.0.0' });
+		expect(withRc.latest?.tag).toBe('v9.10.0-rc.2');
+		expect(urls.at(-1)).toContain('/releases?per_page=');
+
+		// Cached in its own mode; switching back asks again instead of serving the rc.
+		urls.length = 0;
+		expect((await checkForRelease(db, { fetchImpl, current: '1.0.0' })).latest?.tag).toBe(
+			'v9.10.0-rc.2'
+		);
+		expect(urls).toEqual([]);
+		await setOfferPrereleases(db, false);
+		expect((await checkForRelease(db, { fetchImpl, current: '1.0.0' })).latest?.tag).toBe('v9.9.9');
+		expect(urls.at(-1)).toContain('/releases/latest');
 	});
 
 	it('keeps its cache key out of the other instance settings', async () => {

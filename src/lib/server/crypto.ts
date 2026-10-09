@@ -1,6 +1,7 @@
 import {
 	base64ToBytes,
 	bytesToBase64,
+	bytesToHex,
 	hexToBytes,
 	randomBytes,
 	timingSafeEqual,
@@ -101,6 +102,29 @@ export async function hashPassword(password: string): Promise<string> {
 		256
 	);
 	return `pbkdf2$${PBKDF2_ITERS}$${bytesToBase64(salt)}$${bytesToBase64(new Uint8Array(bits))}`;
+}
+
+/**
+ * A 256-bit key from the account password, as the hex `encryptSecret` takes,
+ * for a secret that must stay locked even to someone holding D1 and
+ * APP_ENCRYPTION_KEY. Same iteration count as the login: the password hash in
+ * D1 already lets an attacker guess at that cost, so more would only spend the
+ * Free plan's CPU, and fewer would make this the cheaper thing to attack.
+ */
+export async function passwordKeyHex(password: string, salt: Uint8Array): Promise<string> {
+	const key = await crypto.subtle.importKey(
+		'raw',
+		utf8Bytes(password) as BufferSource,
+		'PBKDF2',
+		false,
+		['deriveBits']
+	);
+	const bits = await crypto.subtle.deriveBits(
+		{ name: 'PBKDF2', hash: 'SHA-256', salt: salt as BufferSource, iterations: PBKDF2_ITERS },
+		key,
+		256
+	);
+	return bytesToHex(new Uint8Array(bits));
 }
 
 /** Verify a `hashPassword` value. Constant-time on the derived bits. */

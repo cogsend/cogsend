@@ -11,6 +11,7 @@ import {
 import { rateLimitKey } from '$lib/server/rate-limit';
 import { getAdminUser, revokeOtherSessions } from '$lib/server/auth';
 import { requireSession } from '$lib/server/require';
+import { forgetToken } from '$lib/server/updater/saved-token';
 import { emailProblem, normalizeEmail, passwordProblem } from '$lib/domain/credentials';
 
 /**
@@ -84,8 +85,14 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 			.where(eq(users.id, row.id));
 
 		// A password change invalidates every session, including this one: the
-		// client signs in again with the new password.
-		if (wantPassword) await revokeOtherSessions(locals.db, row.id, undefined);
+		// client signs in again with the new password. It also drops the update
+		// token saved under the old one; re-locking it here would add two more
+		// password derivations to a request that already runs three, past the
+		// Workers Free CPU budget.
+		if (wantPassword) {
+			await revokeOtherSessions(locals.db, row.id, undefined);
+			await forgetToken(locals.db);
+		}
 		return ok({ email: wantEmail ? email : user.email, reauth: wantPassword });
 	} catch (err) {
 		return handleError(err);

@@ -2,6 +2,7 @@ import type { RequestHandler } from './$types';
 import { githubUpdateTarget } from '$lib/domain/github-update';
 import { handleError, ok } from '$lib/server/http';
 import { requireSession } from '$lib/server/require';
+import { savedTokenStatus } from '$lib/server/updater/saved-token';
 import { jobExpired, readJob, readPrevious, readTarget } from '$lib/server/updater/state';
 
 /**
@@ -11,10 +12,11 @@ import { jobExpired, readJob, readPrevious, readTarget } from '$lib/server/updat
 export const GET: RequestHandler = async ({ locals, platform }) => {
 	try {
 		requireSession(locals.user, locals.authMethod);
-		const [job, previous, target] = await Promise.all([
+		const [job, previous, target, savedToken] = await Promise.all([
 			readJob(locals.db),
 			readPrevious(locals.db),
-			readTarget(locals.db)
+			readTarget(locals.db),
+			savedTokenStatus(locals.db)
 		]);
 		// A rollback only applies while the update's version still serves; the
 		// rollback step checks Cloudflare too, for a Worker without the metadata.
@@ -31,6 +33,7 @@ export const GET: RequestHandler = async ({ locals, platform }) => {
 			github:
 				install === 'button' ? githubUpdateTarget(env?.COGSEND_REPO, env?.COGSEND_BRANCH) : null,
 			target,
+			savedToken,
 			previous: rollback,
 			job: job
 				? {

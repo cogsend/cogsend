@@ -3,6 +3,7 @@ import { fail, handleError, ok } from '$lib/server/http';
 import { requireSession } from '$lib/server/require';
 import { CloudflareApiError } from '$lib/server/updater/cloudflare-api';
 import { updaterContext } from '$lib/server/updater/context';
+import { SavedTokenError, tokenFromUnlockKey } from '$lib/server/updater/saved-token';
 import {
 	UpdateError,
 	stepAbort,
@@ -22,7 +23,8 @@ import {
  * Session only, with a verified second factor: an API key or MCP client must
  * never be able to replace the code this instance runs. The Cloudflare token
  * travels in the JSON body, not a header, so request logging cannot record it,
- * and it is used for this request alone.
+ * and it is used for this request alone; or, when it was saved, the body
+ * carries the key from /api/update/unlock instead.
  */
 const STEPS: Record<
 	string,
@@ -48,11 +50,17 @@ export const POST: RequestHandler = async (event) => {
 		const run = Object.hasOwn(STEPS, event.params.step) ? STEPS[event.params.step] : null;
 		if (!run) return fail('Unknown update step', 404);
 		const body = (await event.request.json().catch(() => null)) as Record<string, unknown> | null;
-		const token = typeof body?.token === 'string' ? body.token.trim() : '';
+		const token =
+			typeof body?.unlockKey === 'string'
+				? await tokenFromUnlockKey(event.locals.db, body.unlockKey)
+				: typeof body?.token === 'string'
+					? body.token.trim()
+					: '';
 		if (!token) return fail('Paste a Cloudflare API token to continue', 400);
 		return ok(await run(updaterContext(event, token), body ?? {}));
 	} catch (err) {
 		if (err instanceof UpdateError) return fail(err.message, err.status);
+		if (err instanceof SavedTokenError) return fail(err.message, err.status);
 		if (err instanceof CloudflareApiError) {
 			const status = err.status === 401 || err.status === 403 ? 403 : 502;
 			const hint =

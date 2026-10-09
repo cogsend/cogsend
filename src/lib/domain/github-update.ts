@@ -35,6 +35,11 @@ export function githubUpdateLinks({ repo, branch }: GithubUpdateTarget) {
 		/** GitHub's new-file page with the workflow filled in, for the first time. */
 		enable:
 			`https://github.com/${repo}/new/${branch}` +
-			`?filename=${encodeURIComponent(WORKFLOW_PATH)}&value=${encodeURIComponent(GITHUB_UPDATE_WORKFLOW)}`
+			`?filename=${encodeURIComponent(WORKFLOW_PATH)}&value=${encodeURIComponent(GITHUB_UPDATE_WORKFLOW)}`,
+		/** The workflow file's editor, to paste a newer version over it: GitHub
+		 *  lets no Action rewrite its own workflow. */
+		edit: `https://github.com/${repo}/edit/${branch}/${WORKFLOW_PATH}`,
+		/** Where the AUTO_UPDATE repository variable is created. */
+		variables: `https://github.com/${repo}/settings/variables/actions/new`
 	};
 }

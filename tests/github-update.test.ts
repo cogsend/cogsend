@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	githubRepoOf,
+	isPatchUpdate,
 	replaceTree,
 	rollbackAllowed,
 	verifyRelease
@@ -45,6 +46,17 @@ describe('GitHub update helpers', () => {
 		expect(githubRepoOf('https://gitlab.com/me/cogsend.git')).toBeNull();
 		expect(githubRepoOf('https://github.com/me')).toBeNull();
 		expect(githubRepoOf('')).toBeNull();
+	});
+
+	it('counts only a later patch of the same line as an automatic update', () => {
+		expect(isPatchUpdate('1.15.0', '1.15.1')).toBe(true);
+		expect(isPatchUpdate('1.15.1', '1.15.12')).toBe(true);
+		expect(isPatchUpdate('1.15.1', '1.16.0')).toBe(false);
+		expect(isPatchUpdate('1.15.1', '2.0.0')).toBe(false);
+		expect(isPatchUpdate('1.15.1', '1.15.1')).toBe(false);
+		expect(isPatchUpdate('1.15.1', '1.15.0')).toBe(false);
+		expect(isPatchUpdate('1.15.0', '1.15.1-rc.1')).toBe(false);
+		expect(isPatchUpdate('1.15.0-rc.2', '1.15.1')).toBe(false);
 	});
 
 	it('lets a rollback marker through for the release it names only', () => {
@@ -238,6 +250,13 @@ describe('the update script, before it reaches the network', () => {
 		expect(result.stderr).toContain('older than 1.14.0');
 	});
 
+	it('leaves anything but a patch release to a person when the daily run finds it', () => {
+		const { result, outputs } = run('1.14.1', { TAG: 'v1.15.0', PATCH_ONLY: 'true' });
+		expect(result.status).toBe(0);
+		expect(result.stdout).toContain('not a patch release of 1.14.1');
+		expect(outputs).toContain('changed=false');
+	});
+
 	it('refuses something that is not a release tag', () => {
 		const { result } = run('1.14.0', { TAG: 'main; rm -rf /' });
 		expect(result.status).toBe(1);
@@ -268,6 +287,23 @@ describe('the Update CogSend action, as Settings offers it', () => {
 		expect(enable.origin + enable.pathname).toBe('https://github.com/me/my-cogsend/new/main');
 		expect(enable.searchParams.get('filename')).toBe('.github/workflows/update.yml');
 		expect(enable.searchParams.get('value')).toBe(GITHUB_UPDATE_WORKFLOW);
+		expect(links.edit).toBe(
+			'https://github.com/me/my-cogsend/edit/main/.github/workflows/update.yml'
+		);
+		expect(links.variables).toBe('https://github.com/me/my-cogsend/settings/variables/actions/new');
+	});
+
+	it('runs daily only when AUTO_UPDATE is set, patch releases only, and never with an older updater', () => {
+		expect(GITHUB_UPDATE_WORKFLOW).toMatch(/\n {2}schedule:\n {4}- cron: '[^']+'\n/);
+		expect(GITHUB_UPDATE_WORKFLOW).toContain(
+			"if: github.event_name != 'schedule' || vars.AUTO_UPDATE == 'true'"
+		);
+		expect(GITHUB_UPDATE_WORKFLOW).toContain("PATCH_ONLY: ${{ github.event_name == 'schedule' }}");
+		// The guard looks for the very variable the current updater reads.
+		expect(GITHUB_UPDATE_WORKFLOW).toContain('grep -q PATCH_ONLY lib/update-from-release.mjs');
+		expect(readFileSync('scripts/lib/update-from-release.mjs', 'utf8')).toContain(
+			'process.env.PATCH_ONLY'
+		);
 	});
 
 	it('runs the signed update script, may push and nothing else, and passes inputs safely', () => {

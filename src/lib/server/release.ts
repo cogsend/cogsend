@@ -12,6 +12,8 @@
  */
 import {
 	RELEASE_API_URL,
+	RELEASES_API_URL,
+	newestRelease,
 	TAGS_API_URL,
 	highestVersionTag,
 	parseRelease,
@@ -23,6 +25,8 @@ import { readAppSetting, writeAppSetting } from './app-settings';
 import type { AppDb } from './db/client';
 
 const CACHE_KEY = 'release_check';
+/** '1' when Settings → Instance offers pre-releases too. */
+export const OFFER_PRERELEASES_SETTING = 'offer_prereleases';
 const OK_TTL_MS = 6 * 60 * 60_000;
 const FAIL_TTL_MS = 30 * 60_000;
 const TIMEOUT_MS = 8_000;
@@ -31,6 +35,16 @@ interface CachedRelease {
 	latest: ReleaseInfo | null;
 	checkedAt: string;
 	error?: string;
+	/** Which answer this is, so switching the setting asks GitHub again. */
+	prereleases?: boolean;
+}
+
+export async function readOfferPrereleases(db: AppDb): Promise<boolean> {
+	return (await readAppSetting(db, OFFER_PRERELEASES_SETTING)) === '1';
+}
+
+export async function setOfferPrereleases(db: AppDb, on: boolean): Promise<void> {
+	await writeAppSetting(db, OFFER_PRERELEASES_SETTING, on ? '1' : '');
 }
 
 function parseCache(raw: string | null): CachedRelease | null {
@@ -63,8 +77,14 @@ export async function checkForRelease(
 	const current = options.current ?? __APP_VERSION__;
 	const now = options.now ?? new Date();
 	const cached = parseCache(await readAppSetting(db, CACHE_KEY));
+	const prereleases = await readOfferPrereleases(db);
 
-	if (cached && !options.refresh && isFresh(cached, now.getTime())) {
+	if (
+		cached &&
+		!options.refresh &&
+		(cached.prereleases ?? false) === prereleases &&
+		isFresh(cached, now.getTime())
+	) {
 		return releaseCheckResult(current, cached.latest, cached.checkedAt, cached.error);
 	}
 
@@ -72,7 +92,7 @@ export async function checkForRelease(
 	let latest: ReleaseInfo | null = null;
 	let error: string | undefined;
 	try {
-		const res = await doFetch(RELEASE_API_URL, {
+		const res = await doFetch(prereleases ? RELEASES_API_URL : RELEASE_API_URL, {
 			headers: {
 				accept: 'application/vnd.github+json',
 				// GitHub rejects requests without a User-Agent.
@@ -81,7 +101,8 @@ export async function checkForRelease(
 			signal: AbortSignal.timeout(TIMEOUT_MS)
 		});
 		if (res.ok) {
-			latest = parseRelease(await res.json().catch(() => null));
+			const body = await res.json().catch(() => null);
+			latest = prereleases ? newestRelease(body) : parseRelease(body);
 			if (!latest) error = 'GitHub returned an unexpected release document';
 		} else if (res.status === 404) {
 			// No published release object: fall back to tags, because a tag is
@@ -110,7 +131,7 @@ export async function checkForRelease(
 	await writeAppSetting(
 		db,
 		CACHE_KEY,
-		JSON.stringify({ latest, checkedAt, error } satisfies CachedRelease)
+		JSON.stringify({ latest, checkedAt, error, prereleases } satisfies CachedRelease)
 	);
 	return releaseCheckResult(current, latest, checkedAt, error);
 }

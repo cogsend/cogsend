@@ -36,7 +36,8 @@ describe('settings api', () => {
 		expect(await first.json()).toEqual({
 			settings: { mastoVisibility: 'public', defaultAccountIds: [], profilePictureUrl: '' },
 			displayName: null,
-			instanceName: TEST_ENV.APP_NAME
+			instanceName: TEST_ENV.APP_NAME,
+			offerPrereleases: false
 		});
 
 		const bad = (await settingsPATCH({
@@ -61,14 +62,16 @@ describe('settings api', () => {
 		expect(await patched.json()).toEqual({
 			settings: { mastoVisibility: 'private', defaultAccountIds: ['c1'], profilePictureUrl: '' },
 			displayName: null,
-			instanceName: TEST_ENV.APP_NAME
+			instanceName: TEST_ENV.APP_NAME,
+			offerPrereleases: false
 		});
 
 		const again = (await settingsGET({ locals: localsFor(userId) } as never)) as Response;
 		expect(await again.json()).toEqual({
 			settings: { mastoVisibility: 'private', defaultAccountIds: ['c1'], profilePictureUrl: '' },
 			displayName: null,
-			instanceName: TEST_ENV.APP_NAME
+			instanceName: TEST_ENV.APP_NAME,
+			offerPrereleases: false
 		});
 
 		const named = (await settingsPATCH({
@@ -87,7 +90,8 @@ describe('settings api', () => {
 		expect(await named.json()).toEqual({
 			settings: { mastoVisibility: 'private', defaultAccountIds: ['c1'], profilePictureUrl: '' },
 			displayName: 'Bikash',
-			instanceName: TEST_ENV.APP_NAME
+			instanceName: TEST_ENV.APP_NAME,
+			offerPrereleases: false
 		});
 
 		const badName = (await settingsPATCH({
@@ -203,6 +207,23 @@ describe('settings api', () => {
 		// Blank clears the override and the APP_NAME default comes back.
 		const cleared = await patch({ instanceName: '' });
 		expect((await cleared.json()).instanceName).toBe(TEST_ENV.APP_NAME);
+	});
+
+	it('turns offering pre-releases on and off, for the instance', async () => {
+		const patch = (body: Record<string, unknown>) =>
+			settingsPATCH({
+				locals: localsFor(userId),
+				request: new Request('http://localhost/api/settings', {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(body)
+				})
+			} as never) as Promise<Response>;
+		expect((await (await patch({ offerPrereleases: true })).json()).offerPrereleases).toBe(true);
+		const read = (await settingsGET({ locals: localsFor(userId) } as never)) as Response;
+		expect((await read.json()).offerPrereleases).toBe(true);
+		expect((await patch({ offerPrereleases: 'yes' })).status).toBe(400);
+		expect((await (await patch({ offerPrereleases: false })).json()).offerPrereleases).toBe(false);
 	});
 });
 

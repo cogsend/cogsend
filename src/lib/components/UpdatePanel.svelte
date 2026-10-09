@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { githubUpdateLinks, type GithubUpdateTarget } from '$lib/domain/github-update';
+	import {
+		GITHUB_UPDATE_WORKFLOW,
+		githubUpdateLinks,
+		type GithubUpdateTarget
+	} from '$lib/domain/github-update';
 	import { UPDATE_TOKEN_URL } from '$lib/domain/update-manifest';
 
 	/**
@@ -11,7 +15,10 @@
 	 * health through a version-override header before any traffic moves.
 	 *
 	 * The Cloudflare token lives in this component's memory for one update and
-	 * is sent with each step; it is never stored anywhere.
+	 * is sent with each step. Remembered, it is saved locked with the account
+	 * password, and an update then sends the password once and a one-update key
+	 * with each step instead (see $lib/server/updater/saved-token); the token
+	 * itself never comes back to the browser.
 	 *
 	 * Errors are shown whole rather than through humanizeError: they say what to
 	 * do next, and its length cap would cut that off.
@@ -24,6 +31,8 @@
 		/** Known for button installs whose deploy recorded its repository. */
 		github: GithubUpdateTarget | null;
 		target: { accountId: string; scriptName: string } | null;
+		/** The remembered token's last four characters; never the token. */
+		savedToken: { hint: string; savedAt: number } | null;
 		previous: { version: string; replacedBy: string; schemaChange: boolean } | null;
 		job: { tag: string; phase: string; expired: boolean } | null;
 	};
@@ -31,6 +40,11 @@
 	let status = $state<Status | null>(null);
 	let open = $state(false);
 	let token = $state('');
+	let password = $state('');
+	let remember = $state(true);
+	let useNewToken = $state(false);
+	/** What each step carries: the token, or the key an unlock handed out. */
+	let credentials: { token: string } | { unlockKey: string } | null = null;
 	let accountId = $state('');
 	let scriptName = $state('');
 	let accounts = $state<Array<{ id: string; name: string }> | null>(null);
@@ -43,6 +57,7 @@
 	let done = $state<string | null>(null);
 	let confirmRollback = $state(false);
 	let buildsNoticeHidden = $state(false);
+	let workflowCopied = $state(false);
 
 	const BUILDS_NOTICE_KEY = 'cogsend.hideBuildsNotice';
 
@@ -82,7 +97,7 @@
 			const res = await fetch(`/api/update/${name}`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ ...body, token })
+				body: JSON.stringify({ ...body, ...credentials })
 			}).catch(() => null);
 			const data = res ? await res.json().catch(() => null) : null;
 			if (res?.ok && data) return data as T;
@@ -97,6 +112,59 @@
 	}
 
 	const say = (line: string) => (progress = [...progress, line]);
+
+	async function post<T>(url: string, body: unknown, method = 'POST'): Promise<T> {
+		const res = await fetch(url, {
+			method,
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+		const data = await res.json().catch(() => null);
+		if (!res.ok) throw new Error(data?.error || `${url} answered HTTP ${res.status}`);
+		return data as T;
+	}
+
+	/** Open the saved token, or save the pasted one, once per press. */
+	async function prepareCredentials() {
+		if (useSaved) {
+			const { unlockKey } = await post<{ unlockKey: string }>('/api/update/unlock', { password });
+			credentials = { unlockKey };
+			say('Opened the saved Cloudflare token');
+			return;
+		}
+		if (remember) {
+			await post('/api/update/remember', { token: token.trim(), password });
+			say('Saved the token, locked with your password');
+		}
+		credentials = { token: token.trim() };
+	}
+
+	/** After a finished update or rollback: nothing secret stays in memory. */
+	function forgetCredentials() {
+		token = '';
+		password = '';
+		credentials = null;
+	}
+
+	async function copyWorkflow() {
+		try {
+			await navigator.clipboard.writeText(GITHUB_UPDATE_WORKFLOW);
+			workflowCopied = true;
+		} catch {
+			error = 'Could not copy: open the file on GitHub and copy it from the documentation instead';
+		}
+	}
+
+	async function forgetSaved() {
+		error = null;
+		try {
+			await post('/api/update/remember', {}, 'DELETE');
+			useNewToken = false;
+			await refresh();
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Could not forget the token';
+		}
+	}
 
 	/** True once this Worker is identified; otherwise the form asks. */
 	async function ensureTarget(): Promise<boolean> {
@@ -168,6 +236,7 @@
 		offerSkipCheck = false;
 		progress = [];
 		try {
+			await prepareCredentials();
 			if (!(await ensureTarget())) return;
 			const prepared = await step<{ version: string; assets: number; schemaChange: boolean }>(
 				'prepare',
@@ -197,7 +266,7 @@
 			}
 			await step('promote');
 			done = `Updated to ${staged.version}. Reloading…`;
-			token = '';
+			forgetCredentials();
 			setTimeout(() => window.location.reload(), 1500);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'The update failed';
@@ -211,9 +280,10 @@
 		busy = true;
 		error = null;
 		try {
+			if (!credentials) await prepareCredentials();
 			const result = await step<{ version: string }>('promote', { skipStage: true });
 			done = `Updated to ${result.version}. Reloading…`;
-			token = '';
+			forgetCredentials();
 			setTimeout(() => window.location.reload(), 1500);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'The update failed';
@@ -226,6 +296,7 @@
 		busy = true;
 		error = null;
 		try {
+			if (!credentials) await prepareCredentials();
 			await step('abort');
 			progress = [];
 			say('Cancelled. The current version keeps serving.');
@@ -242,10 +313,11 @@
 		error = null;
 		confirmRollback = false;
 		try {
+			await prepareCredentials();
 			if (!(await ensureTarget())) return;
 			const result = await step<{ version: string }>('rollback');
 			done = `Rolled back to ${result.version}. Reloading…`;
-			token = '';
+			forgetCredentials();
 			setTimeout(() => window.location.reload(), 1500);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'The rollback failed';
@@ -255,11 +327,28 @@
 	}
 
 	const installTag = $derived(customTag.trim() || latestTag || '');
+	const useSaved = $derived(Boolean(status?.savedToken) && !useNewToken);
+	/** Enough to start: the password for a saved token, else a token (and the
+	 *  password to lock it with, when it is to be remembered). */
+	const ready = $derived(
+		useSaved ? password.length > 0 : token.trim().length > 0 && (!remember || password.length > 0)
+	);
 	// Once the status loads: with no release pending, the panel is one quiet
 	// link, still there for installing a specific (pre-)release.
 	const visible = $derived(status !== null);
 	const github = $derived(status?.github ? githubUpdateLinks(status.github) : null);
 </script>
+
+{#snippet passwordField()}
+	<input
+		type="password"
+		autocomplete="current-password"
+		placeholder="Your CogSend password"
+		aria-label="Your CogSend password"
+		bind:value={password}
+		class="w-full rounded-xl border border-stone-200/80 bg-white px-3 py-2 text-[12px] text-stone-900 focus:border-stone-400 focus:outline-none pointer-coarse:text-base"
+	/>
+{/snippet}
 
 {#snippet tagField()}
 	<label class="block">
@@ -322,6 +411,46 @@
 					>: GitHub opens with the file filled in, so commit it, then run the action with the tag
 					left empty for the latest release.
 				</p>
+				{#if latestTag?.includes('-')}
+					<p>
+						{latestTag} is a pre-release: type
+						<span class="font-mono text-stone-800">{latestTag}</span> as the action's tag, since an empty
+						tag means the latest stable release.
+					</p>
+				{/if}
+				<p>
+					Automatic patch updates (1.15.0 → 1.15.1, never bigger):
+					<a
+						href={github.variables}
+						target="_blank"
+						rel="noreferrer"
+						class="font-bold text-stone-900 underline underline-offset-2"
+						>add the repository variable</a
+					>
+					<span class="font-mono text-stone-800">AUTO_UPDATE</span> with the value
+					<span class="font-mono text-stone-800">true</span>, and a daily run installs them.
+				</p>
+				<details>
+					<summary class="cursor-pointer font-bold text-stone-700"
+						>Added the action before 1.15? Update the action itself</summary
+					>
+					<p class="mt-2">
+						GitHub lets no action rewrite its own file, so paste the latest version over it once:
+						<button
+							type="button"
+							onclick={() => void copyWorkflow()}
+							class="font-bold text-stone-900 underline underline-offset-2"
+							>{workflowCopied ? 'Copied' : 'Copy the latest version'}</button
+						>, then
+						<a
+							href={github.edit}
+							target="_blank"
+							rel="noreferrer"
+							class="font-bold text-stone-900 underline underline-offset-2"
+							>open the file on GitHub</a
+						>, replace its contents and commit.
+					</p>
+				</details>
 			</div>
 		{/if}
 		{#if !open}
@@ -360,26 +489,55 @@
 			</div>
 		{:else}
 			<div class="space-y-3 text-[12px] font-medium text-stone-600">
-				<p>
-					Updating needs a Cloudflare API token that may edit this Worker.
-					<a
-						href={UPDATE_TOKEN_URL}
-						target="_blank"
-						rel="noreferrer"
-						class="font-bold text-stone-900 underline underline-offset-2">Create one</a
-					>
-					once (the permissions are filled in) and keep it in your password manager: the same token works
-					for every update. CogSend uses it for this update only and never stores it.
-				</p>
-				<input
-					type="password"
-					autocomplete="off"
-					spellcheck="false"
-					placeholder="Cloudflare API token"
-					aria-label="Cloudflare API token"
-					bind:value={token}
-					class="w-full rounded-xl border border-stone-200/80 bg-white px-3 py-2 font-mono text-[12px] text-stone-900 focus:border-stone-400 focus:outline-none pointer-coarse:text-base"
-				/>
+				{#if useSaved && status?.savedToken}
+					<p data-testid="saved-token">
+						Your Cloudflare token (ending <span class="font-mono">{status.savedToken.hint}</span>)
+						is saved, locked with your CogSend password. Enter the password to use it.
+					</p>
+					{@render passwordField()}
+					<p class="flex flex-wrap gap-x-3">
+						<button
+							type="button"
+							onclick={() => (useNewToken = true)}
+							class="font-bold underline underline-offset-2">Use a different token</button
+						>
+						<button
+							type="button"
+							onclick={() => void forgetSaved()}
+							class="font-bold underline underline-offset-2">Forget the saved token</button
+						>
+					</p>
+				{:else}
+					<p>
+						Updating needs a Cloudflare API token that may edit this Worker.
+						<a
+							href={UPDATE_TOKEN_URL}
+							target="_blank"
+							rel="noreferrer"
+							class="font-bold text-stone-900 underline underline-offset-2">Create one</a
+						>
+						once (the permissions are filled in); the same token works for every update.
+					</p>
+					<input
+						type="password"
+						autocomplete="off"
+						spellcheck="false"
+						placeholder="Cloudflare API token"
+						aria-label="Cloudflare API token"
+						bind:value={token}
+						class="w-full rounded-xl border border-stone-200/80 bg-white px-3 py-2 font-mono text-[12px] text-stone-900 focus:border-stone-400 focus:outline-none pointer-coarse:text-base"
+					/>
+					<label class="flex items-start gap-2">
+						<input type="checkbox" bind:checked={remember} class="mt-0.5" />
+						<span
+							>Remember it for later updates, locked with my CogSend password. Unticked, it is used
+							for this update only and nothing is stored.</span
+						>
+					</label>
+					{#if remember}
+						{@render passwordField()}
+					{/if}
+				{/if}
 				{#if accounts}
 					<label class="block">
 						<span class="font-bold text-stone-700"
@@ -434,7 +592,7 @@
 					{#if installTag}
 						<button
 							type="button"
-							disabled={busy || !token.trim()}
+							disabled={busy || !ready}
 							onclick={() => void install(installTag)}
 							class="rounded-full bg-stone-900 px-5 py-2 text-[12px] font-bold text-white hover:bg-stone-800 disabled:opacity-50"
 							>{busy ? 'Working…' : `Install ${installTag}`}</button
@@ -450,7 +608,7 @@
 							</span>
 							<button
 								type="button"
-								disabled={busy || !token.trim()}
+								disabled={busy || !ready}
 								onclick={() => void rollback()}
 								class="font-bold text-red-700 underline disabled:opacity-50">Roll back</button
 							>
@@ -462,7 +620,7 @@
 						{:else}
 							<button
 								type="button"
-								disabled={busy || !token.trim()}
+								disabled={busy || !ready}
 								onclick={() => (confirmRollback = true)}
 								class="font-bold text-stone-600 underline underline-offset-2 disabled:opacity-50"
 								>Roll back to {status.previous.version}</button
@@ -472,7 +630,7 @@
 					{#if status?.job}
 						<button
 							type="button"
-							disabled={busy || !token.trim()}
+							disabled={busy || !ready}
 							onclick={() => void abort()}
 							class="font-bold text-stone-600 underline underline-offset-2 disabled:opacity-50"
 							>Abort the unfinished update</button

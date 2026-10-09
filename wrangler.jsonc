@@ -40,9 +40,10 @@
 	// `exp`/`sig` parameters out of Workers Logs; the invocation log otherwise
 	// records the full request URL.
 	"observability": { "enabled": true, "redact_query_string": true },
-	// Rate limiting for the endpoints anybody can call: sign-in, the
-	// authenticator check, and claiming an instance that has no account yet
-	// (which takes APP_ENCRYPTION_KEY, see src/routes/api/auth/claim).
+	// Rate limiting for the endpoints that take a secret: sign-in, the
+	// authenticator check, claiming an instance that has no account yet (which
+	// takes APP_ENCRYPTION_KEY, see src/routes/api/auth/claim), and the password
+	// that locks the saved update token (src/routes/api/update/unlock).
 	// Enforced by Cloudflare at the edge (the same
 	// infrastructure as WAF rate-limiting rules), per location, so nothing in
 	// the Worker counts requests. Deliberately generous: twenty a minute is far
