@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/cogsend/deploy"><img alt="Deploy to Cloudflare" src="https://deploy.workers.cloudflare.com/button" /></a>
+</p>
+
+<p align="center">
   <a href="#install">Install</a>
   ·
   <a href="#documentation">Documentation</a>
@@ -53,15 +57,21 @@ A single-admin instance normally stays within Cloudflare's free plans, though R2
 
 ## Install
 
-### One click
+### One click (recommended)
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cogsend/deploy)
 
-Needs a Cloudflare account with Workers, D1 and R2 available. The form asks for one secret, `APP_ENCRYPTION_KEY`: generate it at [cogsend.com/key](https://cogsend.com/key/) and keep a copy, because the first visit to your new instance asks for it again to create your account. [docs/deploy.md](docs/deploy.md#deploy-with-one-click) walks through it.
+The easiest way, and the one to pick unless you want to change the code: no terminal and no Node. Cloudflare copies a prebuilt release into a GitHub or GitLab repository of yours, creates the database and the bucket, and deploys it.
+
+1. Generate an encryption key at [cogsend.com/key](https://cogsend.com/key/) and keep a copy: the next two steps ask for it, and losing it later means reconnecting every account.
+2. Press the button, sign in to Cloudflare and GitHub, and paste the key when the form asks for `APP_ENCRYPTION_KEY`.
+3. Open your new URL, enter the same key, an email and a password, then scan the QR with an authenticator app and save the backup codes.
+
+Updates come through your repository's **Update CogSend** action, with no Cloudflare token, and can install patch releases by themselves. You need a Cloudflare account with Workers, D1 and R2 available; [docs/deploy.md](docs/deploy.md#deploy-with-one-click) walks through every screen.
 
 ### From a terminal
 
-Needs Node 22.13+, 24 or 26+ (odd-numbered releases such as 25 are not supported) and a Cloudflare account with Workers, D1 and R2 available.
+For changing the code, or deploying without a GitHub or GitLab account. Needs Node 22.13+, 24 or 26+ (odd-numbered releases such as 25 are not supported) and a Cloudflare account with Workers, D1 and R2 available.
 
 ```sh
 git clone --depth 1 https://github.com/cogsend/cogsend.git cogsend
@@ -74,7 +84,11 @@ Next, [connect your accounts](docs/accounts.md). Mastodon and Bluesky work strai
 
 ## Updating
 
-Settings → Instance says when a newer release is out and installs it in place: paste a Cloudflare API token (it can remember it, locked with your password), and it uploads the signed release, checks the new version answers, then switches to it, with a Roll back button afterwards. Installed with the Deploy button, you can skip the token: Settings links to your repository's **Update CogSend** action, and Workers Builds deploys the release it commits. From a checkout it is still one command:
+Settings → Instance and a dot on your avatar say when a newer release is out.
+
+- **Installed with the button:** Settings links to your repository's **Update CogSend** action. Run it, and Workers Builds deploys the release it commits; set the repository variable `AUTO_UPDATE` to `true` and it installs patch releases by itself. No Cloudflare token involved.
+- **Any install, from Settings:** paste a Cloudflare API token (it can remember it, locked with your password), and CogSend uploads the signed release, checks the new version answers, then switches to it, with a Roll back button afterwards.
+- **From a checkout,** one command:
 
 ```sh
 git pull && npm ci && npm run deploy:release

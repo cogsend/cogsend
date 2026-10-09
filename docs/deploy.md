@@ -1,6 +1,6 @@
 # Deploying CogSend
 
-Two ways to deploy: the **Deploy to Cloudflare** button, with nothing to install, or your terminal with `npm run setup`. Both end the same way, with a Worker, a D1 database, an R2 bucket and your account, and both update from Settings afterwards ([Updating](updates.md)).
+Two ways to deploy. The **Deploy to Cloudflare** button is the recommended one: nothing to install, and updates later come through GitHub with no token. Your terminal with `npm run setup` is for changing the code, or for deploying without a GitHub or GitLab account. Both end the same way, with a Worker, a D1 database, an R2 bucket and your account ([Updating](updates.md)).
 
 Everything here assumes a Cloudflare account with Workers, D1 and R2 available;
 R2 asks for a payment method on file even on the free tier.
