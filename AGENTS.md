@@ -34,7 +34,7 @@ Local setup, the seeded account and `SKIP_TOTP` live in [docs/development.md](do
 
 `tests/schema-bootstrap.test.ts` and `tests/migration-sync.test.ts` fail when `drizzle/*.sql` and the bootstrap DDL in `src/lib/server/db/init-sql.ts` disagree, so a migration that creates a table or index must be reflected in `INIT_SQL` in the same change.
 
-The e2e suite is one serial journey, not independent tests, so a single spec run with `-g` proves nothing about that spec.
+The e2e suite is one serial journey, not independent tests, so a single spec run with `-g` proves nothing about that spec. The other specs reuse one saved session (`tests/e2e/sign-in.setup.ts`); a spec that signs in itself revokes it and spends the login rate limit, so don't.
 
 ## The docs are also the website
 

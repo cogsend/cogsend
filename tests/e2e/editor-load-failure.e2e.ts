@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { E2E_ACCOUNT } from './e2e-env';
+import { E2E_ACCOUNT, waitForLiveComposer } from './e2e-env';
 
 test.beforeEach(async ({ page }) => {
 	await page.goto('/compose');
@@ -22,6 +22,7 @@ const MISS_ID = '00000000-0000-4000-8000-000000000000';
 /** Save a draft through the editor and return its id plus a reader for its body. */
 async function seedDraft(page: import('@playwright/test').Page, text: string) {
 	await page.goto('/compose');
+	await waitForLiveComposer(page);
 	const box = page.getByTestId('segment-input-0');
 	await box.click();
 	await box.pressSequentially(text, { delay: 10 });

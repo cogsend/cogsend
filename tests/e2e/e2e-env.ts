@@ -42,6 +42,14 @@ export const E2E_PERSIST_TO = '.wrangler/e2e-state';
  *  design: it exists only inside `.wrangler/e2e-state`, which every run wipes. */
 export const E2E_ACCOUNT = { email: 'e2e@localhost', password: 'e2e-password' };
 
+/**
+ * The session the setup step saves (tests/e2e/sign-in.setup.ts) and every
+ * spec that only needs to be signed in starts with. Each sign-in counts
+ * against the login rate limit, twenty a minute, which a suite signing in
+ * once per spec ran into in CI.
+ */
+export const E2E_AUTH_STATE = '.wrangler/e2e-auth.json';
+
 /** Extra flags for every `wrangler d1 …` call inside a spec. */
 export const E2E_D1_FLAGS = `--persist-to ${E2E_PERSIST_TO}`;
 

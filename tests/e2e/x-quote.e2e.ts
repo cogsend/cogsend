@@ -1,7 +1,13 @@
 import { execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { clickUntilVisible, E2E_ACCOUNT, E2E_D1_FLAGS, waitForLiveComposer } from './e2e-env';
+import {
+	clickUntilVisible,
+	E2E_ACCOUNT,
+	E2E_AUTH_STATE,
+	E2E_D1_FLAGS,
+	waitForLiveComposer
+} from './e2e-env';
 
 /**
  * X shows a post whose text ends with a link to another X post as a quote, and
@@ -40,7 +46,8 @@ async function signIn(page: Page) {
 test.describe.configure({ mode: 'serial' });
 
 test.beforeAll(async ({ browser }) => {
-	const page = await browser.newPage();
+	// The shared session: signing in afresh would revoke it for every test after.
+	const page = await browser.newPage({ storageState: E2E_AUTH_STATE });
 	await signIn(page);
 	const me = await page.request.get('/api/auth/me').then((r) => r.json());
 	await page.close();

@@ -1,5 +1,9 @@
 import { defineConfig } from '@playwright/test';
-import { E2E_ACCOUNT, E2E_PERSIST_TO, E2E_VARS_FILE } from './tests/e2e/e2e-env';
+import { E2E_ACCOUNT, E2E_AUTH_STATE, E2E_PERSIST_TO, E2E_VARS_FILE } from './tests/e2e/e2e-env';
+
+// These start signed out: the journey tests signing in itself, and the headers
+// spec checks what an anonymous visitor gets.
+const SIGNED_OUT = ['**/smoke.e2e.ts', '**/security-headers.e2e.ts'];
 
 export default defineConfig({
 	// Fresh local D1 on every run, in its own state directory so a test run never
@@ -15,5 +19,17 @@ export default defineConfig({
 		port: 4173
 	},
 	workers: 1,
-	testMatch: 'tests/e2e/**/*.e2e.{ts,js}'
+	projects: [
+		{ name: 'sign-in', testMatch: 'tests/e2e/sign-in.setup.ts' },
+		{
+			name: 'signed-in',
+			testMatch: 'tests/e2e/**/*.e2e.{ts,js}',
+			testIgnore: SIGNED_OUT,
+			dependencies: ['sign-in'],
+			use: { storageState: E2E_AUTH_STATE }
+		},
+		// After the signed-in specs, in the same phase: signing in revokes the
+		// user's other sessions, so the shared one has to have served its turn.
+		{ name: 'signed-out', testMatch: SIGNED_OUT, dependencies: ['sign-in'] }
+	]
 });

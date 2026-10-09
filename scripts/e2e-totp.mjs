@@ -23,7 +23,9 @@ try {
 
 	const result = spawnSync(
 		'npx',
-		['playwright', 'test', 'tests/e2e/smoke.e2e.ts', '-g', 'signs in and enrolls 2fa'],
+		// --no-deps: the shared sign-in (tests/e2e/sign-in.setup.ts) expects no
+		// second factor, and this journey signs itself in anyway.
+		['playwright', 'test', 'tests/e2e/smoke.e2e.ts', '-g', 'signs in and enrolls 2fa', '--no-deps'],
 		{
 			stdio: 'inherit',
 			env: { ...process.env, COGSEND_E2E_VARS_FILE: envFile }

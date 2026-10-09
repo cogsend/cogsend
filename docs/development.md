@@ -75,6 +75,12 @@ spec>"` fails on its own — no session, no seeded account — and a `-g` run pr
 nothing about that spec. Run the whole file (`npx playwright test
 tests/e2e/smoke.e2e.ts`) before believing a failure or a pass.
 
+The other specs start signed in: `tests/e2e/sign-in.setup.ts` signs in once
+and saves the session, and every spec but the journey and the security-header
+checks reuses it. Signing in revokes the account's other sessions and counts
+against the login rate limit (twenty a minute), so a new spec should take that
+session rather than sign in itself.
+
 The e2e server claims port 4173, so stop a running `npm run preview` first (or
 change the port in `playwright.config.ts`).
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { E2E_ACCOUNT } from './e2e-env';
+import { E2E_ACCOUNT, waitForLiveComposer } from './e2e-env';
 
 /** A 1×1 PNG: enough for the upload route's type sniffing. */
 const DOT_PNG = Buffer.from(
@@ -33,6 +33,7 @@ async function storedDraft(page: Page) {
 
 test('typing several markers keeps every piece as its own card', async ({ page }) => {
 	await page.goto('/compose');
+	await waitForLiveComposer(page);
 	await page.getByTestId('segment-input-0').fill('one --- two --- three');
 
 	await expect(page.getByTestId('segment-input-0')).toHaveValue('one');
@@ -47,6 +48,7 @@ test('typing several markers keeps every piece as its own card', async ({ page }
 
 test('an image stays with its post when an earlier card is split', async ({ page }) => {
 	await page.goto('/compose');
+	await waitForLiveComposer(page);
 	await page.getByTestId('segment-input-0').fill('first ---second');
 	await expect(page.getByTestId('segment-input-1')).toHaveValue('second');
 	const draft = await storedDraft(page);
