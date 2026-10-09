@@ -36,7 +36,11 @@ function d1Shim(client: Client): D1Database {
 
 describe('which paths are rate limited', () => {
 	it('covers exactly the endpoints anybody can call', () => {
-		expect(RATE_LIMITED_PATHS).toEqual(['/api/auth/login', '/api/auth/totp/verify']);
+		expect(RATE_LIMITED_PATHS).toEqual([
+			'/api/auth/login',
+			'/api/auth/claim',
+			'/api/auth/totp/verify'
+		]);
 		expect(isRateLimitedPath('/api/auth/login')).toBe(true);
 		expect(isRateLimitedPath('/api/auth/login/')).toBe(true);
 		expect(isRateLimitedPath('/api/auth/totp/verify')).toBe(true);

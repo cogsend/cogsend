@@ -128,8 +128,9 @@ describe('release check', () => {
 			};
 			expect(body.updateAvailable).toBe(true);
 			expect(body.latest.tag).toBe('v9.9.9');
-			// The version this build reports comes from the vite define.
-			expect(body.current).toMatch(/^\d+\.\d+\.\d+$/);
+			// The version this build reports comes from the vite define; a
+			// pre-release build (1.13.0-rc.1) carries its suffix.
+			expect(body.current).toMatch(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
 		} finally {
 			vi.unstubAllGlobals();
 		}

@@ -8,7 +8,9 @@
  * `--verbose` prints it all even when it works.
  */
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import * as ui from './lib/cli.mjs';
+import { downgradeProblem, servingTag } from './lib/deployed-version.mjs';
 import { syncMigrations } from './lib/migration-sync.mjs';
 import { guardTarget } from './lib/target-account.mjs';
 import { runWrangler, wranglerOutput } from './lib/wrangler-run.mjs';
@@ -90,6 +92,28 @@ guardTarget({
 	}
 });
 
+// Before the tests and the migrations: an instance updated from Settings runs
+// a newer release than this checkout, and redeploying would roll it back.
+const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+const allowDowngrade =
+	process.argv.includes('--allow-downgrade') ||
+	['1', 'true', 'yes'].includes((process.env.COGSEND_ALLOW_DOWNGRADE ?? '').toLowerCase());
+if (!allowDowngrade) {
+	ui.progress('checking the deployed version');
+	const serving = servingTag((args) => {
+		const result = runWrangler(args);
+		return { status: result.status, stdout: result.stdout ?? '' };
+	});
+	ui.clearProgress();
+	const problem = downgradeProblem(serving.tag, version);
+	if (problem) {
+		ui.error(`${problem}\n`);
+		ui.error('nothing was deployed.');
+		process.exit(1);
+	}
+	if (serving.tag) ui.ok(`deployed version is ${serving.tag}; this checkout is v${version}`);
+}
+
 const tests = run('the test suite', 'npx', ['vitest', 'run'], 'running the test suite');
 ui.ok(`tests passed in ${ui.duration(tests.elapsedMs)}`);
 
@@ -116,7 +140,12 @@ ui.ok(ui.migrationsSummary(migrate.text) ?? 'remote database up to date');
 const build = run('the build', 'npm', ['run', 'build'], 'building');
 ui.ok(`built in ${ui.duration(build.elapsedMs)}`);
 
-const deploy = run('the deploy', 'wrangler', ['deploy'], 'deploying');
+const deploy = run(
+	'the deploy',
+	'wrangler',
+	['deploy', ...(allowDowngrade ? ['--allow-downgrade'] : [])],
+	'deploying'
+);
 const facts = ui.deployFacts(deploy.text);
 ui.ok(`deployed in ${ui.duration(deploy.elapsedMs)}`);
 if (facts.bindings.length) ui.note(facts.bindings.join(' · '));

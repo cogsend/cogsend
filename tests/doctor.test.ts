@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
 	accountPinVerdict,
+	configDrift,
+	configDriftVerdict,
 	loginVerdict,
 	bucketWasListed,
 	countUnappliedMigrations,
@@ -477,5 +479,60 @@ describe('login verdict', () => {
 			detail: 'Not logged in.',
 			fix: 'npx wrangler auth create personal'
 		});
+	});
+});
+
+/**
+ * wrangler.personal.jsonc replaces the committed config, so a release that adds
+ * a binding or moves the compatibility date never reaches an instance by itself.
+ * The docs promise doctor says so.
+ */
+describe('config drift', () => {
+	const committed = {
+		$schema: './node_modules/wrangler/config-schema.json',
+		name: 'cogsend',
+		compatibility_date: '2026-08-17',
+		compatibility_flags: ['nodejs_als'],
+		version_metadata: { binding: 'CF_VERSION_METADATA' },
+		ratelimits: [{ name: 'AUTH_RATE_LIMITER', namespace_id: '1001' }],
+		d1_databases: [{ binding: 'DB', database_name: 'cogsend', database_id: '' }],
+		r2_buckets: [{ binding: 'MEDIA', bucket_name: 'cogsend-media' }]
+	};
+
+	it('says nothing is missing when the personal config has it all, under its own names', () => {
+		const personal = {
+			...committed,
+			$schema: undefined,
+			name: 'my-cogsend',
+			d1_databases: [{ binding: 'DB', database_name: 'mine', database_id: 'abc' }],
+			r2_buckets: [{ binding: 'MEDIA', bucket_name: 'my-media' }],
+			compatibility_date: '2026-09-01'
+		};
+		delete (personal as Record<string, unknown>).$schema;
+		expect(configDrift(committed, personal)).toEqual([]);
+		expect(configDriftVerdict(committed, personal)?.status).toBe('ok');
+	});
+
+	it('lists every key, binding, date and flag the personal config lacks', () => {
+		const personal = {
+			name: 'my-cogsend',
+			compatibility_date: '2025-01-01',
+			compatibility_flags: [],
+			d1_databases: [{ binding: 'DB', database_name: 'mine', database_id: 'abc' }],
+			r2_buckets: [{ binding: 'MEDIA', bucket_name: 'my-media' }]
+		};
+		expect(configDrift(committed, personal)).toEqual([
+			'"version_metadata"',
+			'compatibility_date 2026-08-17 (yours: 2025-01-01)',
+			'compatibility flag nodejs_als',
+			'the AUTH_RATE_LIMITER binding (ratelimits)'
+		]);
+		const verdict = configDriftVerdict(committed, personal)!;
+		expect(verdict.status).toBe('warn');
+		expect(verdict.fix).toContain('keeping your own names and ids');
+	});
+
+	it('stays quiet without a personal config', () => {
+		expect(configDriftVerdict(committed, null)).toBeNull();
 	});
 });

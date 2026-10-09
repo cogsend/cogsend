@@ -370,7 +370,7 @@ export function releaseVerdict({ current, latest, error, shape = 'unknown' } = {
 	return {
 		id: 'release',
 		status: 'warn',
-		label: `Version ${latest} is available (this deployment runs ${current})`,
+		label: `Version ${latest} is available (this deployment runs ${current}): install it from Settings → Instance, or from a checkout`,
 		fix: updateHint(/** @type {any} */ (shape))
 	};
 }
@@ -709,6 +709,89 @@ export function accountPinVerdict({ config, configFile, profile, accountCount = 
 	};
 }
 
+/** Binding lists compared by name, and the field that names an entry. */
+const BINDING_LISTS = /** @type {const} */ ([
+	['d1_databases', 'binding'],
+	['r2_buckets', 'binding'],
+	['kv_namespaces', 'binding'],
+	['ratelimits', 'name'],
+	['services', 'binding']
+]);
+
+/**
+ * What the committed config has that `wrangler.personal.jsonc` lacks.
+ *
+ * The personal file replaces the committed one wholesale, so whatever a release
+ * adds to `wrangler.jsonc` (a binding, a compatibility date, a flag) never
+ * reaches an instance until it is copied over by hand. Names and ids are the
+ * personal file's own business; only what is missing is reported.
+ *
+ * @param {any} committed @param {any} personal
+ * @returns {string[]} one entry per missing thing, readable as is
+ */
+export function configDrift(committed, personal) {
+	if (!committed || !personal) return [];
+	/** @type {string[]} */
+	const missing = [];
+	/** @type {Set<string>} */
+	const listKeys = new Set(BINDING_LISTS.map(([key]) => key));
+	for (const key of Object.keys(committed)) {
+		if (key === '$schema' || listKeys.has(key)) continue;
+		if (!(key in personal)) missing.push(`"${key}"`);
+	}
+	if (
+		typeof committed.compatibility_date === 'string' &&
+		typeof personal.compatibility_date === 'string' &&
+		personal.compatibility_date < committed.compatibility_date
+	) {
+		missing.push(
+			`compatibility_date ${committed.compatibility_date} (yours: ${personal.compatibility_date})`
+		);
+	}
+	const flags = Array.isArray(personal.compatibility_flags) ? personal.compatibility_flags : [];
+	for (const flag of committed.compatibility_flags ?? []) {
+		if ('compatibility_flags' in personal && !flags.includes(flag)) {
+			missing.push(`compatibility flag ${flag}`);
+		}
+	}
+	for (const [key, field] of BINDING_LISTS) {
+		const theirs = Array.isArray(committed[key]) ? committed[key] : [];
+		const ours = Array.isArray(personal[key]) ? personal[key] : [];
+		for (const entry of theirs) {
+			const name = entry?.[field];
+			if (name && !ours.some((/** @type {any} */ e) => e?.[field] === name)) {
+				missing.push(`the ${name} binding (${key})`);
+			}
+		}
+	}
+	return missing;
+}
+
+/**
+ * The drift above as a check line, or null without a personal config.
+ *
+ * @param {any} committed @param {any} personal
+ * @returns {Check | null}
+ */
+export function configDriftVerdict(committed, personal) {
+	if (!personal) return null;
+	const missing = configDrift(committed, personal);
+	if (!missing.length) {
+		return {
+			id: 'config-drift',
+			status: 'ok',
+			label: `${PERSONAL_CONFIG} has everything ${COMMITTED_CONFIG} adds`
+		};
+	}
+	return {
+		id: 'config-drift',
+		status: 'warn',
+		label: `${PERSONAL_CONFIG} is missing what ${COMMITTED_CONFIG} now has`,
+		detail: missing.join('; '),
+		fix: `Copy those from ${COMMITTED_CONFIG} into ${PERSONAL_CONFIG}, keeping your own names and ids, then deploy`
+	};
+}
+
 /**
  * The account commands reach, against the one this checkout deployed to.
  *
@@ -801,6 +884,14 @@ async function main() {
 		});
 	}
 	if (config) checks.push(...evaluateConfig(config, { configFile, devVars }));
+	if (config && configFile === PERSONAL_CONFIG) {
+		try {
+			const drift = configDriftVerdict(readJsonc(resolve(root, COMMITTED_CONFIG)), config);
+			if (drift) checks.push(drift);
+		} catch {
+			// No readable committed config to compare with: nothing to say.
+		}
+	}
 
 	// Before the login line: with WRANGLER_PROFILE set, the account a request
 	// made through the profile reached is what says whether it is signed in.

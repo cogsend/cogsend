@@ -26,8 +26,8 @@ export const TEST_ENV: AppEnv = {
 
 /**
  * The account tests sign in as. `npm run setup` writes the same row into D1
- * before a deployment answers its first request, which is why nothing in the app
- * can create one: tests seed it the same way, with a real hash.
+ * before a deployment answers its first request, and tests seed it the same way,
+ * with a real hash.
  */
 export const TEST_ADMIN = { email: 'admin@localhost', password: 'admin123' };
 

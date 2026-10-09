@@ -112,6 +112,14 @@ export function platformSecretNames(id: OAuthPlatformId): readonly string[] {
 	return [...secrets, ...optionalSecrets];
 }
 
+/** What a form field for the secret is called, in the provider console's own
+ *  words: `X_CLIENT_SECRET` is "Client secret", `THREADS_APP_ID` is "App ID". */
+export function secretLabel(name: string): string {
+	const words = name.split('_').slice(1).join(' ').toLowerCase();
+	const label = words.replace(/\bid\b/, 'ID');
+	return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 /** Every secret name any platform reads. The accounts API reports presence for
  *  these; a test keeps the list it sends in step with this one. */
 export const PLATFORM_SECRET_NAMES: readonly string[] = (

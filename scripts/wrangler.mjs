@@ -20,17 +20,21 @@
  *    with the trigger removed, so the Worker still ships and the build is not
  *    marked failed. The outcome is recorded in D1 for the app and
  *    `npm run doctor` to read. COGSEND_STRICT_CRON=1 opts out of the retry.
+ * 5. Release tag: a deploy is tagged `v<package version>`, and refuses to
+ *    replace a Worker already running a newer tag (one updated from Settings,
+ *    say) unless given --allow-downgrade. See ./lib/deployed-version.mjs.
  *
  * Explicit flags always win: passing `--config` or `--profile` yourself
  * disables the corresponding inference.
  *
  * Usage: node scripts/wrangler.mjs <wrangler args...>
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
 	NO_CRON_CONFIG_NAME,
+	configArg,
 	cronCount,
 	cronFallbackWarning,
 	cronStateValue,
@@ -42,6 +46,7 @@ import {
 	withoutCronTriggers
 } from './lib/wrangler-config.mjs';
 import { isToolNoise, isVerbose } from './lib/cli.mjs';
+import { downgradeProblem, servingTag } from './lib/deployed-version.mjs';
 import {
 	CHECKED_ENV,
 	checkTarget,
@@ -56,12 +61,33 @@ const ACCOUNT_ID = /^[0-9a-f]{32}$/;
 /** The D1 note is metadata: give it a minute, then carry on regardless. The
  *  environment override exists so a test can shrink it. */
 const NOTE_TIMEOUT_MS = Number(process.env.COGSEND_NOTE_TIMEOUT_MS) || 60_000;
-// `--verbose` is ours, not wrangler's: it is stripped before the command line is
-// built, so `node scripts/wrangler.mjs deploy --verbose` works too.
-const args = process.argv.slice(2).filter((arg) => arg !== '--verbose');
+// `--verbose` and `--allow-downgrade` are ours, not wrangler's: they are
+// stripped before the command line is built, so
+// `node scripts/wrangler.mjs deploy --verbose` works too.
+const OWN_FLAGS = ['--verbose', '--allow-downgrade'];
+const rawArgs = process.argv.slice(2);
+let args = rawArgs.filter((arg) => !OWN_FLAGS.includes(arg));
 
 const hasFlag = (...names) =>
 	args.some((arg) => names.some((name) => arg === name || arg.startsWith(`${name}=`)));
+
+// Every deploy names the release it ships, so a later deploy (or the in-app
+// updater) can tell what is running; see ./lib/deployed-version.mjs.
+// Outside a checkout (no package.json) there is no release to name or protect.
+const LOCAL_VERSION = (() => {
+	try {
+		const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+		return typeof version === 'string' ? version : null;
+	} catch {
+		return null;
+	}
+})();
+if (LOCAL_VERSION && args[0] === 'deploy' && !hasFlag('--tag')) {
+	args = [...args, '--tag', `v${LOCAL_VERSION}`];
+}
+const allowDowngrade =
+	rawArgs.includes('--allow-downgrade') ||
+	['1', 'true', 'yes'].includes((process.env.COGSEND_ALLOW_DOWNGRADE ?? '').toLowerCase());
 
 const configArgs =
 	!existsSync(PERSONAL_CONFIG) || hasFlag('-c', '--config') ? [] : ['--config', PERSONAL_CONFIG];
@@ -241,6 +267,28 @@ if (isGuardedCommand(args) && !alreadyChecked) {
 	for (const line of told.notes) console.error(`  ${line}`);
 	if (told.refuse) process.exit(1);
 	targetAccount = check.current.accountId;
+}
+
+if (isDeploy && !isDryRun && LOCAL_VERSION && !allowDowngrade) {
+	// Read-only, with the same account and config as the deploy it guards.
+	// The deploy's own config, whether it was passed explicitly or inferred.
+	const explicitConfig = configArg(args);
+	const statusOverrides = [
+		...accountArgs,
+		...(explicitConfig ? ['--config', explicitConfig] : configArgs)
+	];
+	const serving = servingTag((wranglerArgs) => {
+		const run = spawnSync('npx', ['wrangler', ...wranglerArgs, ...statusOverrides], {
+			encoding: 'utf8',
+			maxBuffer: 16 * 1024 * 1024
+		});
+		return { status: run.status, stdout: run.stdout ?? '' };
+	});
+	const problem = downgradeProblem(serving.tag, LOCAL_VERSION);
+	if (problem) {
+		console.error(`\n${problem}`);
+		process.exit(1);
+	}
 }
 
 const result = await runWrangler(fullArgs, { capture: isDeploy });

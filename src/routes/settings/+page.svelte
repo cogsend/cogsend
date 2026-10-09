@@ -6,6 +6,8 @@
 	import AccountAvatar from '$lib/components/AccountAvatar.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import CopyButton from '$lib/components/CopyButton.svelte';
+	import UpdatePanel from '$lib/components/UpdatePanel.svelte';
+	import { markUpdateSeen, noteRelease } from '$lib/components/update-notice.svelte';
 	import { humanizeError } from '$lib/domain/human-error';
 	import { sessionExpiredIfUnauthorized } from '$lib/components/session-expired';
 	import { accountLabel, displayHandle, platformRank } from '$lib/domain/platforms';
@@ -99,6 +101,12 @@
 		error?: string;
 	};
 	let release = $state<ReleaseCheck | null>(null);
+	// Seeing the notice here is what clears the header's dot.
+	$effect(() => {
+		if (!release) return;
+		noteRelease(release);
+		if (release.updateAvailable) markUpdateSeen();
+	});
 	let releaseBusy = $state(false);
 	let tickOrigin = $state('');
 	const tickUrl = $derived(tickOrigin ? `${tickOrigin}/api/internal/tick` : '/api/internal/tick');
@@ -1573,12 +1581,32 @@
 		</div>
 
 		<div
-			class="rounded-[2rem] border border-stone-200/80 bg-white p-6 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] sm:p-8"
+			id="instance"
+			class="scroll-mt-24 rounded-[2rem] border border-stone-200/80 bg-white p-6 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] sm:p-8"
 		>
 			<h2 class="mb-2 text-[17px] font-extrabold tracking-tight text-stone-900">Instance</h2>
 			<p class="mb-6 max-w-md text-[13px] leading-relaxed font-medium text-stone-500">
 				Shown in the page title, the header and the login screen. Leave it empty for the default.
 			</p>
+			<form
+				class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center"
+				onsubmit={saveInstanceName}
+			>
+				<input
+					type="text"
+					bind:value={instanceName}
+					maxlength={INSTANCE_NAME_MAX}
+					placeholder="CogSend"
+					aria-label="Instance name"
+					class="w-full flex-1 rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+				/>
+				<button
+					type="submit"
+					disabled={instanceBusy || instanceName.trim() === savedInstanceName}
+					class="w-full shrink-0 rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800 disabled:opacity-50 sm:w-auto"
+					>Save</button
+				>
+			</form>
 			<p class="mb-2 text-[12px] font-medium text-stone-500">
 				Version {__APP_VERSION__}{schedulerMessage ? ` · ${schedulerMessage}` : ''}
 			</p>
@@ -1590,8 +1618,8 @@
 						>Version {release.latest.version} is available</a
 					>
 					<span class="text-stone-500">
-						— you run {release.current}; update the way you installed it (<a
-							href="https://github.com/cogsend/cogsend/blob/main/docs/deploy.md#updating-and-rolling-back"
+						— you run {release.current}. Update from here below, or from a checkout (<a
+							href="https://github.com/cogsend/cogsend/blob/main/docs/updates.md"
 							class="font-bold text-stone-900 underline underline-offset-2 hover:text-stone-700"
 							>Updating</a
 						>)</span
@@ -1609,22 +1637,7 @@
 					{/if}
 				{/if}
 			</p>
-			<form class="flex flex-col gap-3 sm:flex-row sm:items-center" onsubmit={saveInstanceName}>
-				<input
-					type="text"
-					bind:value={instanceName}
-					maxlength={INSTANCE_NAME_MAX}
-					placeholder="CogSend"
-					aria-label="Instance name"
-					class="w-full flex-1 rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
-				/>
-				<button
-					type="submit"
-					disabled={instanceBusy || instanceName.trim() === savedInstanceName}
-					class="w-full shrink-0 rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800 disabled:opacity-50 sm:w-auto"
-					>Save</button
-				>
-			</form>
+			<UpdatePanel latestTag={release?.updateAvailable ? (release.latest?.tag ?? null) : null} />
 		</div>
 
 		<div

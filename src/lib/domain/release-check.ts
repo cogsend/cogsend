@@ -11,6 +11,8 @@ const RELEASE_REPO = 'cogsend/cogsend';
 export const RELEASE_API_URL = `https://api.github.com/repos/${RELEASE_REPO}/releases/latest`;
 export const RELEASES_URL = `https://github.com/${RELEASE_REPO}/releases`;
 export const TAGS_API_URL = `https://api.github.com/repos/${RELEASE_REPO}/tags?per_page=100`;
+/** Where a release's files live: `${RELEASE_DOWNLOAD_BASE}/<tag>/<file>`. */
+export const RELEASE_DOWNLOAD_BASE = `https://github.com/${RELEASE_REPO}/releases/download`;
 
 export interface ReleaseInfo {
 	/** The tag as published, e.g. `v1.2.0`. */
@@ -32,9 +34,50 @@ export function parseVersion(raw: string | null | undefined): number[] | null {
 	return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
 
-/** Numeric comparison; a pre-release suffix (`1.2.0-rc.1`) counts as that
- *  release, which is the useful reading for "should I update?". */
+const SEMVER = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
+
+/**
+ * Semver precedence: negative when `a` is older than `b`, positive when newer,
+ * zero when equal, null when either is not a release version. Pre-releases
+ * are ordered too, so `1.13.0-rc.1` → `1.13.0-rc.2` → `1.13.0` is an upgrade
+ * at every step.
+ */
+export function compareVersions(a: string, b: string): number | null {
+	const x = SEMVER.exec(a.trim());
+	const y = SEMVER.exec(b.trim());
+	if (!x || !y) return null;
+	for (let i = 1; i <= 3; i += 1) {
+		const diff = Number(x[i]) - Number(y[i]);
+		if (diff) return diff;
+	}
+	if (!x[4] || !y[4]) return x[4] ? -1 : y[4] ? 1 : 0;
+	const left = x[4].split('.');
+	const right = y[4].split('.');
+	for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+		if (left[i] === undefined) return -1;
+		if (right[i] === undefined) return 1;
+		const ln = /^\d+$/.test(left[i]);
+		const rn = /^\d+$/.test(right[i]);
+		if (ln && rn) {
+			const diff = Number(left[i]) - Number(right[i]);
+			if (diff) return diff;
+		} else if (ln !== rn) {
+			return ln ? -1 : 1;
+		} else if (left[i] !== right[i]) {
+			return left[i] < right[i] ? -1 : 1;
+		}
+	}
+	return 0;
+}
+
+/**
+ * "Should I update?": semver order when both are release versions, so someone
+ * running `1.13.0-rc.2` is offered `1.13.0`. A version with trailing build
+ * noise falls back to comparing its numbers alone.
+ */
 export function isNewer(candidate: string, current: string): boolean {
+	const order = compareVersions(candidate, current);
+	if (order !== null) return order > 0;
 	const a = parseVersion(candidate);
 	const b = parseVersion(current);
 	if (!a || !b) return false;

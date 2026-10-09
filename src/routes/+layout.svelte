@@ -18,6 +18,12 @@
 	import logoGlyph from '$lib/assets/logo-glyph.svg';
 	import { initialsOf } from '$lib/components/initials';
 	import { menuNav } from '$lib/components/menu-nav';
+	import {
+		markUpdateSeen,
+		noteRelease,
+		readUpdateSeen,
+		updateNotice
+	} from '$lib/components/update-notice.svelte';
 	import { browserTimeZone } from '$lib/domain/time-zone';
 
 	let workspaceTrigger: HTMLButtonElement | null = $state(null);
@@ -50,6 +56,25 @@
 			body: JSON.stringify({ timezone: zone })
 		}).catch(() => {});
 	});
+
+	// Asked once per signed-in page load (and again after signing in, which does
+	// not reload the layout). The server caches GitHub's answer for six hours, so
+	// this is a D1 read, and it never holds up the page.
+	let releaseAskedFor: string | null = null;
+	onMount(readUpdateSeen);
+	$effect(() => {
+		const user = data.user;
+		// Keyed on verification too: finishing 2FA does not reload the layout either.
+		const key = user ? `${user.id}:${user.mfaVerified}` : null;
+		if (!key || key === releaseAskedFor) return;
+		releaseAskedFor = key;
+		void fetch('/api/release')
+			.then((res) => (res.ok ? res.json() : null))
+			.then(noteRelease)
+			.catch(() => {});
+	});
+	const showUpdateDot = $derived(!!updateNotice.tag && updateNotice.seen !== updateNotice.tag);
+
 	let logoutError = $state<string | null>(null);
 	async function logout() {
 		showProfileDropdown = false;
@@ -239,7 +264,7 @@
 						aria-expanded={showProfileDropdown}
 						bind:this={profileTrigger}
 						aria-controls="profile-menu"
-						aria-label="Profile menu"
+						aria-label={showUpdateDot ? 'Profile menu, update available' : 'Profile menu'}
 						title={userEmail}
 					>
 						<span
@@ -259,6 +284,13 @@
 							/>
 						{/if}
 					</button>
+					{#if showUpdateDot}
+						<span
+							class="pointer-events-none absolute top-0 right-0 h-3 w-3 rounded-full bg-amber-500 ring-2 ring-white"
+							aria-hidden="true"
+							data-testid="update-dot"
+						></span>
+					{/if}
 
 					<!-- PROFILE DROPDOWN -->
 					{#if showProfileDropdown}
@@ -292,6 +324,22 @@
 							</div>
 
 							<div class="mt-1 p-1">
+								{#if updateNotice.tag}
+									<a
+										href="/settings#instance"
+										class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-bold text-stone-600 transition-colors hover:bg-stone-50 hover:text-stone-900"
+										onclick={() => {
+											showProfileDropdown = false;
+											markUpdateSeen();
+										}}
+										role="menuitem"
+										data-testid="update-menu-item"
+									>
+										<span class="mx-1 h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true"
+										></span>
+										{updateNotice.tag} is available
+									</a>
+								{/if}
 								<a
 									href="/settings"
 									class="flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-bold transition-colors {page

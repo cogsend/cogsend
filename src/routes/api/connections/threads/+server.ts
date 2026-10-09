@@ -4,6 +4,7 @@ import { OAUTH_PENDING_TTL_MS } from '$lib/domain/oauth-pending';
 import { encryptSecret } from '$lib/server/crypto';
 import { oauthPending } from '$lib/server/db/schema';
 import { handleError, ok } from '$lib/server/http';
+import { resolvePlatformCredentials } from '$lib/server/platform-credentials';
 import { platformNotConfigured } from '$lib/server/platform-setup';
 import { threadsAuthorizeUrl } from '$lib/server/providers';
 import { SESSION_COOKIE } from '$lib/server/auth';
@@ -13,8 +14,9 @@ import { requireSession } from '$lib/server/require';
 export const POST: RequestHandler = async ({ locals, cookies }) => {
 	try {
 		const user = requireSession(locals.user, locals.authMethod);
-		const appId = locals.env.THREADS_APP_ID;
-		const appSecret = locals.env.THREADS_APP_SECRET;
+		const credentials = await resolvePlatformCredentials(locals.db, locals.env, 'threads');
+		const appId = credentials?.values.THREADS_APP_ID;
+		const appSecret = credentials?.values.THREADS_APP_SECRET;
 		if (!appId || !appSecret) return platformNotConfigured('threads');
 		const state = randomHex(16);
 		const sessionId = cookies.get(SESSION_COOKIE) ?? `machine:${user.id}`;

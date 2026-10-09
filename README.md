@@ -53,6 +53,14 @@ A single-admin instance normally stays within Cloudflare's free plans, though R2
 
 ## Install
 
+### One click
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cogsend/deploy)
+
+Needs a Cloudflare account with Workers, D1 and R2 available. The form asks for one secret, `APP_ENCRYPTION_KEY`: generate it at [cogsend.com/key](https://cogsend.com/key/) and keep a copy, because the first visit to your new instance asks for it again to create your account. [docs/deploy.md](docs/deploy.md#deploy-with-one-click) walks through it.
+
+### From a terminal
+
 Needs Node 22.13+, 24 or 26+ (odd-numbered releases such as 25 are not supported) and a Cloudflare account with Workers, D1 and R2 available.
 
 ```sh
@@ -62,15 +70,17 @@ cd cogsend && npm install && npm run setup
 
 `setup` creates the Cloudflare resources, your admin account and the secrets, deploys, and prints your URL. Sign in there, scan the QR with an authenticator app and save the backup codes. It is safe to re-run; [docs/deploy.md](docs/deploy.md#one-command) lists every step and flag.
 
-Next, [connect your accounts](docs/accounts.md). Mastodon and Bluesky work straight away; LinkedIn, Threads and X need an [OAuth app](docs/oauth-apps.md) first, or you can connect them through [Zernio](docs/zernio.md).
+Next, [connect your accounts](docs/accounts.md). Mastodon and Bluesky work straight away; LinkedIn, Threads and X need an [OAuth app](docs/oauth-apps.md) first, which the accounts dialog walks you through (or hands to a browser agent), or you can connect them through [Zernio](docs/zernio.md).
 
 ## Updating
+
+Settings → Instance says when a newer release is out and installs it in place: paste a Cloudflare API token, and it uploads the signed release, checks the new version answers, then switches to it, with a Roll back button afterwards. From a checkout it is still one command:
 
 ```sh
 git pull && npm ci && npm run deploy:release
 ```
 
-`deploy:release` runs the tests, applies migrations, builds and deploys. Your data is in D1 and R2, not in the checkout, so a pull cannot touch it. Settings → Instance and `npm run doctor` both report the running version and say when a newer release is out; [docs/deploy.md → Updating](docs/deploy.md#updating-and-rolling-back) covers release tags and rolling back.
+Your data is in D1 and R2, not in the checkout, so neither path can touch it. [docs/updates.md](docs/updates.md) covers both, release tags and rolling back.
 
 ## Documentation
 
@@ -78,7 +88,8 @@ Also published, with search, at [cogsend.com/docs](https://cogsend.com/docs/).
 
 **Get started**
 
-- [Deploying](docs/deploy.md): the install and its flags, checking it worked, updating and rolling back
+- [Deploying](docs/deploy.md): the one-click button, the terminal install and its flags, checking it worked
+- [Updating](docs/updates.md): updating from Settings or a checkout, rolling back, and why the in-app update is safe
 - [OAuth apps](docs/oauth-apps.md): LinkedIn, Threads and X app setup, and what each platform allows
 - [Zernio](docs/zernio.md): connecting through Zernio instead of registering your own apps
 - [Connecting accounts](docs/accounts.md): connecting, reconnecting and disconnecting accounts

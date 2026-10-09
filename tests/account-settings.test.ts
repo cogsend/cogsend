@@ -31,9 +31,9 @@ function login(db: AppDb, email: string, password: string) {
 }
 
 /**
- * The account is created by `npm run setup` from the terminal, in D1, before the
- * Worker answers its first request. Nothing at runtime can create one — that is
- * what removed the old first-run claim window — so the app has to say so plainly.
+ * The account comes from `npm run setup`, or from the claim form, which needs
+ * APP_ENCRYPTION_KEY (tests/claim-route.test.ts). Until then sign-in has nothing
+ * to check against.
  */
 describe('an instance with no account yet', () => {
 	let db: AppDb;
@@ -48,7 +48,7 @@ describe('an instance with no account yet', () => {
 		expect(await needsSetup(db)).toBe(true);
 	});
 
-	it('shows a notice on the login page instead of a form', async () => {
+	it('shows the claim form instead of the sign-in form', async () => {
 		await expect(loginLoad({ locals: { db, env: TEST_ENV } } as never)).resolves.toEqual({
 			notConfigured: true
 		});

@@ -55,7 +55,12 @@ export function isPublicPath(path: string): boolean {
 		path.startsWith('/api/connections/zernio/callback')
 	)
 		return true;
-	if (path === '/api/auth/login' || path === '/api/auth/logout' || path === '/api/auth/me')
+	if (
+		path === '/api/auth/login' ||
+		path === '/api/auth/claim' ||
+		path === '/api/auth/logout' ||
+		path === '/api/auth/me'
+	)
 		return true;
 	if (path.startsWith('/api/auth/totp/enroll') || path.startsWith('/api/auth/totp/verify'))
 		return true;
@@ -278,7 +283,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	// Rate limiting for the two endpoints anybody can call. Checked before the
+	// Rate limiting for the endpoints anybody can call. Checked before the
 	// route runs, because the point is to keep a burst from reaching PBKDF2 at
 	// all. The in-app lockout is still what stops a determined attacker.
 	if (isRateLimitedPath(path)) {

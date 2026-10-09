@@ -60,6 +60,7 @@
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"@tailwindcss/vite": "^4.3.0",
 		"@types/node": "^26",
+		"blake3-wasm": "2.1.5",
 		"eslint": "^10.10.0",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.19.0",
@@ -85,10 +86,10 @@
 		"zod": "^4.6.2"
 	},
 	"allowScripts": {
-		"esbuild@0.28.1": true,
+		"esbuild@0.28.2": true,
 		"fsevents@2.3.2": true,
 		"fsevents@2.3.3": true,
-		"workerd@1.20261001.1": true
+		"workerd@1.20261006.1": true
 	},
 	"overrides": {
 		"sharp": "^0.35.5"

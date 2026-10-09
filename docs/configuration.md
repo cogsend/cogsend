@@ -33,6 +33,8 @@ cannot reach anything except the tick (see [Scheduling](scheduling.md)).
 | `ENABLE_VIDEO_UPLOAD`                           | LinkedIn video, wired but unverified                          |
 | `SUBREQUEST_LIMIT`                              | publishing more per tick on a paid Workers plan (see below)   |
 
+The OAuth client ids and secrets can also be entered in the accounts dialog instead, where they are stored in D1, encrypted with `APP_ENCRYPTION_KEY`; a Worker secret, when set, takes precedence over the dialog's value ([OAuth apps](oauth-apps.md)).
+
 `MEDIA_PUBLIC_BASE_URL` is a trade-off: it serves media from a public origin
 with no signature and no expiry, protected only by the randomness in the object
 key. Keep the origin unlisted and treat a leaked URL as permanent; leave the
@@ -141,11 +143,7 @@ Each deploy records the account it went to in `.wrangler/deployed-accounts.json`
 
 ## The login
 
-There is one account, and one way to create it: `npm run setup` writes it into D1
-from the terminal, before the deployment answers its first request. Only a
-PBKDF2-SHA256 hash is stored, the password never becomes a Worker secret, and
-because the row exists from the start there is nothing for anyone else to claim —
-the app has no route that can create an account.
+There is one account, created one of two ways: `npm run setup` writes it into D1 from the terminal, before the deployment answers its first request, or, on an instance that has no account yet, the login page creates it once you enter the deployment's `APP_ENCRYPTION_KEY`. Only someone holding that key can do the second, so a fresh instance cannot be claimed by whoever finds its URL first, and once the account exists the form is gone. Only a PBKDF2-SHA256 hash is stored, and the password never becomes a Worker secret.
 
 **Settings → Login** changes the email or the password. The current password is
 required, and a new password signs every device out.

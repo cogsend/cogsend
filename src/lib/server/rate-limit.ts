@@ -17,9 +17,10 @@ export type RateLimiter = {
 	limit(input: { key: string }): Promise<{ success: boolean }>;
 };
 
-/** `/api/auth/totp/verify` covers the login challenge; the enroll/rotate routes
+/** `/api/auth/claim` takes the encryption key on a fresh instance, and
+ *  `/api/auth/totp/verify` covers the login challenge; the enroll/rotate routes
  *  need a session first, and the tick endpoint is bearer-guarded. */
-export const RATE_LIMITED_PATHS = ['/api/auth/login', '/api/auth/totp/verify'];
+export const RATE_LIMITED_PATHS = ['/api/auth/login', '/api/auth/claim', '/api/auth/totp/verify'];
 
 /** True for the paths this guard applies to (a trailing slash included). */
 export function isRateLimitedPath(path: string): boolean {

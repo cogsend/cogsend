@@ -1,11 +1,22 @@
 # Deploying CogSend
 
-One way to deploy: your terminal, `wrangler`, and `npm run setup`. It creates the
-D1 database, the R2 bucket, the secrets and the account, applies the migrations,
-deploys, and then signs in once against the live Worker to prove it works.
+Two ways to deploy: the **Deploy to Cloudflare** button, with nothing to install, or your terminal with `npm run setup`. Both end the same way, with a Worker, a D1 database, an R2 bucket and your account, and both update from Settings afterwards ([Updating](updates.md)).
 
 Everything here assumes a Cloudflare account with Workers, D1 and R2 available;
 R2 asks for a payment method on file even on the free tier.
+
+## Deploy with one click
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cogsend/deploy)
+
+1. Press the button and sign in to Cloudflare. It copies [cogsend/deploy](https://github.com/cogsend/deploy), a prebuilt release, into your GitHub or GitLab account (tick **Create private Git repository** if you like) and deploys it with Workers Builds.
+2. The form asks for one secret, `APP_ENCRYPTION_KEY`. Generate one at [cogsend.com/key](https://cogsend.com/key/) and save a copy: you need it again in step 4, and losing it later means reconnecting every account. Leave the other fields at their defaults, unless the form says a name is taken.
+3. Press **Create and deploy** and wait for the build to finish.
+4. Open the Worker's URL. The login page asks for the encryption key, an email and a password, and creates your account. Then scan the QR with an authenticator app and save the backup codes.
+
+Only someone who knows the encryption key can create the account, so finding the URL first is not enough to take over a fresh instance.
+
+The account needs a workers.dev subdomain before anything can deploy; a brand-new Cloudflare account is asked to pick one ([Custom domains](domains.md#the-workersdev-url)). Updating is done from **Settings → Instance**; after the first update, disconnect the copy from Workers Builds ([Updating](updates.md#installed-with-the-deploy-to-cloudflare-button)).
 
 ## One command
 
@@ -27,7 +38,7 @@ It is safe to re-run: resources that exist, secrets that are already set, and an
 account that already exists are all left alone, because rotating
 `APP_ENCRYPTION_KEY` orphans every stored credential and signs every session out.
 `main` is the branch these docs are tested against, and release tags are cut
-from it. See [Updating](#updating-and-rolling-back) for tags and rolling back.
+from it. See [Updating](updates.md) for tags and rolling back.
 
 Its flags, for the cases the defaults deliberately avoid:
 
@@ -60,17 +71,18 @@ output is captured and shown only when a step fails. `--verbose` prints all of
 it; colour turns itself off in a pipe or a CI log, and `--no-color` (or
 `NO_COLOR=1`) does the same by hand.
 
-No GitHub App, no Workers Builds, and nothing to configure in a browser beyond
-the `wrangler login` that `setup` starts.
+This path needs no GitHub App and no Workers Builds, and nothing to configure in a browser beyond the `wrangler login` that `setup` starts.
 
 ## After the first deploy
 
-1. Open the Worker URL and sign in with the email and password `setup` created.
-   The first sign-in asks for an authenticator app: scan the QR and save the
-   backup codes it shows.
+1. Open the Worker URL and sign in with the email and password `setup` created
+   (or, after the button, the account you just created). The first sign-in asks
+   for an authenticator app: scan the QR and save the backup codes it shows.
 2. Connect accounts under **Accounts**. Mastodon and Bluesky work immediately;
    LinkedIn, Threads and X need an OAuth app each, with the redirect URI built
-   from your deployed URL ([OAuth apps](oauth-apps.md)).
+   from your deployed URL. The accounts dialog walks you through it, takes the
+   app's credentials in a form, and can hand the whole job to a browser agent
+   ([OAuth apps](oauth-apps.md)).
 3. Scheduled posts publish themselves through the cron trigger in
    `wrangler.jsonc`. Nothing to set up — unless the account had no trigger slot
    left, in which case the deploy says so and **Settings → Scheduled publishing**
@@ -92,36 +104,13 @@ actually hit.
 
 ## Updating, and rolling back
 
-Settings → Instance and `npm run doctor` both tell you when a newer release is
-out. One command updates everything — tests, remote D1 migrations, build, deploy:
-
-```sh
-git pull
-npm ci
-npm run deploy:release
-```
-
-That prints one line per step — the test suite, the migrations, the build, the
-deploy. `npm run deploy:release -- --verbose` shows everything those steps said.
-
-Cloned `main`? Pull it, or move to a release tag (`git tag` lists them) — those
-are the states the docs and the setup script are tested against.
+Settings → Instance and `npm run doctor` both tell you when a newer release is out. Install it from **Settings → Instance** with a Cloudflare API token, or from a checkout with `git pull && npm ci && npm run deploy:release`; [Updating](updates.md) covers both, rolling back, and why the in-app update is safe to run.
 
 Your data is never in the repository: D1, R2, the Worker secrets and the app
-settings live in your Cloudflare account, so a pull cannot touch them. The one
+settings live in your Cloudflare account, so neither path can touch them. The one
 local file that matters is `wrangler.personal.jsonc`, which replaces the
 committed config — a config change upstream therefore does not reach you, and
 `npm run doctor` says so when the two disagree.
-
-**Migrations.** The app repairs missing tables and columns on the first request
-after an update, so most updates need nothing. When a release ships a real
-migration, run `npm run db:migrate:remote` — `deploy:release` above already does
-it.
-
-**Rolling back.** Workers & Pages → your Worker → **Deployments → Roll back**
-reverts code only (or `npx wrangler rollback`), and migrations stay applied, so
-rolling back across a schema change can break things. Take a
-[backup](backups.md) before an update you might want to undo.
 
 ## Deploying by hand
 
@@ -142,11 +131,7 @@ node scripts/wrangler.mjs secret put APP_ENCRYPTION_KEY
 npm run build && npm run deploy
 ```
 
-The account is the one thing a manual deploy cannot make for you: nothing at
-runtime creates one, which is what keeps a fresh deployment from being claimable
-by whoever finds its URL first. After that deploy, run `npm run setup` once — it
-finds the database and bucket you just made, uploads the secrets and creates the
-account. `npm run deploy:release` runs tests, migrations, build and deploy in one
+The account comes last: open the Worker's URL and create it on the login page with the `APP_ENCRYPTION_KEY` you just set, or run `npm run setup` once, which finds the database and bucket you just made, uploads the secrets and creates the account from the terminal. Either way, only someone holding the key can create it. `npm run deploy:release` runs tests, migrations, build and deploy in one
 go.
 
 A fresh database needs no migration step — the schema bootstraps itself on the
@@ -169,7 +154,7 @@ Variables and Secrets → Add → **Secret**) press **Deploy** to apply them.
 ### Push-to-deploy, without Workers Builds
 
 Optional, and for updates only: the account has to exist first (run `npm run
-setup` once locally). Copy `.github/workflows/deploy.yml.example` to
+setup` once locally, or claim it on the login page). Like any deploy from a checkout, it is tagged with the release and refuses to replace a newer one ([Updating](updates.md#from-a-checkout)). Copy `.github/workflows/deploy.yml.example` to
 `.github/workflows/deploy.yml` and add two repository secrets —
 `CLOUDFLARE_API_TOKEN` (Workers Scripts, D1 and R2 edit permissions) and
 `CLOUDFLARE_ACCOUNT_ID`. Pushes to `main` then build, migrate and deploy from

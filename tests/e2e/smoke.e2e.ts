@@ -257,14 +257,22 @@ test('a platform without app credentials shows its setup steps, not a failure', 
 	await expect(
 		page.getByRole('heading', { name: `${probe.name} isn't enabled yet` })
 	).toBeVisible();
-	// The steps stay collapsed so the panel is three lines and two rows, not a
-	// wall of text: the redirect URI lives under step 1, the secrets under 2.
+	// The steps stay collapsed so the panel is three lines and three rows, not a
+	// wall of text: the redirect URI lives under step 1, the form under 2, and
+	// the Worker-secrets route under 3.
 	await expect(page.getByTestId('setup-callback-uri')).toBeHidden();
 	await page.getByTestId('setup-step-1').click();
 	const redirectUri = page.getByTestId('setup-callback-uri');
 	await expect(redirectUri).toBeVisible();
 	await expect(redirectUri).toContainText(`/api/connections/${probe.id}/callback`);
+	// The agent prompt carries the same redirect URI.
+	await expect(page.getByRole('button', { name: 'Copy the agent prompt' })).toBeVisible();
 	await page.getByTestId('setup-step-2').click();
+	const appForm = page.getByTestId('setup-app-form');
+	await expect(appForm).toBeVisible();
+	// The form speaks the console's language, not environment variable names.
+	await expect(appForm).not.toContainText(/CLIENT_ID|APP_ID|_SECRET/);
+	await page.getByTestId('setup-step-3').click();
 	await expect(page.getByTestId('setup-command')).toHaveText(probe.command);
 	for (const secret of probe.secrets) {
 		await expect(page.getByText(secret, { exact: true })).toBeVisible();

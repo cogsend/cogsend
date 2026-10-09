@@ -7,8 +7,7 @@ and secret the Worker uses. If you would rather not register apps, the optional
 
 ## OAuth app setup
 
-Each one is the same three steps: create the app, add the redirect URI, set the
-Worker secrets.
+Each one is the same three steps: create the app, add the redirect URI, give CogSend the app's credentials. The accounts dialog walks through all three: pick a platform marked **Needs setup** and it shows this instance's exact redirect URI and a form for the credentials.
 
 | Platform | Where                                                                 | Redirect URI                                  | Worker secrets                                 |
 | -------- | --------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------- |
@@ -16,7 +15,9 @@ Worker secrets.
 | Threads  | [Meta for Developers](https://developers.facebook.com/apps/)          | `{APP_URL}/api/connections/threads/callback`  | `THREADS_APP_ID`, `THREADS_APP_SECRET`         |
 | X        | [X Developer Portal](https://developer.x.com/en/portal/dashboard)     | `{APP_URL}/api/connections/x/callback`        | `X_CLIENT_ID`, `X_CLIENT_SECRET`               |
 
-The last step — putting those secrets on the Worker — works either way:
+The last step works three ways:
+
+- **In the accounts dialog.** Enter the values in the dialog's form and press **Save and connect**. They are stored in D1, encrypted with `APP_ENCRYPTION_KEY` like the account tokens, and never shown again; **App credentials saved here** under the platform list changes or removes them. Nothing to deploy, no checkout needed.
 
 - **From a checkout.** Put the values in `.dev.vars` and run the platform's
   command below. The example file ships every optional key commented out:
@@ -29,7 +30,11 @@ The last step — putting those secrets on the Worker — works either way:
   press **Deploy** in the same flow.
 
 From the CLI there is no redeploy step at all: the secrets are live as soon as
-the command finishes. Either way, reload the accounts page when you are done.
+the command finishes. Either way, reload the accounts page when you are done. A Worker secret takes precedence over credentials entered in the dialog, and the dialog will not save over one.
+
+### Let a browser agent do it
+
+The dialog's first step has **Copy the agent prompt**: instructions for a browser-driving agent such as Claude in Chrome, with this instance's exact redirect URI and the console's requirements filled in. Paste it into the agent and it creates the app and types the credentials into CogSend's form itself, then stops before the provider's authorisation page, which is yours to approve. The prompt tells it never to repeat a secret in the chat, and to hand control back for anything that is yours to do: signing in, phone or identity verification, CAPTCHAs, accepting terms or paying.
 
 ### LinkedIn
 
