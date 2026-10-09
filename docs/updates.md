@@ -1,6 +1,6 @@
 # Updating
 
-Settings → Instance and `npm run doctor` both say when a newer release is out, and so does a line in the profile menu, with a small dot on your avatar until you have seen it. There are two ways to install it: from Settings, with nothing but a Cloudflare API token, or from a checkout, the way you may have installed it.
+Settings → Instance and `npm run doctor` both say when a newer release is out, and so does a line in the profile menu, with a small dot on your avatar until you have seen it. There are three ways to install it: from Settings, with nothing but a Cloudflare API token; through your repository's GitHub Action, if you installed with the Deploy button; or from a checkout, the way you may have installed it.
 
 ## From Settings
 
@@ -47,7 +47,21 @@ Cloned `main`? Pull it, or move to a release tag (`git tag` lists them); those a
 
 ## Installed with the Deploy to Cloudflare button
 
-Update from Settings. The button also connected a copy of the `cogsend/deploy` repository to Workers Builds, which deploys it on every push. Once you have updated from Settings, that copy is older than your instance, so disconnect it: Workers & Pages → your Worker → Settings → Builds → **Disconnect**. Its deploy script refuses to roll you back anyway, but a disconnected copy cannot even try.
+The button created a repository in your GitHub account and connected it to Workers Builds, which deploys every push to it. Update through that repository, with no Cloudflare token: Settings → Instance shows **Update to vX.Y.Z on GitHub**.
+
+1. The first time, press **Add the Update action to the repository**. GitHub opens a new file, `.github/workflows/update.yml`, already filled in: press **Commit changes**. The button cannot copy workflow files into the repository it creates, so this is once per install.
+2. Press **Update to vX.Y.Z on GitHub**, then **Run workflow**. Leave the tag empty for the latest release.
+3. The action checks the release and commits it, and Workers Builds deploys the commit within a couple of minutes. Reload CogSend to see the new version.
+
+Keep Workers Builds connected: it is what deploys the update.
+
+The action trusts the release's signature, not the place it downloads from. The signed manifest covers every file it commits, the deploy script and the config included, because Workers Builds runs them with a token for your account; a file that does not match stops the action before it commits anything. Releases before 1.14.0 do not sign their deploy repository, so the action refuses them.
+
+To go back, run the action with the older release's tag and **Roll back** ticked. That release, and only that one, may then deploy past the downgrade check.
+
+Installed before 1.14.0, Settings does not offer GitHub yet, because those installs did not record their repository. Add the action by hand once: create `.github/workflows/update.yml` in your repository with the contents of [this file](https://github.com/cogsend/cogsend/blob/main/src/lib/domain/github-update-workflow.yml), then run it. From the deploy it starts, Settings links to it.
+
+Installed from GitLab, which has no GitHub Actions? Update from Settings with a token, as above. That leaves the repository's copy older than your instance; its deploy script refuses to roll you back if anything pushes to it.
 
 ## Rolling back
 

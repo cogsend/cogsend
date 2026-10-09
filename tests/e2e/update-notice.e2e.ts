@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { E2E_ACCOUNT } from './e2e-env';
+import { clickUntilVisible, E2E_ACCOUNT } from './e2e-env';
 
 /**
  * A newer release shows as a dot on the avatar until it has been seen, and as a
@@ -26,6 +26,10 @@ async function load(page: Page, go: () => Promise<unknown>) {
 	await asked;
 }
 
+/** Opens the profile menu, retrying a click that lands before hydration. */
+const openMenu = (page: Page, name: string) =>
+	clickUntilVisible(page, page.getByRole('button', { name }), page.locator('#profile-menu'));
+
 async function signIn(page: Page) {
 	await page.goto('/compose');
 	if (/\/login$/.test(new URL(page.url()).pathname)) {
@@ -41,7 +45,7 @@ test('a newer release shows in the header until it has been seen', async ({ page
 	await signIn(page);
 	await page.evaluate(() => localStorage.removeItem('cogsend:update-seen'));
 	await load(page, () => page.reload());
-	await page.getByRole('button', { name: 'Profile menu' }).click();
+	await openMenu(page, 'Profile menu');
 	await expect(page.getByTestId('update-menu-item')).toHaveCount(0);
 	await expect(page.getByTestId('update-dot')).toHaveCount(0);
 	await page.keyboard.press('Escape');
@@ -50,7 +54,7 @@ test('a newer release shows in the header until it has been seen', async ({ page
 	await offer(page, 'v99.0.0');
 	await page.reload();
 	await expect(page.getByTestId('update-dot')).toBeVisible();
-	await page.getByRole('button', { name: 'Profile menu, update available' }).click();
+	await openMenu(page, 'Profile menu, update available');
 	await expect(page.getByTestId('update-menu-item')).toHaveText(/v99\.0\.0 is available/);
 	await page.getByTestId('update-menu-item').click();
 	await expect(page).toHaveURL(/\/settings#instance$/);
@@ -59,7 +63,7 @@ test('a newer release shows in the header until it has been seen', async ({ page
 	// Seen stays seen, but the menu keeps the line until the update is installed.
 	await load(page, () => page.goto('/compose'));
 	await expect(page.getByTestId('update-dot')).toHaveCount(0);
-	await page.getByRole('button', { name: 'Profile menu' }).click();
+	await openMenu(page, 'Profile menu');
 	await expect(page.getByTestId('update-menu-item')).toBeVisible();
 	await page.keyboard.press('Escape');
 

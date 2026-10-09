@@ -8,7 +8,10 @@
  * Usage:
  *   RELEASE_SIGNING_KEY="$(cat key.pem)" node scripts/release-bundle.mjs \
  *     [--worker .release/worker] [--assets .svelte-kit/cloudflare] [--out .release/dist]
- *     [--keys src/lib/domain/release-keys.json]
+ *     [--keys src/lib/domain/release-keys.json] [--deploy-repo .release/deploy-repo]
+ *
+ * --deploy-repo signs the generated deploy repository's own files as well, for
+ * updates through GitHub; the release workflow generates it before this runs.
  *
  * The key id is the trusted key in src/lib/domain/release-keys.json whose
  * public half matches RELEASE_SIGNING_KEY; a key that matches none is refused,
@@ -39,6 +42,8 @@ const assetsDir = flag('--assets', '.svelte-kit/cloudflare');
 const outDir = flag('--out', '.release/dist');
 // Tests point this at a throwaway key list; a release never does.
 const keysFile = flag('--keys', 'src/lib/domain/release-keys.json');
+// The generated deploy repository, whose files the manifest then signs too.
+const deployRepoDir = flag('--deploy-repo', '');
 
 function fail(message) {
 	ui.error(message);
@@ -65,7 +70,8 @@ const { manifest, pack } = buildBundle({
 	modules: readWorkerModules(workerDir),
 	assetsDir,
 	config,
-	release
+	release,
+	deployRepoDir: deployRepoDir || undefined
 });
 const bytes = manifestBytes(manifest);
 const sig = signManifest(bytes, privateKey, keyId);

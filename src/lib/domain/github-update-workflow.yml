@@ -1,0 +1,66 @@
+# Installs a CogSend release into this repository; Workers Builds then deploys
+# the commit, the same way it deployed this copy in the first place.
+#
+# Actions → Update CogSend → Run workflow. Leave the tag empty for the latest
+# release. Every file is checked against the release's signature first
+# (lib/update-from-release.mjs), and a mismatch stops before anything is
+# committed.
+name: Update CogSend
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release to install, like v1.14.0. Empty for the latest.
+        required: false
+        default: ''
+      rollback:
+        description: Roll back (allow a release older than this repository holds)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-cogsend
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      # A copy installed before 1.14.0 has no updater of its own. It takes it
+      # once from cogsend/deploy, where the Deploy button installed it from
+      # (main, or next while only a pre-release has one); every later update
+      # runs the copy's own, signed with the release.
+      - name: Fetch the updater (first update of an older copy)
+        run: |
+          if [ ! -f lib/update-from-release.mjs ]; then
+            for ref in main next; do
+              ok=true
+              for f in update-from-release.mjs github-update.mjs deployed-version.mjs release-keys.json; do
+                curl -fsSL "https://raw.githubusercontent.com/cogsend/deploy/$ref/lib/$f" -o "lib/$f" || ok=false
+              done
+              if [ "$ok" = true ]; then break; fi
+            done
+            test -f lib/update-from-release.mjs
+          fi
+      - id: update
+        run: node lib/update-from-release.mjs
+        env:
+          TAG: ${{ inputs.tag }}
+          ROLLBACK: ${{ inputs.rollback }}
+      - if: steps.update.outputs.changed == 'true'
+        env:
+          TAG: ${{ steps.update.outputs.tag }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898283+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit --quiet -m "CogSend $TAG"
+          git push --quiet

@@ -180,7 +180,8 @@ export function readWorkerModules(dir) {
  *   modules: Array<{ name: string, type: string, bytes: Buffer }>,
  *   assetsDir: string,
  *   config: Record<string, any>,
- *   release: { minFromVersion?: string, manualOnly?: boolean, schemaChange?: boolean, notes?: string | null }
+ *   release: { minFromVersion?: string, manualOnly?: boolean, schemaChange?: boolean, notes?: string | null },
+ *   deployRepoDir?: string
  * }} input
  */
 export function buildBundle({
@@ -190,7 +191,8 @@ export function buildBundle({
 	modules,
 	assetsDir,
 	config,
-	release
+	release,
+	deployRepoDir
 }) {
 	if (!modules.some((m) => m.name === mainModule)) {
 		throw new Error(`The main module ${mainModule} is not in the worker output`);
@@ -267,9 +269,31 @@ export function buildBundle({
 			assetConfig
 		},
 		requiredBindings: REQUIRED_BINDINGS,
-		assets
+		assets,
+		...(deployRepoDir && { deployRepo: { files: deployRepoFiles(deployRepoDir) } })
 	};
 	return { manifest, pack };
+}
+
+/**
+ * The SHA-256 of every file in the generated deploy repository that the
+ * worker modules and assets do not already cover: its deploy script, config,
+ * lockfile and helpers. Signed with the rest, so an update through GitHub
+ * (scripts/lib/github-update.mjs) checks the whole repository, not just the
+ * app, before Workers Builds runs any of it.
+ *
+ * @param {string} dir @returns {Record<string, string>}
+ */
+export function deployRepoFiles(dir) {
+	/** @type {Record<string, string>} */
+	const files = {};
+	for (const entry of readdirSync(dir, { withFileTypes: true, recursive: true })) {
+		if (!entry.isFile()) continue;
+		const rel = relative(dir, join(entry.parentPath, entry.name)).split(sep).join('/');
+		if (/^(\.git|\.github|assets|worker)\//.test(rel)) continue;
+		files[rel] = sha256(readFileSync(join(dir, rel)));
+	}
+	return Object.fromEntries(Object.entries(files).sort(([a], [b]) => (a < b ? -1 : 1)));
 }
 
 /** The manifest exactly as it is published and signed.

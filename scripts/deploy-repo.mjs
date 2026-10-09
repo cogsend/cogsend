@@ -16,7 +16,10 @@
  *   package.json        a pinned wrangler, the deploy script, and the field
  *                       descriptions the button shows
  *   deploy.mjs          tags the deploy, refuses a downgrade, survives a full set
- *                       of cron triggers (copies of this repository's helpers)
+ *                       of cron triggers, and records which GitHub repository
+ *                       it was deployed from (copies of this repository's helpers)
+ *   lib/                those helpers, and the update script the "Update CogSend"
+ *                       Action runs, with the release keys it trusts
  *   drizzle/            the migrations, for a manual `wrangler d1 migrations apply`
  *
  * Usage:
@@ -149,8 +152,15 @@ for (const db of config.d1_databases ?? []) {
 	cpSync(db.migrations_dir, join(outDir, db.migrations_dir), { recursive: true });
 }
 
-copyFileSync('scripts/lib/deployed-version.mjs', join(outDir, 'lib/deployed-version.mjs'));
-copyFileSync('scripts/lib/wrangler-config.mjs', join(outDir, 'lib/wrangler-config.mjs'));
+for (const helper of [
+	'deployed-version.mjs',
+	'wrangler-config.mjs',
+	'github-update.mjs',
+	'update-from-release.mjs'
+]) {
+	copyFileSync(join('scripts/lib', helper), join(outDir, 'lib', helper));
+}
+copyFileSync('src/lib/domain/release-keys.json', join(outDir, 'lib/release-keys.json'));
 writeFileSync(join(outDir, 'deploy.mjs'), DEPLOY_SCRIPT());
 writeFileSync(join(outDir, '.gitignore'), 'node_modules\n.wrangler\n.dev.vars\n*.no-cron.jsonc\n');
 writeFileSync(join(outDir, 'README.md'), README());
@@ -177,15 +187,19 @@ function DEPLOY_SCRIPT() {
  *
  * - The deploy is tagged with this release, so Settings and later deploys can
  *   tell what is running.
- * - It refuses to replace a newer release: once you update from Settings, this
+ * - It refuses to replace a newer release: after an update from Settings this
  *   copy is older than your instance, and pushing to it must not roll you back.
- *   COGSEND_ALLOW_DOWNGRADE=1 (a build variable) overrides that.
+ *   COGSEND_ALLOW_DOWNGRADE=1 (a build variable) overrides that, and so does a
+ *   rollback the "Update CogSend" Action made on purpose, for that release only.
+ * - It tells the Worker which GitHub repository it came from, so Settings can
+ *   offer that repository's "Update CogSend" Action.
  * - An account with no cron-trigger slot left still deploys; Settings →
  *   Scheduled publishing then offers an external tick instead.
  */
 import { spawnSync } from 'node:child_process';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { downgradeProblem, servingTag } from './lib/deployed-version.mjs';
+import { ROLLBACK_MARKER, githubRepoOf, rollbackAllowed } from './lib/github-update.mjs';
 import {
 	NO_CRON_CONFIG_NAME,
 	cronFallbackWarning,
@@ -208,9 +222,9 @@ function wrangler(args, { show = false } = {}) {
 	return { status: run.status, stdout: run.stdout ?? '', output: \`\${run.stdout}\\n\${run.stderr}\` };
 }
 
-const allowDowngrade = ['1', 'true', 'yes'].includes(
-	(process.env.COGSEND_ALLOW_DOWNGRADE ?? '').toLowerCase()
-);
+const allowDowngrade =
+	['1', 'true', 'yes'].includes((process.env.COGSEND_ALLOW_DOWNGRADE ?? '').toLowerCase()) ||
+	rollbackAllowed(existsSync(ROLLBACK_MARKER) ? readFileSync(ROLLBACK_MARKER, 'utf8') : null, version);
 if (!allowDowngrade) {
 	const problem = downgradeProblem(servingTag(wrangler).tag, version);
 	if (problem) {
@@ -219,7 +233,21 @@ if (!allowDowngrade) {
 	}
 }
 
-const deployArgs = ['deploy', '--tag', \`v\${version}\`, '--message', \`CogSend \${version}\`];
+const origin = spawnSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' });
+const repo = githubRepoOf(origin.stdout ?? '');
+const branch = process.env.WORKERS_CI_BRANCH;
+const repoVars = repo
+	? ['--var', \`COGSEND_REPO:\${repo}\`, ...(branch ? ['--var', \`COGSEND_BRANCH:\${branch}\`] : [])]
+	: [];
+
+const deployArgs = [
+	'deploy',
+	'--tag',
+	\`v\${version}\`,
+	'--message',
+	\`CogSend \${version}\`,
+	...repoVars
+];
 let result = wrangler(deployArgs, { show: true });
 if (result.status !== 0 && isCronQuotaError(result.output)) {
 	console.error(cronFallbackWarning());
@@ -254,6 +282,8 @@ The full guide is at [cogsend.com/docs/deploy](https://cogsend.com/docs/deploy/)
 
 ## Updating
 
-Update from **Settings → Instance** in CogSend itself. Afterwards, disconnect this copy from Workers Builds (Workers & Pages → your Worker → Settings → Builds → Disconnect): while it is connected, a push to it would try to deploy the older release it holds, which its deploy script refuses.
+**Through GitHub (no Cloudflare token).** In CogSend, **Settings → Instance** links to this repository's **Update CogSend** Action. The first time, it opens GitHub with the Action's file filled in: commit it (the Deploy button cannot copy workflow files). Then run the Action: it checks the release's signature against every file, commits the release, and Workers Builds deploys it. Leave Workers Builds connected.
+
+**From Settings, with a Cloudflare API token.** Also works, and does not change this repository. While Workers Builds is connected, a push to the older copy here is refused by its deploy script, so nothing rolls back by accident.
 `;
 }

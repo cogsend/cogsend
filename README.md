@@ -74,13 +74,13 @@ Next, [connect your accounts](docs/accounts.md). Mastodon and Bluesky work strai
 
 ## Updating
 
-Settings → Instance says when a newer release is out and installs it in place: paste a Cloudflare API token, and it uploads the signed release, checks the new version answers, then switches to it, with a Roll back button afterwards. From a checkout it is still one command:
+Settings → Instance says when a newer release is out and installs it in place: paste a Cloudflare API token, and it uploads the signed release, checks the new version answers, then switches to it, with a Roll back button afterwards. Installed with the Deploy button, you can skip the token: Settings links to your repository's **Update CogSend** action, and Workers Builds deploys the release it commits. From a checkout it is still one command:
 
 ```sh
 git pull && npm ci && npm run deploy:release
 ```
 
-Your data is in D1 and R2, not in the checkout, so neither path can touch it. [docs/updates.md](docs/updates.md) covers both, release tags and rolling back.
+Your data is in D1 and R2, not in the checkout, so no path can touch it. [docs/updates.md](docs/updates.md) covers all three, release tags and rolling back.
 
 ## Documentation
 
@@ -89,7 +89,7 @@ Also published, with search, at [cogsend.com/docs](https://cogsend.com/docs/).
 **Get started**
 
 - [Deploying](docs/deploy.md): the one-click button, the terminal install and its flags, checking it worked
-- [Updating](docs/updates.md): updating from Settings or a checkout, rolling back, and why the in-app update is safe
+- [Updating](docs/updates.md): updating from Settings, through GitHub or from a checkout, rolling back, and why each is safe
 - [OAuth apps](docs/oauth-apps.md): LinkedIn, Threads and X app setup, and what each platform allows
 - [Zernio](docs/zernio.md): connecting through Zernio instead of registering your own apps
 - [Connecting accounts](docs/accounts.md): connecting, reconnecting and disconnecting accounts

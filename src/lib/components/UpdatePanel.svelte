@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { githubUpdateLinks, type GithubUpdateTarget } from '$lib/domain/github-update';
 	import { UPDATE_TOKEN_URL } from '$lib/domain/update-manifest';
 
 	/**
@@ -20,6 +21,8 @@
 	type Status = {
 		version: string;
 		install: 'button' | 'other';
+		/** Known for button installs whose deploy recorded its repository. */
+		github: GithubUpdateTarget | null;
 		target: { accountId: string; scriptName: string } | null;
 		previous: { version: string; replacedBy: string; schemaChange: boolean } | null;
 		job: { tag: string; phase: string; expired: boolean } | null;
@@ -255,6 +258,7 @@
 	// Once the status loads: with no release pending, the panel is one quiet
 	// link, still there for installing a specific (pre-)release.
 	const visible = $derived(status !== null);
+	const github = $derived(status?.github ? githubUpdateLinks(status.github) : null);
 </script>
 
 {#snippet tagField()}
@@ -269,7 +273,9 @@
 	</label>
 {/snippet}
 
-{#if status?.install === 'button' && !buildsNoticeHidden}
+<!-- A button install that did not record its repository predates updates
+     through GitHub: updating here, the copy Workers Builds holds goes stale. -->
+{#if status?.install === 'button' && !status.github && !buildsNoticeHidden}
 	<div
 		class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-medium text-amber-900"
 		data-testid="builds-notice"
@@ -288,9 +294,46 @@
 				An update to {status.job.tag} was started and not finished.
 			</p>
 		{/if}
+		{#if github && status?.github && !open}
+			<div
+				class="mb-3 space-y-2 text-[12px] font-medium text-stone-600"
+				data-testid="github-update"
+			>
+				<p>
+					This instance updates through its GitHub repository,
+					<span class="font-mono text-stone-800">{status.github.repo}</span>: run its
+					<span class="font-bold text-stone-800">Update CogSend</span> Action, and Workers Builds deploys
+					the release a couple of minutes later. No Cloudflare token needed.
+				</p>
+				<a
+					href={github.run}
+					target="_blank"
+					rel="noreferrer"
+					class="inline-block rounded-full bg-stone-900 px-5 py-2 text-[12px] font-bold text-white hover:bg-stone-800"
+					>{latestTag ? `Update to ${latestTag} on GitHub` : 'Open the Update action on GitHub'}</a
+				>
+				<p>
+					First time? <a
+						href={github.enable}
+						target="_blank"
+						rel="noreferrer"
+						class="font-bold text-stone-900 underline underline-offset-2"
+						>Add the Update action to the repository</a
+					>: GitHub opens with the file filled in, so commit it, then run the action with the tag
+					left empty for the latest release.
+				</p>
+			</div>
+		{/if}
 		{#if !open}
 			<div class="flex flex-wrap items-center gap-3">
-				{#if latestTag}
+				{#if latestTag && github}
+					<button
+						type="button"
+						onclick={() => (open = true)}
+						class="text-[12px] font-bold text-stone-600 underline underline-offset-2"
+						>Or update here with a Cloudflare token</button
+					>
+				{:else if latestTag}
 					<button
 						type="button"
 						onclick={() => (open = true)}
