@@ -245,6 +245,18 @@
 	const visible = $derived(status !== null);
 </script>
 
+{#snippet tagField()}
+	<label class="block">
+		<span>Install a specific release tag (for example a pre-release)</span>
+		<input
+			type="text"
+			placeholder={latestTag ?? 'v1.13.0'}
+			bind:value={customTag}
+			class="mt-1 w-full rounded-xl border border-stone-200/80 bg-white px-3 py-2 font-mono text-[12px]"
+		/>
+	</label>
+{/snippet}
+
 {#if status?.install === 'button' && !buildsNoticeHidden}
 	<div
 		class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-medium text-amber-900"
@@ -344,18 +356,17 @@
 						</select>
 					</label>
 				{/if}
+				<!-- With no release on offer, the tag is the one thing left to fill in, so
+				     it stays in view instead of under More options. -->
+				{#if !latestTag}
+					{@render tagField()}
+				{/if}
 				<details>
 					<summary class="cursor-pointer font-bold text-stone-700">More options</summary>
 					<div class="mt-2 space-y-2">
-						<label class="block">
-							<span>Install a specific release tag (for example a pre-release)</span>
-							<input
-								type="text"
-								placeholder={latestTag ?? 'v1.13.0'}
-								bind:value={customTag}
-								class="mt-1 w-full rounded-xl border border-stone-200/80 bg-white px-3 py-2 font-mono text-[12px]"
-							/>
-						</label>
+						{#if latestTag}
+							{@render tagField()}
+						{/if}
 						<label class="block">
 							<span>Account ID, if the token cannot list accounts</span>
 							<input
