@@ -44,7 +44,8 @@ function standIn(page: Page, github: { repo: string; branch: string } | null) {
 	]);
 }
 
-test('a button install that knows its repository updates through GitHub', async ({ page }) => {
+// One sign-in for both cases: the suite shares the login rate limit.
+test('a button install updates through GitHub once it knows its repository', async ({ page }) => {
 	await signIn(page);
 	await standIn(page, { repo: 'me/my-cogsend', branch: 'main' });
 	await page.goto('/settings#instance');
@@ -63,14 +64,12 @@ test('a button install that knows its repository updates through GitHub', async 
 	await expect(
 		page.getByRole('button', { name: 'Or update here with a Cloudflare token' })
 	).toBeVisible();
-});
 
-test('a button install from before 1.14 keeps the token route and the Builds advice', async ({
-	page
-}) => {
-	await signIn(page);
+	// Installed before 1.14: no repository recorded, so the token route and the Builds advice.
+	await page.unroute('**/api/update');
+	await page.unroute('**/api/release*');
 	await standIn(page, null);
-	await page.goto('/settings#instance');
+	await page.reload();
 	await expect(page.getByRole('button', { name: 'Update to v1.14.1 from here' })).toBeVisible();
 	await expect(page.getByTestId('github-update')).toHaveCount(0);
 	await expect(page.getByTestId('builds-notice')).toBeVisible();
