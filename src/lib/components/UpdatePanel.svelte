@@ -70,15 +70,27 @@
 		}
 	}
 
+	// A step Cloudflare cuts off (over its CPU time, error 1102) answers with an
+	// HTML page rather than the app's JSON, as does a dropped connection. Every
+	// step resumes where it stopped, so those are retried; the app's own errors
+	// are not.
 	async function step<T>(name: string, body: Record<string, unknown> = {}): Promise<T> {
-		const res = await fetch(`/api/update/${name}`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ ...body, token })
-		});
-		const data = await res.json().catch(() => ({}));
-		if (!res.ok) throw new Error(data.error || `The ${name} step failed`);
-		return data as T;
+		for (let attempt = 1; ; attempt++) {
+			const res = await fetch(`/api/update/${name}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ ...body, token })
+			}).catch(() => null);
+			const data = res ? await res.json().catch(() => null) : null;
+			if (res?.ok && data) return data as T;
+			if (data?.error) throw new Error(data.error);
+			if (attempt >= 3) {
+				throw new Error(
+					`The ${name} step did not finish${res ? ` (HTTP ${res.status})` : ''}. Press the button again: the update continues where it stopped.`
+				);
+			}
+			await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
+		}
 	}
 
 	const say = (line: string) => (progress = [...progress, line]);
@@ -313,8 +325,8 @@
 						rel="noreferrer"
 						class="font-bold text-stone-900 underline underline-offset-2">Create one</a
 					>
-					(the permissions are filled in), then paste it here. It is used for this update only and never
-					stored; delete it in Cloudflare afterwards if you like.
+					once (the permissions are filled in) and keep it in your password manager: the same token works
+					for every update. CogSend uses it for this update only and never stores it.
 				</p>
 				<input
 					type="password"
@@ -322,9 +334,6 @@
 					spellcheck="false"
 					placeholder="Cloudflare API token"
 					aria-label="Cloudflare API token"
-					data-1p-ignore
-					data-lpignore="true"
-					data-bwignore
 					bind:value={token}
 					class="w-full rounded-xl border border-stone-200/80 bg-white px-3 py-2 font-mono text-[12px] text-stone-900 focus:border-stone-400 focus:outline-none pointer-coarse:text-base"
 				/>
