@@ -30,7 +30,9 @@ export function updaterContext(
 	const env = event.platform?.env;
 	const store = overrides.store ?? (env?.MEDIA ? r2PackStore(env.MEDIA) : null);
 	if (!store) throw new Error('The R2 MEDIA binding is missing');
-	const fetchImpl = overrides.fetchImpl ?? fetch;
+	// Wrapped because steps call it as `ctx.fetchImpl(…)`, and workerd's fetch
+	// throws "Illegal invocation" when `this` is anything but the global scope.
+	const fetchImpl: typeof fetch = overrides.fetchImpl ?? ((input, init) => fetch(input, init));
 	return {
 		db: event.locals.db,
 		api: cloudflareApi(token, { fetchImpl, budget: event.locals.budget }),

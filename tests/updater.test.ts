@@ -12,6 +12,7 @@ import {
 import { SubrequestBudget } from '$lib/server/budget';
 import { createTestDb, TEST_ENV, type TestDb } from '$lib/server/db/test';
 import { cloudflareApi } from '$lib/server/updater/cloudflare-api';
+import { updaterContext } from '$lib/server/updater/context';
 import { readJob, readPrevious, readTarget } from '$lib/server/updater/state';
 import {
 	MAX_BUCKETS_PER_CALL,
@@ -561,5 +562,29 @@ describe('in-app updater', () => {
 		const failed = await call({ user, authMethod: 'session' }, { token: TOKEN });
 		expect(await failed.text()).not.toContain(TOKEN);
 		expect(UpdateError).toBeDefined();
+	});
+});
+
+describe('updater context', () => {
+	it('calls the global fetch the way workerd requires, even as ctx.fetchImpl(…)', async () => {
+		const original = globalThis.fetch;
+		// workerd's fetch throws "Illegal invocation" for any other receiver.
+		globalThis.fetch = function (this: unknown) {
+			if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation');
+			return Promise.resolve(new Response('ok'));
+		} as typeof fetch;
+		try {
+			const ctx = updaterContext(
+				{
+					locals: { db: null, budget: new SubrequestBudget() } as never,
+					platform: { env: { MEDIA: {} } } as never,
+					url: new URL('https://cogsend.example')
+				},
+				TOKEN
+			);
+			expect(await (await ctx.fetchImpl('https://example.com/')).text()).toBe('ok');
+		} finally {
+			globalThis.fetch = original;
+		}
 	});
 });
