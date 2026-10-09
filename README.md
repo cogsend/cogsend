@@ -74,7 +74,7 @@ Next, [connect your accounts](docs/accounts.md). Mastodon and Bluesky work strai
 
 ## Updating
 
-Settings → Instance says when a newer release is out and installs it in place: paste a Cloudflare API token, and it uploads the signed release, checks the new version answers, then switches to it, with a Roll back button afterwards. Installed with the Deploy button, you can skip the token: Settings links to your repository's **Update CogSend** action, and Workers Builds deploys the release it commits. From a checkout it is still one command:
+Settings → Instance says when a newer release is out and installs it in place: paste a Cloudflare API token (it can remember it, locked with your password), and it uploads the signed release, checks the new version answers, then switches to it, with a Roll back button afterwards. Installed with the Deploy button, you can skip the token: Settings links to your repository's **Update CogSend** action, and Workers Builds deploys the release it commits. From a checkout it is still one command:
 
 ```sh
 git pull && npm ci && npm run deploy:release

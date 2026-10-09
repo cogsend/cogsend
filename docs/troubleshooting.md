@@ -138,6 +138,9 @@ The old version keeps serving whatever step fails; **Abort the unfinished update
 - **"…not signed by a CogSend release key"** or **"did not download intact"**: the bundle is not the one the release published. Try again; if it repeats, report it, and update from a checkout meanwhile.
 - **"…does not exist: the release has no update bundle (yet)"**: bundles are attached a few minutes after a release is published.
 - **Cloudflare: Authentication error**, or a 403: the token lacks a permission, or belongs to another account. Create it from the link next to the field, which fills in Workers Scripts (edit) and Account Settings (read). If it cannot list accounts, enter the account ID under **More options**; it is in the dashboard URL.
+- **"Your password is incorrect"**, or **"Too many attempts"**: the password that locks the saved token is your CogSend password, and it shares the login's lockout. Wait a few minutes after the lockout.
+- **"The saved token was locked with an earlier password"**: the password changed from the terminal (`npm run admin:reset`), so the saved copy could not be opened and is gone. Paste the token once more.
+- **"Enter your password again to continue the update"**: an update left open for most of an hour lost its one-update key. Press the button again; it continues where it stopped.
 - **"…is splitting traffic between versions"**: a gradual deployment is in progress. Finish it or roll it back under Workers & Pages → your Worker → Deployments.
 - **"The … step did not finish"**: Cloudflare cut the request short, usually for CPU time, three times running. Press the button again: every step continues where it stopped.
 - **"The new version did not answer its health check"**: nothing changed. Report it with the version you tried, and stay on the current one.

@@ -53,6 +53,7 @@ Instances update themselves from **Settings → Instance** by installing a signe
 - The bundle is signed with the `RELEASE_SIGNING_KEY` Actions secret; instances trust only the keys in `src/lib/domain/release-keys.json`. Rotating means adding the new public key in one release and signing with it from the next. Never put a private key in the repository.
 - `scripts/check-release-parity.mjs` compares each bundle with what `wrangler deploy` would upload. If it fails after a wrangler upgrade, fix `scripts/lib/release-bundle.mjs`, never the check.
 - Every deploy from a checkout is tagged `v<version>` and refuses to replace a newer one (`scripts/lib/deployed-version.mjs`).
+- A remembered Cloudflare token is locked with a key derived from the account password, never with `APP_ENCRYPTION_KEY`, and never returned to the browser (`src/lib/server/updater/saved-token.ts`). Keep it that way: the token can edit every Worker on the account.
 - The manifest also signs every file of the generated deploy repository (`deployRepo.files`), and the Update CogSend Action (`src/lib/domain/github-update-workflow.yml`, `scripts/lib/update-from-release.mjs`) refuses any file it does not cover: Workers Builds runs that repository's deploy script with a token for the operator's account. `scripts/lib/github-update.mjs` and the scripts next to it ship inside the deploy repository, so they stay self-contained, Node built-ins only.
 
 ## Commits and pull requests

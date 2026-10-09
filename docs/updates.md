@@ -7,10 +7,12 @@ Settings → Instance and `npm run doctor` both say when a newer release is out,
 When a release is available, Settings → Instance shows **Update to vX.Y.Z from here**.
 
 1. Press **Create one** next to the token field. It opens Cloudflare's token page with the two permissions the update needs already chosen: Workers Scripts (edit) and Account Settings (read). Create the token and copy it.
-2. Paste it into the field and press **Install**.
+2. Paste it into the field, enter your CogSend password, and press **Install**.
 3. Leave the page open until it reloads on the new version, usually under a minute.
 
-Keep the token in your password manager: the same one works for every update, and the field accepts it from there. CogSend never stores it: it lives in the page while the update runs and is sent with each step, nowhere else. Delete it in Cloudflare whenever you want to revoke it.
+The password locks the token for next time: with **Remember it for later updates** ticked, CogSend keeps the token encrypted with a key made from your password, and the next update asks for the password alone, which your password manager fills. The key is not `APP_ENCRYPTION_KEY`, so someone holding your database and that key still cannot read the token. **Forget the saved token** removes it, and changing your password forgets it too: paste it once more on the next update. Untick the box and the token is used for that update only, and nothing is stored.
+
+The same token works for every update; delete it in Cloudflare whenever you want to revoke it.
 
 What happens, in order:
 
@@ -25,7 +27,7 @@ What happens, in order:
 
 Nothing changes for visitors until the last step. If any step fails, the old version keeps serving; **Abort the unfinished update** tidies up whatever the update had staged. Each step is a short request of its own, sized to fit the Workers Free plan's limits, and picks up where it stopped: one Cloudflare cuts short is retried, and pressing the button again continues the update rather than starting over.
 
-To install a specific release tag, a pre-release for example, type it into the tag field: it shows next to the token when no release is on offer, and under **More options** otherwise. **More options** is also where you name the account if your token cannot list accounts.
+To be offered release candidates too, tick **Offer pre-releases too** under Settings → Instance; the update notice and the button then include them. Leave it off on an instance you rely on. To install any specific release tag, type it into the tag field: it shows next to the token when no release is on offer, and under **More options** otherwise. **More options** is also where you name the account if your token cannot list accounts.
 
 Some releases cannot be installed this way, for example one that needs a new binding. Settings then says so and why, and the release notes say what to do; usually it is one update from a checkout.
 
@@ -59,6 +61,10 @@ The action trusts the release's signature, not the place it downloads from. The 
 
 To go back, run the action with the older release's tag and **Roll back** ticked. That release, and only that one, may then deploy past the downgrade check.
 
+**Automatic updates.** Add the repository variable `AUTO_UPDATE` with the value `true` (the repository's Settings → Secrets and variables → Actions → Variables; Settings → Instance links there). A daily run then installs patch releases, 1.15.0 to 1.15.1 for example, with the same checks; a bigger release still waits for you to run the action. GitHub pauses scheduled runs in a repository with no activity for 60 days, which an install that gets no update for that long can be; running the action by hand starts them again.
+
+The action's own file comes from Settings, and GitHub lets no action rewrite it. A copy added before 1.15.0 has no daily run: under **Added the action before 1.15? Update the action itself**, copy the latest version and paste it over `.github/workflows/update.yml` on GitHub. Until the repository has had one update to 1.15.0 or later, the daily run does nothing, because the updater it would run does not know to stop at patch releases.
+
 Installed before 1.14.0, Settings does not offer GitHub yet, because those installs did not record their repository. Add the action by hand once: create `.github/workflows/update.yml` in your repository with the contents of [this file](https://github.com/cogsend/cogsend/blob/main/src/lib/domain/github-update-workflow.yml), then run it. From the deploy it starts, Settings links to it.
 
 Installed from GitLab, which has no GitHub Actions? Update from Settings with a token, as above. That leaves the repository's copy older than your instance; its deploy script refuses to roll you back if anything pushes to it.
@@ -81,4 +87,4 @@ D1, R2, the Worker secrets and the app settings live in your Cloudflare account,
 - **The same upload as wrangler.** CI checks each bundle against what `wrangler deploy` itself would upload for that release, file by file, before attaching it.
 - **Your bindings and secrets carry over.** The new version gets exactly the bindings the running one has; the update checks that before anything serves it, and stops if they differ.
 - **A checked switch.** The new version answers a health check before it gets any traffic.
-- **The token.** It can edit every Worker on the account, because Cloudflare cannot narrow a token to one Worker, which is why it is never stored. If you run other important Workers, consider keeping CogSend on an account of its own.
+- **The token.** It can edit every Worker on the account, because Cloudflare cannot narrow a token to one Worker. That is why a remembered token is locked with your password rather than the app's encryption key, why the browser never gets it back (an update opens it once and passes a one-update key between steps), and why the endpoints that take the password share the login's lockout. If you run other important Workers, consider keeping CogSend on an account of its own.
