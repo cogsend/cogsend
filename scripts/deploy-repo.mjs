@@ -113,6 +113,10 @@ writeFileSync(
 			homepage: pkg.homepage,
 			scripts: { deploy: 'node deploy.mjs' },
 			devDependencies: { wrangler: wranglerVersion },
+			// The same wrangler as the app, so the same esbuild and workerd: the
+			// app's list lets their install scripts run without npm warning about
+			// each one in the Workers Builds log.
+			allowScripts: pkg.allowScripts,
 			engines: pkg.engines,
 			cloudflare: {
 				bindings: {

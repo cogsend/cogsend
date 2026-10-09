@@ -66,6 +66,7 @@ describe('deploy repository', () => {
 		expect(pkg.cloudflare.bindings.APP_ENCRYPTION_KEY.description).toContain('cogsend.com/key');
 		expect(pkg.scripts.deploy).toBe('node deploy.mjs');
 		expect(pkg.devDependencies.wrangler).toMatch(/^\d+\.\d+\.\d+$/);
+		expect(pkg.allowScripts).toEqual(JSON.parse(readFileSync('package.json', 'utf8')).allowScripts);
 		expect(pkg.version).toBe(version);
 	});
 
