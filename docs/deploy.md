@@ -16,7 +16,7 @@ R2 asks for a payment method on file even on the free tier.
 
 Only someone who knows the encryption key can create the account, so finding the URL first is not enough to take over a fresh instance.
 
-The account needs a workers.dev subdomain before anything can deploy; a brand-new Cloudflare account is asked to pick one ([Custom domains](domains.md#the-workersdev-url)). Updating is done from **Settings → Instance**; after the first update, disconnect the copy from Workers Builds ([Updating](updates.md#installed-with-the-deploy-to-cloudflare-button)).
+The account needs a workers.dev subdomain before anything can deploy; a brand-new Cloudflare account is asked to pick one ([Custom domains](domains.md#the-workersdev-url)). Updates go through that repository's **Update CogSend** action, which Settings → Instance links to; keep Workers Builds connected ([Updating](updates.md#installed-with-the-deploy-to-cloudflare-button)).
 
 ## One command
 

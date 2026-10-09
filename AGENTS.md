@@ -46,13 +46,14 @@ The e2e suite is one serial journey, not independent tests, so a single spec run
 
 ## Releases and the in-app updater
 
-Instances update themselves from **Settings → Instance** by installing a signed bundle that `.github/workflows/release.yml` attaches to each published release; the same workflow regenerates `github.com/cogsend/deploy`, the prebuilt copy the Deploy to Cloudflare button points at. [docs/updates.md](docs/updates.md) is the operator's view.
+Instances update themselves from **Settings → Instance** by installing a signed bundle that `.github/workflows/release.yml` attaches to each published release; the same workflow regenerates `github.com/cogsend/deploy`, the prebuilt copy the Deploy to Cloudflare button points at (stable releases on `main`, which the button copies; pre-releases on `next`). Button installs update through their own repository's **Update CogSend** Action instead, with no Cloudflare token. [docs/updates.md](docs/updates.md) is the operator's view.
 
 - An in-place update cannot run migrations or add bindings. Keep the schema self-repairing (`INIT_SQL` and the repairs in `src/lib/server/db/`), and when a release needs something an update cannot do, such as a new binding, set `manualOnly` and a `notes` reason in `release.json` before tagging it. `minFromVersion` there is the oldest release that may update straight to this one.
 - `package.json`'s version must equal the tag, or the release workflow stops.
 - The bundle is signed with the `RELEASE_SIGNING_KEY` Actions secret; instances trust only the keys in `src/lib/domain/release-keys.json`. Rotating means adding the new public key in one release and signing with it from the next. Never put a private key in the repository.
 - `scripts/check-release-parity.mjs` compares each bundle with what `wrangler deploy` would upload. If it fails after a wrangler upgrade, fix `scripts/lib/release-bundle.mjs`, never the check.
 - Every deploy from a checkout is tagged `v<version>` and refuses to replace a newer one (`scripts/lib/deployed-version.mjs`).
+- The manifest also signs every file of the generated deploy repository (`deployRepo.files`), and the Update CogSend Action (`src/lib/domain/github-update-workflow.yml`, `scripts/lib/update-from-release.mjs`) refuses any file it does not cover: Workers Builds runs that repository's deploy script with a token for the operator's account. `scripts/lib/github-update.mjs` and the scripts next to it ship inside the deploy repository, so they stay self-contained, Node built-ins only.
 
 ## Commits and pull requests
 

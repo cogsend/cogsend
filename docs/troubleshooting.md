@@ -145,7 +145,19 @@ The old version keeps serving whatever step fails; **Abort the unfinished update
 
 ## A deploy refuses: "the Worker runs vX, newer than …"
 
-The instance was updated from Settings, and this checkout (or the Deploy-button copy Workers Builds deploys) holds an older release. Deploying it would roll the instance back, so the deploy stops before changing anything. Pull the newer release first; or, if going back is what you want, pass `--allow-downgrade` (or set `COGSEND_ALLOW_DOWNGRADE=1`, which is also how a Workers Builds variable allows it). For a Deploy-button install, disconnect the copy from Workers Builds instead ([Updating](updates.md#installed-with-the-deploy-to-cloudflare-button)).
+The instance was updated from Settings, and this checkout (or the Deploy-button copy Workers Builds deploys) holds an older release. Deploying it would roll the instance back, so the deploy stops before changing anything. Pull the newer release first; or, if going back is what you want, pass `--allow-downgrade` (or set `COGSEND_ALLOW_DOWNGRADE=1`, which is also how a Workers Builds variable allows it). For a Deploy-button install, update through its repository's **Update CogSend** action instead, which moves the copy forward ([Updating](updates.md#installed-with-the-deploy-to-cloudflare-button)).
+
+## The Update CogSend action fails
+
+Nothing is committed when it fails, so your instance keeps running what it ran.
+
+- **"…is older than…, which this repository holds"**: run it again with **Roll back** ticked if going back is what you want.
+- **"…does not sign its deploy repository"**: releases before 1.14.0 cannot be installed through GitHub. Install that one from Settings with a token.
+- **"…does not match the signed release"**, **"…is not part of…"** or **"…is missing"**: what was downloaded is not what the release signed. Run it again; if it repeats, report it with the tag.
+- **"…has no commit for vX"**: the release was published moments ago and its files are not in `cogsend/deploy` yet. Try again in a few minutes.
+- **No Run workflow button**: Actions are turned off for the repository. Turn them on under the repository's Settings → Actions → General.
+
+The action succeeded but CogSend still shows the old version? Its commit starts a Workers Builds run: Workers & Pages → your Worker → Deployments shows the build and its log.
 
 ## `wrangler login` fails on Cloudflare's approval page
 
