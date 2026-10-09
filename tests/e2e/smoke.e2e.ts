@@ -1100,11 +1100,17 @@ test('duplicate API, insights page, and failed-tab deep link', async () => {
 	await expect(page.getByTestId('insight-account').first()).toBeVisible();
 	await expect(page.getByText('Best hour', { exact: false })).toHaveCount(0);
 	// Range switches refetch and relabel the whole page.
-	await page.getByRole('button', { name: '90 days' }).click();
-	await expect(page.getByText('Delivery stats for the last 13 weeks')).toBeVisible();
+	await clickUntilVisible(
+		page,
+		page.getByRole('button', { name: '90 days' }),
+		page.getByText('Delivery stats for the last 13 weeks')
+	);
 	await expect(page.getByText('Last 13 weeks').first()).toBeVisible();
-	await page.getByRole('button', { name: '7 days' }).click();
-	await expect(page.getByText('Delivery stats for the last 7 days')).toBeVisible();
+	await clickUntilVisible(
+		page,
+		page.getByRole('button', { name: '7 days' }),
+		page.getByText('Delivery stats for the last 7 days')
+	);
 
 	// A failing stats request shows a banner and keeps the last good numbers...
 	await page.route('**/api/insights*', (route) =>
