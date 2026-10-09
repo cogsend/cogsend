@@ -139,6 +139,7 @@ The old version keeps serving whatever step fails; **Abort the unfinished update
 - **"…does not exist: the release has no update bundle (yet)"**: bundles are attached a few minutes after a release is published.
 - **Cloudflare: Authentication error**, or a 403: the token lacks a permission, or belongs to another account. Create it from the link next to the field, which fills in Workers Scripts (edit) and Account Settings (read). If it cannot list accounts, enter the account ID under **More options**; it is in the dashboard URL.
 - **"…is splitting traffic between versions"**: a gradual deployment is in progress. Finish it or roll it back under Workers & Pages → your Worker → Deployments.
+- **"The … step did not finish"**: Cloudflare cut the request short, usually for CPU time, three times running. Press the button again: every step continues where it stopped.
 - **"The new version did not answer its health check"**: nothing changed. Report it with the version you tried, and stay on the current one.
 - **"…needs a deploy from a checkout"**: that release changes something an in-place update cannot, such as a new binding. Follow the release notes, usually `git pull && npm ci && npm run deploy:release` once.
 

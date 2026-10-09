@@ -1,6 +1,6 @@
 # Updating
 
-Settings → Instance and `npm run doctor` both say when a newer release is out. There are two ways to install it: from Settings, with nothing but a Cloudflare API token, or from a checkout, the way you may have installed it.
+Settings → Instance and `npm run doctor` both say when a newer release is out, and so does a line in the profile menu, with a small dot on your avatar until you have seen it. There are two ways to install it: from Settings, with nothing but a Cloudflare API token, or from a checkout, the way you may have installed it.
 
 ## From Settings
 
@@ -10,7 +10,7 @@ When a release is available, Settings → Instance shows **Update to vX.Y.Z from
 2. Paste it into the field and press **Install**.
 3. Leave the page open until it reloads on the new version, usually under a minute.
 
-The token is used for that one update and never stored: it lives in the page while the update runs and is sent with each step, nowhere else. Delete it in Cloudflare afterwards if you like, and create a new one next time.
+Keep the token in your password manager: the same one works for every update, and the field accepts it from there. CogSend never stores it: it lives in the page while the update runs and is sent with each step, nowhere else. Delete it in Cloudflare whenever you want to revoke it.
 
 What happens, in order:
 
@@ -23,9 +23,9 @@ What happens, in order:
 | Check it          | Deploys it at 0% beside the current version and asks it for `/api/health` directly. It must answer, and with the new version number. |
 | Switch            | Sends all traffic to the new version, and remembers the old one for **Roll back**.                                                   |
 
-Nothing changes for visitors until the last step. If any step fails, the old version keeps serving; **Abort the unfinished update** tidies up whatever the update had staged. Each step is a short request of its own, sized to fit the Workers Free plan's limits.
+Nothing changes for visitors until the last step. If any step fails, the old version keeps serving; **Abort the unfinished update** tidies up whatever the update had staged. Each step is a short request of its own, sized to fit the Workers Free plan's limits, and picks up where it stopped: one Cloudflare cuts short is retried, and pressing the button again continues the update rather than starting over.
 
-Under **More options** you can install a specific release tag, a pre-release for example, and name the account if your token cannot list accounts.
+To install a specific release tag, a pre-release for example, type it into the tag field: it shows next to the token when no release is on offer, and under **More options** otherwise. **More options** is also where you name the account if your token cannot list accounts.
 
 Some releases cannot be installed this way, for example one that needs a new binding. Settings then says so and why, and the release notes say what to do; usually it is one update from a checkout.
 
