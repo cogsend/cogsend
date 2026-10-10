@@ -28,12 +28,12 @@ Anything that exposes those — a key leak, a way to read another tenant's row, 
 
 ## Supported versions
 
-The `main` branch is the only supported version; fixes are not backported.
+Only the latest release is supported. Fixes ship as a new release, which an instance installs from Settings → Instance ([docs/updates.md](docs/updates.md)), and are not backported.
 
 ## What the app does by itself
 
-- **A flood guard on the endpoints anybody can call.** `/api/auth/login` and `/api/auth/totp/verify` consult Cloudflare's Rate Limiting binding: twenty requests a minute per client address, enforced at the edge by the same infrastructure as WAF rate-limiting rules. It is per Cloudflare location and eventually consistent, so it is a burst guard rather than accounting.
-- **A lockout on guessing.** Eight wrong passwords in fifteen minutes lock out the client address that sent them (an IPv6 address counts by its /64), and forty from any mix of addresses lock the account, so a guesser can lock out themselves but not the owner. Authenticator codes lock the account after eight failures, counted across attempts rather than per challenge. This, not the edge limit, is what makes guessing impractical.
+- **A flood guard on the endpoints that take a password or a key.** `/api/auth/login`, `/api/auth/totp/verify` and `/api/auth/claim`, and the updater's `/api/update/unlock` and `/api/update/remember`, consult Cloudflare's Rate Limiting binding: twenty requests a minute per client address, enforced at the edge by the same infrastructure as WAF rate-limiting rules. It is per Cloudflare location and eventually consistent, so it is a burst guard rather than accounting.
+- **A lockout on guessing.** Eight wrong passwords in fifteen minutes lock out the client address that sent them (an IPv6 address counts by its /64), and forty from any mix of addresses lock the account, so a guesser can lock out themselves but not the owner. The updater's password prompts count toward the same lockout. Authenticator codes lock the account after eight failures, counted across attempts rather than per challenge. This, not the edge limit, is what makes guessing impractical.
 - **Re-authentication for destructive actions.** Deleting the account requires the password and a current code, so a stolen session alone cannot wipe an instance.
 - **Sessions** are HMAC-hashed in D1, bound to the stored password hash, idle out after 24 hours (seven days for a browser signed in with "Remember this browser"), and die on a password change.
 
