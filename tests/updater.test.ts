@@ -13,7 +13,14 @@ import { SubrequestBudget } from '$lib/server/budget';
 import { createTestDb, TEST_ENV, type TestDb } from '$lib/server/db/test';
 import { cloudflareApi } from '$lib/server/updater/cloudflare-api';
 import { updaterContext } from '$lib/server/updater/context';
-import { readJob, readPrevious, readTarget, writePrevious } from '$lib/server/updater/state';
+import {
+	readJob,
+	readPrevious,
+	readTarget,
+	readUnlockedToken,
+	writePrevious,
+	writeUnlockedToken
+} from '$lib/server/updater/state';
 import {
 	MAX_BUCKETS_PER_CALL,
 	MAX_FILES_PER_CALL_SINGLE,
@@ -391,8 +398,12 @@ describe('in-app updater', () => {
 			}
 		]);
 
+		// The token opened for this update goes with it.
+		const opened = { payload: 'locked', expiresAt: Date.now() + 60_000 };
+		await writeUnlockedToken(test.db, opened);
 		await within((c) => stepPromote(c, {}));
 		expect(w.state.deployments[0].versions).toEqual([{ version_id: NEW, percentage: 100 }]);
+		expect(await readUnlockedToken(test.db)).toBeNull();
 		expect(await readJob(test.db)).toBeNull();
 		expect(store.keys()).toEqual([]);
 		expect(await readPrevious(test.db)).toMatchObject({
@@ -402,9 +413,11 @@ describe('in-app updater', () => {
 			replacedBy: TAG
 		});
 
+		await writeUnlockedToken(test.db, opened);
 		await within((c) => stepRollback(c));
 		expect(w.state.deployments[0].versions).toEqual([{ version_id: OLD, percentage: 100 }]);
 		expect(await readPrevious(test.db)).toBeNull();
+		expect(await readUnlockedToken(test.db)).toBeNull();
 
 		// The token never went anywhere but the Cloudflare API.
 		expect(w.state.requests.filter((r) => r.includes(TOKEN))).toEqual([]);
@@ -526,8 +539,10 @@ describe('in-app updater', () => {
 
 	it('aborts a staged update back to the old version alone', async () => {
 		await updateToStaged();
+		await writeUnlockedToken(test.db, { payload: 'locked', expiresAt: Date.now() + 60_000 });
 		await stepAbort(ctx());
 		expect(w.state.deployments[0].versions).toEqual([{ version_id: OLD, percentage: 100 }]);
+		expect(await readUnlockedToken(test.db)).toBeNull();
 		expect(await readJob(test.db)).toBeNull();
 		expect(store.keys()).toEqual([]);
 	});

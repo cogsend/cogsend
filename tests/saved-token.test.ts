@@ -116,6 +116,8 @@ describe('the saved update token', () => {
 		await expect(tokenFromUnlockKey(db, unlockKey, expiresAt + 1)).rejects.toThrow(
 			'password again'
 		);
+		// An expired copy is deleted, not just refused.
+		expect(await readUnlockedToken(db)).toBeNull();
 	});
 
 	it('reaches Cloudflare as the token when a step sends the key', async () => {

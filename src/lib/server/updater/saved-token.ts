@@ -13,6 +13,7 @@
  * that update with a random key that only the browser receives, and each step
  * sends that key instead of the token: the steps stay cheap (no password
  * derivation per request), and the token itself never reaches the browser.
+ * That copy is deleted when the update is installed, rolled back or cancelled.
  */
 import { bytesToBase64, base64ToBytes, bytesToHex, randomBytes } from '$lib/domain/bytes';
 import { decryptSecret, encryptSecret, passwordKeyHex } from '../crypto';
@@ -20,6 +21,7 @@ import type { AppDb } from '../db/client';
 import {
 	UPDATE_JOB_TTL_MS,
 	clearSavedToken,
+	clearUnlockedToken,
 	readSavedToken,
 	readUnlockedToken,
 	writeSavedToken,
@@ -88,7 +90,11 @@ export async function tokenFromUnlockKey(db: AppDb, key: string, now = Date.now(
 	const expired = new SavedTokenError('Enter your password again to continue the update', 401);
 	if (!UNLOCK_KEY.test(key)) throw expired;
 	const unlocked = await readUnlockedToken(db);
-	if (!unlocked || unlocked.expiresAt < now) throw expired;
+	if (!unlocked) throw expired;
+	if (unlocked.expiresAt < now) {
+		await clearUnlockedToken(db);
+		throw expired;
+	}
 	try {
 		return await decryptSecret(unlocked.payload, key);
 	} catch {

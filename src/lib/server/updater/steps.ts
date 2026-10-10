@@ -40,6 +40,7 @@ import type { CloudflareApi } from './cloudflare-api';
 import {
 	clearJob,
 	clearPrevious,
+	clearUnlockedToken,
 	jobExpired,
 	readJob,
 	readPrevious,
@@ -556,6 +557,7 @@ export async function stepPromote(
 		at: ctx.now?.() ?? Date.now()
 	});
 	await dropJob(ctx, job);
+	await clearUnlockedToken(ctx.db);
 	return { version: job.version };
 }
 
@@ -579,10 +581,12 @@ export async function stepRollback(ctx: UpdaterContext): Promise<{ version: stri
 		`CogSend: rolled back to ${previous.version} from Settings`
 	);
 	await clearPrevious(ctx.db);
+	await clearUnlockedToken(ctx.db);
 	return { version: previous.version };
 }
 
 export async function stepAbort(ctx: UpdaterContext): Promise<{ aborted: boolean }> {
+	await clearUnlockedToken(ctx.db);
 	const job = await readJob(ctx.db);
 	if (!job) return { aborted: false };
 	if (job.phase === 'staged') {

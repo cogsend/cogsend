@@ -298,6 +298,9 @@
 		try {
 			if (!credentials) await prepareCredentials();
 			await step('abort');
+			// The server dropped the opened token with the update; the next press
+			// opens it again.
+			credentials = null;
 			progress = [];
 			say('Cancelled. The current version keeps serving.');
 		} catch (e) {

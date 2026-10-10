@@ -113,7 +113,8 @@ export const readUnlockedToken = (db: AppDb) =>
 	read<UnlockedToken>(db, UPDATE_TOKEN_UNLOCKED_SETTING);
 export const writeUnlockedToken = (db: AppDb, unlocked: UnlockedToken) =>
 	write(db, UPDATE_TOKEN_UNLOCKED_SETTING, unlocked);
+export const clearUnlockedToken = (db: AppDb) => clear(db, UPDATE_TOKEN_UNLOCKED_SETTING);
 export async function clearSavedToken(db: AppDb): Promise<void> {
 	await clear(db, UPDATE_TOKEN_SAVED_SETTING);
-	await clear(db, UPDATE_TOKEN_UNLOCKED_SETTING);
+	await clearUnlockedToken(db);
 }
