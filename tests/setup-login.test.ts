@@ -12,6 +12,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
+// Each test starts real Node processes, which take far longer than vitest's
+// 5 s default on a busy machine.
+const RUNS_A_SCRIPT = { timeout: 30_000 };
+
 /**
  * `npm run setup` has to work whether or not wrangler is signed in, and the two
  * cases look identical by exit code alone: a signed-out wrangler 4.x prints
@@ -152,7 +156,7 @@ const calls = (root: string) =>
 
 const loggedIn = (root: string) => calls(root).some((args) => args.includes('login'));
 
-describe('npm run setup, with wrangler signed out', () => {
+describe('npm run setup, with wrangler signed out', RUNS_A_SCRIPT, () => {
 	it('starts the login itself on a terminal, then carries on', () => {
 		const scratchDir = scratch();
 		const result = runSetupOnTerminal(scratchDir);
@@ -223,7 +227,7 @@ describe('npm run setup, with wrangler signed out', () => {
 	});
 });
 
-describe('npm run setup, already signed in', () => {
+describe('npm run setup, already signed in', RUNS_A_SCRIPT, () => {
 	it('does not login again', () => {
 		const scratchDir = scratch({ whoami: 'signed-in' });
 		const result = runSetup(scratchDir, ['--skip-deploy']);
@@ -240,7 +244,7 @@ describe('npm run setup, already signed in', () => {
  * step 1. The fake's folder login is signed out on purpose: only the profile is
  * signed in.
  */
-describe('npm run setup, with WRANGLER_PROFILE', () => {
+describe('npm run setup, with WRANGLER_PROFILE', RUNS_A_SCRIPT, () => {
 	const ACCOUNT = '0123456789abcdef0123456789abcdef';
 
 	it('reads the account through the profile, not whoami', () => {

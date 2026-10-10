@@ -14,6 +14,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
+// Each test starts real Node processes, which take far longer than vitest's
+// 5 s default on a busy machine.
+const RUNS_A_SCRIPT = { timeout: 30_000 };
+
 /**
  * A new Cloudflare account has no workers.dev subdomain, and `wrangler deploy`
  * only offers to register one at a terminal, which setup's captured deploy is
@@ -138,7 +142,7 @@ const createdAnything = (root: string) =>
 		.map((line) => JSON.parse(line) as string[])
 		.some((args) => args.includes('create'));
 
-describe('npm run setup on an account with no workers.dev subdomain', () => {
+describe('npm run setup on an account with no workers.dev subdomain', RUNS_A_SCRIPT, () => {
 	it('stops before creating anything when it cannot ask, and says how to fix it', async () => {
 		const api = await fakeApi(null);
 		const box = scratch();
@@ -177,7 +181,7 @@ describe('npm run setup on an account with no workers.dev subdomain', () => {
 	});
 });
 
-describe('npm run setup on an account that has one', () => {
+describe('npm run setup on an account that has one', RUNS_A_SCRIPT, () => {
 	it('names it and changes nothing', async () => {
 		const api = await fakeApi('sam');
 		const box = scratch();

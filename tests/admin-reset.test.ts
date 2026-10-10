@@ -16,11 +16,15 @@ import { assertAuthGateOpen, recordAuthGateFailure } from '$lib/server/auth-gate
 import { createTestAdmin, createTestDb, TEST_ENV } from '$lib/server/db/test';
 import { clearAuthGatesSql } from '../scripts/lib/account.mjs';
 
+// Each test starts real Node processes, which take far longer than vitest's
+// 5 s default on a busy machine.
+const RUNS_A_SCRIPT = { timeout: 30_000 };
+
 /**
  * `npm run admin:reset` as the operator runs it: a stubbed `npx` that answers
  * like D1, no network and no Cloudflare account.
  */
-describe('admin:reset', () => {
+describe('admin:reset', RUNS_A_SCRIPT, () => {
 	let dir: string | null = null;
 	afterEach(() => {
 		if (dir) rmSync(dir, { recursive: true, force: true });

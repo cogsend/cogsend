@@ -40,7 +40,7 @@ env.ASSETS                                   Assets
 
 Uploaded cogsend (10.91 sec)
 Deployed cogsend triggers (4.35 sec)
-  https://cogsend.vempus.workers.dev
+  https://cogsend.your-subdomain.workers.dev
   schedule: * * * * *
 Current Version ID: 93116b57-041a-416e-8224-aeaddd3ab446`;
 
@@ -74,7 +74,7 @@ describe('tool output', () => {
 		expect(cleaned).not.toContain('─────');
 		expect(cleaned).not.toContain('Using fallback value');
 		expect(cleaned).toContain('env.DB (cogsend)');
-		expect(cleaned).toContain('https://cogsend.vempus.workers.dev');
+		expect(cleaned).toContain('https://cogsend.your-subdomain.workers.dev');
 	});
 
 	it('keeps the migration tables themselves out of the summary path', () => {
@@ -90,7 +90,7 @@ describe('tool output', () => {
 describe('deployFacts', () => {
 	it('reads the URL, bindings and version out of the deploy output', () => {
 		const facts = deployFacts(DEPLOY);
-		expect(facts.url).toBe('https://cogsend.vempus.workers.dev');
+		expect(facts.url).toBe('https://cogsend.your-subdomain.workers.dev');
 		expect(facts.bindings).toEqual(['DB', 'MEDIA', 'AUTH_RATE_LIMITER', 'ASSETS']);
 		expect(facts.versionId).toBe('93116b57-041a-416e-8224-aeaddd3ab446');
 		expect(facts.startupMs).toBe(34);
@@ -130,7 +130,9 @@ describe('printing', () => {
 	});
 
 	it('pads a box to one visible width, colour aside', () => {
-		const lines = box(['CogSend is live', 'https://cogsend.vempus.workers.dev']).split('\n');
+		const lines = box(['CogSend is live', 'https://cogsend.your-subdomain.workers.dev']).split(
+			'\n'
+		);
 		expect(lines).toHaveLength(4);
 		expect(new Set(lines.map(visibleWidth)).size).toBe(1);
 	});
