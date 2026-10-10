@@ -10,12 +10,14 @@
  * Workers Builds runs them with a token for the account. Anything else stops
  * the update before a commit.
  *
- * Self-contained (node builtins only) because the Deploy-button repository
- * ships a copy of this file, used by its update script and its deploy script.
+ * Node builtins and ./deployed-version.mjs only, because the Deploy-button
+ * repository ships copies of both, used by its update script and its deploy
+ * script.
  */
 import { createHash, createPublicKey, verify } from 'node:crypto';
 import { cpSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { isLaterVersion } from './deployed-version.mjs';
 
 /** Left by an update that installs an older release on purpose, naming that
  *  release; the deploy script lets exactly that version past its downgrade
@@ -53,6 +55,42 @@ export function isPatchUpdate(from, to) {
 	const b = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(to ?? '').trim());
 	if (!a || !b) return false;
 	return a[1] === b[1] && a[2] === b[2] && Number(b[3]) > Number(a[3]);
+}
+
+/**
+ * What a release's own flags (release.json, signed into its manifest) say
+ * about installing it over `current`, the release this repository holds: null
+ * to go ahead, `stop` for a refusal, or otherwise a reason the daily run
+ * leaves the release for someone to install by hand. Settings refuses the
+ * same releases (updateBlockers in src/lib/domain/update-manifest.ts).
+ *
+ * @param {{ tag: string, minFromVersion?: string, manualOnly?: boolean, schemaChange?: boolean, notes?: string | null }} manifest
+ * @param {string} current
+ * @param {{ automatic: boolean }} run
+ * @returns {{ stop: boolean, reason: string } | null}
+ */
+export function releaseGate(manifest, current, { automatic }) {
+	if (manifest.minFromVersion && isLaterVersion(manifest.minFromVersion, current)) {
+		return {
+			stop: true,
+			reason: `${manifest.tag} has to be installed from ${manifest.minFromVersion} or later, and this repository holds ${current}: install v${manifest.minFromVersion} first`
+		};
+	}
+	if (!automatic) return null;
+	if (manifest.manualOnly) {
+		return {
+			stop: false,
+			reason: `${manifest.tag} is marked to be installed by hand${manifest.notes ? ` (${manifest.notes})` : ''}, so the daily run leaves it: run the action yourself to install it.`
+		};
+	}
+	// Roll back cannot undo a schema change, so nobody should meet one unawares.
+	if (manifest.schemaChange) {
+		return {
+			stop: false,
+			reason: `${manifest.tag} changes the database, which a rollback cannot undo, so the daily run leaves it: run the action yourself to install it.`
+		};
+	}
+	return null;
 }
 
 /**

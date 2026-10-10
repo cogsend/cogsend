@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	githubRepoOf,
 	isPatchUpdate,
+	releaseGate,
 	replaceTree,
 	rollbackAllowed,
 	verifyRelease
@@ -57,6 +58,39 @@ describe('GitHub update helpers', () => {
 		expect(isPatchUpdate('1.15.1', '1.15.0')).toBe(false);
 		expect(isPatchUpdate('1.15.0', '1.15.1-rc.1')).toBe(false);
 		expect(isPatchUpdate('1.15.0-rc.2', '1.15.1')).toBe(false);
+	});
+
+	it("honours the release's own flags as Settings does, and leaves the guarded ones to a person", () => {
+		const release = {
+			tag: 'v1.15.1',
+			minFromVersion: '0.0.0',
+			manualOnly: false,
+			schemaChange: false,
+			notes: null
+		};
+		expect(releaseGate(release, '1.15.0', { automatic: true })).toBeNull();
+
+		const tooFar = releaseGate({ ...release, minFromVersion: '1.15.0' }, '1.14.1', {
+			automatic: false
+		});
+		expect(tooFar?.stop).toBe(true);
+		expect(tooFar?.reason).toContain('install v1.15.0 first');
+		expect(
+			releaseGate({ ...release, minFromVersion: '1.15.0' }, '1.15.0', { automatic: true })
+		).toBeNull();
+
+		const byHand = { ...release, manualOnly: true, notes: 'adds a KV binding' };
+		expect(releaseGate(byHand, '1.15.0', { automatic: false })).toBeNull();
+		expect(releaseGate(byHand, '1.15.0', { automatic: true })).toEqual({
+			stop: false,
+			reason: expect.stringContaining('(adds a KV binding)')
+		});
+
+		const schema = { ...release, schemaChange: true };
+		expect(releaseGate(schema, '1.15.0', { automatic: false })).toBeNull();
+		expect(releaseGate(schema, '1.15.0', { automatic: true })?.reason).toContain(
+			'a rollback cannot undo'
+		);
 	});
 
 	it('lets a rollback marker through for the release it names only', () => {

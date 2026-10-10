@@ -8,7 +8,8 @@
  * Run from the repository root. TAG names the release (empty: the latest);
  * ROLLBACK=true allows one older than the repository holds; PATCH_ONLY=true,
  * set by the daily schedule, installs only a newer patch of the same
- * major.minor. Writes `changed`, `tag` and `from` to GITHUB_OUTPUT.
+ * major.minor, and none the release marks for installing by hand or as a
+ * schema change. Writes `changed`, `tag` and `from` to GITHUB_OUTPUT.
  */
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -16,7 +17,13 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isLaterVersion } from './deployed-version.mjs';
-import { ROLLBACK_MARKER, isPatchUpdate, replaceTree, verifyRelease } from './github-update.mjs';
+import {
+	ROLLBACK_MARKER,
+	isPatchUpdate,
+	releaseGate,
+	replaceTree,
+	verifyRelease
+} from './github-update.mjs';
 
 const APP_REPO = 'cogsend/cogsend';
 const DEPLOY_REPO = 'cogsend/deploy';
@@ -89,6 +96,8 @@ const [manifestBytes, sigText, pack] = await Promise.all([
 // The deploy repository keeps one commit per release, titled "CogSend vX":
 // stable releases on main, pre-releases on next.
 const source = mkdtempSync(join(tmpdir(), 'cogsend-release-'));
+/** @type {string | null} */
+let leftForAPerson = null;
 try {
 	execFileSync('git', ['clone', '--quiet', `https://github.com/${DEPLOY_REPO}.git`, source]);
 	const commit = execFileSync('git', ['-C', source, 'log', '--all', '--format=%H %s'], {
@@ -100,16 +109,28 @@ try {
 	if (!commit) fail(`${DEPLOY_REPO} has no commit for ${tag}`);
 	execFileSync('git', ['-C', source, 'checkout', '--quiet', commit]);
 
+	let manifest;
 	try {
-		verifyRelease({ tag, manifestBytes, sigText, pack, keys, dir: source });
+		manifest = verifyRelease({ tag, manifestBytes, sigText, pack, keys, dir: source });
 	} catch (err) {
 		fail(err instanceof Error ? err.message : String(err));
 	}
 	console.log(`✔ ${tag}: signed, and every file matches`);
 
-	replaceTree(source, '.');
+	const gate = releaseGate(manifest, current, { automatic: patchOnly });
+	if (gate?.stop) fail(gate.reason);
+	if (gate) leftForAPerson = gate.reason;
+	else {
+		if (manifest.notes) console.log(`ℹ ${manifest.notes}`);
+		replaceTree(source, '.');
+	}
 } finally {
 	rmSync(source, { recursive: true, force: true });
+}
+if (leftForAPerson) {
+	console.log(leftForAPerson);
+	output('changed', 'false');
+	process.exit(0);
 }
 if (older) writeFileSync(ROLLBACK_MARKER, `${version}\n`);
 console.log(`✔ ${current} → ${version}${older ? ' (rollback)' : ''}`);
