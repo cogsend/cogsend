@@ -35,7 +35,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PERSONAL_CONFIG = 'wrangler.personal.jsonc';
 const COMMITTED_CONFIG = 'wrangler.jsonc';
 const DEV_VARS = '.dev.vars';
-const MIN_NODE = [22, 13, 0];
+const MIN_NODE = [22, 17, 0];
 
 /**
  * Minimal JSONC reader: the configs carry comments.
