@@ -1,4 +1,4 @@
-import type { Handle } from '@sveltejs/kit';
+import type { Handle } from '@sveltejs/kit/hooks';
 import { json } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import {
@@ -193,8 +193,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// `npm run setup` created it) there is nothing to act as.
 	const hasCredential =
 		bearer !== null || (event.request.headers.get('x-api-key')?.trim() ?? '') !== '';
-	const admin = hasCredential ? await getAdminUser(db) : null;
 
+	const admin = hasCredential ? await getAdminUser(db) : null;
 	const session = await getSessionUser(db, appEnv, raw);
 	event.locals.user = session?.user ?? null;
 	if (session?.user) {
@@ -318,6 +318,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		const authorized =
 			anySecretMatches(bearer, [appEnv.SCHEDULER_SECRET, appEnv.API_TOKEN]) ||
 			(tickPath && (await verifyTickToken(db, bearer)));
+
 		if (authorized) return withPageSecurity(path, await resolve(event), secureRequest);
 	}
 
