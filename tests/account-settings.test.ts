@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { sessions, users } from '$lib/server/db/schema';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { createTestDb, TEST_ENV } from '$lib/server/db/test';
-import { hashPassword, verifyPassword } from '$lib/server/crypto';
-import { needsSetup } from '$lib/server/auth';
-import { AUTH_GATE_MAX_FAILURES, clearAuthGate } from '$lib/server/auth-gate';
+import { sessions, users } from '#lib/server/db/schema.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
+import { hashPassword, verifyPassword } from '#lib/server/crypto.js';
+import { needsSetup } from '#lib/server/auth.js';
+import { AUTH_GATE_MAX_FAILURES, clearAuthGate } from '#lib/server/auth-gate.js';
 import { load as loginLoad } from '../src/routes/login/+page.server';
 import { POST as loginPOST } from '../src/routes/api/auth/login/+server';
 import { GET as accountGET, PATCH as accountPATCH } from '../src/routes/api/account/+server';

@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
-import { draftMedia, drafts, users } from '$lib/server/db/schema';
-import { signPublicMediaUrl, verifyPublicMediaSig } from '$lib/server/public-media';
-import { publicMediaUrlFor } from '$lib/server/publish';
-import { readAppEnv } from '$lib/server/env';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
+import { draftMedia, drafts, users } from '#lib/server/db/schema.js';
+import { signPublicMediaUrl, verifyPublicMediaSig } from '#lib/server/public-media.js';
+import { publicMediaUrlFor } from '#lib/server/publish.js';
+import { readAppEnv } from '#lib/server/env.js';
 import { GET as publicMediaGET } from '../src/routes/api/media/public/[key]/+server';
 
 describe('publicMediaUrlFor', () => {

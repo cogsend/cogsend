@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
-import { requireSession } from '$lib/server/require';
-import { setMfaCookie } from '$lib/server/cookies';
-import { fail, handleError, ok } from '$lib/server/http';
-import { rotateStart } from '$lib/server/totp';
+import { requireSession } from '#lib/server/require.js';
+import { setMfaCookie } from '#lib/server/cookies.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { rotateStart } from '#lib/server/totp.js';
 
 export const POST: RequestHandler = async ({ request, locals, cookies, url }) => {
 	try {

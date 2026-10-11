@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shrinkSteps, shrinkToFit, type ImageCodec } from '$lib/components/shrink-image';
+import { shrinkSteps, shrinkToFit, type ImageCodec } from '#lib/components/shrink-image.js';
 
 function fakeCodec(sizeOf: (step: { width: number; type: string; quality?: number }) => number) {
 	const tried: string[] = [];

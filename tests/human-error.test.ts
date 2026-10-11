@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { humanizeError } from '$lib/domain/human-error';
+import { humanizeError } from '#lib/domain/human-error.js';
 
 describe('humanizeError', () => {
 	it('maps auth failures to reconnect copy', () => {

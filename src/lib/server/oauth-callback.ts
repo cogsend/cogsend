@@ -1,7 +1,7 @@
 import { isRedirect, redirect } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
-import type { PlatformId } from '$lib/domain/platforms';
+import type { PlatformId } from '#lib/domain/platforms.js';
 import { SESSION_COOKIE } from './auth';
 import { encryptJson } from './crypto';
 import { first, newId, parseJson, type AppDb } from './db/client';

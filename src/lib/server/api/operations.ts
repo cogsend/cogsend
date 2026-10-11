@@ -7,48 +7,48 @@ import {
 	validateMastodonText,
 	validateThreadsText,
 	validateXText
-} from '$lib/domain/validation/text';
-import { getProvider, isPlatformId, type PlatformId } from '$lib/server/providers';
+} from '#lib/domain/validation/text.js';
+import { getProvider, isPlatformId, type PlatformId } from '#lib/server/providers/index.js';
 import {
 	connections,
 	drafts,
 	draftMedia,
 	draftVariants,
 	publishTargets
-} from '$lib/server/db/schema';
-import { batchQueries, chunkIds, first, newId } from '$lib/server/db/client';
-import { serializeDraft, serializeVariant } from '$lib/server/serialize';
+} from '#lib/server/db/schema.js';
+import { batchQueries, chunkIds, first, newId } from '#lib/server/db/client.js';
+import { serializeDraft, serializeVariant } from '#lib/server/serialize.js';
 import {
 	MAX_VARIANT_OPTIONS_LENGTH,
 	parseDraftBody,
 	parseDraftTitle,
 	parseSegmentBody,
 	parseThreadSegments
-} from '$lib/domain/validation/draft-fields';
+} from '#lib/domain/validation/draft-fields.js';
 import {
 	normalizeSelectedConnectionIds,
 	normalizeConnectionIds,
 	connectionIdsOverflow,
 	runAtError
-} from '$lib/domain/request-limits';
+} from '#lib/domain/request-limits.js';
 import {
 	classifyConnections,
 	ensureTargets,
 	refuseInFlightOrPublished,
 	draftHasInFlightPublish
-} from '$lib/server/publish-plan';
-import { refreshDraftStatus, publishTarget } from '$lib/server/publish';
-import { humanizedCause } from '$lib/domain/human-error';
-import type { SubrequestBudget } from '$lib/server/budget';
-import { randomHex } from '$lib/domain/bytes';
-import { validateImageUpload, validateVideoUpload } from '$lib/domain/media-limits';
-import { validatePollConfig } from '$lib/domain/poll';
-import { assertSafeStorageKey, deleteMediaObjects } from '$lib/server/media';
-import { STALE_CLAIM_MS } from '$lib/domain/due-jobs';
-import { ApiOperationError } from '$lib/server/api/operation-error';
-import { DRAFTS_LIST_LIMIT, DRAFTS_LIST_MAX_LIMIT, loadQueueList } from '$lib/server/post-list';
-import { listConnections as loadConnectionList } from '$lib/server/connection-list';
-import { loadOwnedDraft } from '$lib/server/draft-record';
+} from '#lib/server/publish-plan.js';
+import { refreshDraftStatus, publishTarget } from '#lib/server/publish.js';
+import { humanizedCause } from '#lib/domain/human-error.js';
+import type { SubrequestBudget } from '#lib/server/budget.js';
+import { randomHex } from '#lib/domain/bytes.js';
+import { validateImageUpload, validateVideoUpload } from '#lib/domain/media-limits.js';
+import { validatePollConfig } from '#lib/domain/poll.js';
+import { assertSafeStorageKey, deleteMediaObjects } from '#lib/server/media.js';
+import { STALE_CLAIM_MS } from '#lib/domain/due-jobs.js';
+import { ApiOperationError } from '#lib/server/api/operation-error.js';
+import { DRAFTS_LIST_LIMIT, DRAFTS_LIST_MAX_LIMIT, loadQueueList } from '#lib/server/post-list.js';
+import { listConnections as loadConnectionList } from '#lib/server/connection-list.js';
+import { loadOwnedDraft } from '#lib/server/draft-record.js';
 
 export type OperationContext = Pick<App.Locals, 'db' | 'env' | 'media'> & {
 	budget?: SubrequestBudget;

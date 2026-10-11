@@ -12,7 +12,7 @@ import {
 	joinThreadTexts,
 	remapSegmentIndexAfterInsert,
 	splitAtMarkers
-} from '$lib/domain/thread-segments';
+} from '#lib/domain/thread-segments.js';
 
 describe('splitThreadSegments', () => {
 	it('returns single segment without delimiter', () => {
@@ -159,7 +159,7 @@ describe('buildPreviewModel', () => {
 describe('windows line endings', () => {
 	it('splits \\r\\n threads like \\n threads', async () => {
 		const { resolvePublishSegments, splitThreadSegments } =
-			await import('$lib/domain/thread-segments');
+			await import('#lib/domain/thread-segments.js');
 		expect(splitThreadSegments('a\r\n---\r\nb')).toEqual(['a', 'b']);
 		expect(resolvePublishSegments('a\r\n---\r\nb', () => false)).toEqual([
 			{ text: 'a', segmentIndex: 0 },

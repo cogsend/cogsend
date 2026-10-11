@@ -1,9 +1,9 @@
 import type { RequestHandler } from './$types';
-import { readDeployCronState } from '$lib/server/app-settings';
-import { schedulerMessage } from '$lib/domain/scheduler-status';
-import { handleError, ok } from '$lib/server/http';
-import { requireScope, requireUser } from '$lib/server/require';
-import { schedulerHealth } from '$lib/server/scheduler';
+import { readDeployCronState } from '#lib/server/app-settings.js';
+import { schedulerMessage } from '#lib/domain/scheduler-status.js';
+import { handleError, ok } from '#lib/server/http.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
+import { schedulerHealth } from '#lib/server/scheduler.js';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	try {

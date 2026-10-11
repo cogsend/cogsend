@@ -3,17 +3,20 @@
 	import { onMount } from 'svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { Check, Copy, Pencil, User } from '@lucide/svelte';
-	import AccountAvatar from '$lib/components/AccountAvatar.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import CopyButton from '$lib/components/CopyButton.svelte';
-	import UpdatePanel from '$lib/components/UpdatePanel.svelte';
-	import { markUpdateSeen, noteRelease } from '$lib/components/update-notice.svelte';
-	import { humanizeError } from '$lib/domain/human-error';
-	import { sessionExpiredIfUnauthorized } from '$lib/components/session-expired';
-	import { accountLabel, displayHandle, platformRank } from '$lib/domain/platforms';
-	import { isValidProfilePictureUrl, PROFILE_PICTURE_URL_MAX } from '$lib/domain/profile-settings';
-	import { INSTANCE_NAME_MAX } from '$lib/domain/instance-name';
-	import { tickAdvice, type TickAdvice } from '$lib/domain/scheduler-status';
+	import AccountAvatar from '#lib/components/AccountAvatar.svelte';
+	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
+	import CopyButton from '#lib/components/CopyButton.svelte';
+	import UpdatePanel from '#lib/components/UpdatePanel.svelte';
+	import { markUpdateSeen, noteRelease } from '#lib/components/update-notice.svelte.js';
+	import { humanizeError } from '#lib/domain/human-error.js';
+	import { sessionExpiredIfUnauthorized } from '#lib/components/session-expired.js';
+	import { accountLabel, displayHandle, platformRank } from '#lib/domain/platforms.js';
+	import {
+		isValidProfilePictureUrl,
+		PROFILE_PICTURE_URL_MAX
+	} from '#lib/domain/profile-settings.js';
+	import { INSTANCE_NAME_MAX } from '#lib/domain/instance-name.js';
+	import { tickAdvice, type TickAdvice } from '#lib/domain/scheduler-status.js';
 
 	let { data } = $props();
 	let msg = $state<string | null>(null);

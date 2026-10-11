@@ -8,7 +8,7 @@
  * could echo it back.
  */
 import type { SubrequestBudget } from '../budget';
-import type { ApiBinding } from '$lib/domain/update-manifest';
+import type { ApiBinding } from '#lib/domain/update-manifest.js';
 
 const API_BASE = 'https://api.cloudflare.com/client/v4';
 

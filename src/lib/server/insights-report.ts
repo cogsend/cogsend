@@ -7,9 +7,9 @@ import {
 	rangeSpanDays,
 	rateOf,
 	type InsightBound
-} from '$lib/domain/insights';
-import { platformName } from '$lib/domain/platforms';
-import { parseTimeZone } from '$lib/domain/time-zone';
+} from '#lib/domain/insights.js';
+import { platformName } from '#lib/domain/platforms.js';
+import { parseTimeZone } from '#lib/domain/time-zone.js';
 import { batchQueries, type AppDb } from './db/client';
 import { connections, drafts, publishTargets } from './db/schema';
 

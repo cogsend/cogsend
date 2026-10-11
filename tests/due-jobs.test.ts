@@ -4,7 +4,7 @@ import {
 	STALE_CLAIM_MS,
 	isFreshPublishing,
 	selectDueScheduledTargets
-} from '$lib/domain/due-jobs';
+} from '#lib/domain/due-jobs.js';
 
 describe('selectDueScheduledTargets', () => {
 	const now = new Date('2026-08-17T12:00:00Z');

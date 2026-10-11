@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { users } from '$lib/server/db/schema';
-import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
-import { schedulerHealth } from '$lib/server/scheduler';
-import { rotateTickToken } from '$lib/server/tick-token';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { users } from '#lib/server/db/schema.js';
+import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
+import { schedulerHealth } from '#lib/server/scheduler.js';
+import { rotateTickToken } from '#lib/server/tick-token.js';
 import {
 	DELETE as tickTokenDELETE,
 	GET as tickTokenGET,
@@ -128,7 +128,7 @@ describe('tick token routes', () => {
 	});
 
 	it('reports the refusal reason the deploy recorded', async () => {
-		const { writeAppSetting, CRON_STATE_SETTING } = await import('$lib/server/app-settings');
+		const { writeAppSetting, CRON_STATE_SETTING } = await import('#lib/server/app-settings.js');
 		await writeAppSetting(db, CRON_STATE_SETTING, 'unavailable:10072');
 		const res = (await healthGET({ locals: session() } as never)) as Response;
 		const body = (await res.json()) as {

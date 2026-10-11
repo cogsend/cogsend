@@ -1,4 +1,4 @@
-import { timingSafeEqual, utf8Bytes } from '$lib/domain/bytes';
+import { timingSafeEqual, utf8Bytes } from '#lib/domain/bytes.js';
 import { hmacHex } from './crypto';
 
 /** How long a publish-time media URL stays valid. Meta fetches within minutes. */

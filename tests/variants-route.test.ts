@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { drafts, draftVariants, users } from '$lib/server/db/schema';
-import { createTestDb } from '$lib/server/db/test';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { drafts, draftVariants, users } from '#lib/server/db/schema.js';
+import { createTestDb } from '#lib/server/db/test.js';
 import { PUT as variantsPUT } from '../src/routes/api/drafts/[id]/variants/+server';
 
 /**

@@ -1,19 +1,19 @@
 import type { RequestHandler } from './$types';
-import { isLocalAppUrl } from '$lib/domain/app-url';
-import { randomHex } from '$lib/domain/bytes';
-import { OAUTH_PENDING_TTL_MS } from '$lib/domain/oauth-pending';
-import { encryptSecret } from '$lib/server/crypto';
-import { oauthPending } from '$lib/server/db/schema';
-import { fail, handleError, ok } from '$lib/server/http';
+import { isLocalAppUrl } from '#lib/domain/app-url.js';
+import { randomHex } from '#lib/domain/bytes.js';
+import { OAUTH_PENDING_TTL_MS } from '#lib/domain/oauth-pending.js';
+import { encryptSecret } from '#lib/server/crypto.js';
+import { oauthPending } from '#lib/server/db/schema.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
 import {
 	mastodonAuthorizeUrl,
 	mastodonRegisterApp,
 	providerFetch,
 	sanitizeMastodonInstanceUrl
-} from '$lib/server/providers';
-import { SESSION_COOKIE } from '$lib/server/auth';
-import { bindOAuthState } from '$lib/server/oauth-state';
-import { requireSession } from '$lib/server/require';
+} from '#lib/server/providers/index.js';
+import { SESSION_COOKIE } from '#lib/server/auth.js';
+import { bindOAuthState } from '#lib/server/oauth-state.js';
+import { requireSession } from '#lib/server/require.js';
 
 export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 	try {

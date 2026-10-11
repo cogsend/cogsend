@@ -6,9 +6,9 @@ import {
 	draftVariants,
 	publishTargets,
 	users
-} from '$lib/server/db/schema';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { createTestDb } from '$lib/server/db/test';
+} from '#lib/server/db/schema.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { createTestDb } from '#lib/server/db/test.js';
 import { GET as draftsGET } from '../src/routes/api/drafts/+server';
 import { GET as queueGET } from '../src/routes/api/queue/+server';
 import { GET as draftGET, PATCH as draftPATCH } from '../src/routes/api/drafts/[id]/+server';

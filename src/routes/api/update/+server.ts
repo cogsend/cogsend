@@ -1,9 +1,9 @@
 import type { RequestHandler } from './$types';
-import { githubUpdateTarget } from '$lib/domain/github-update';
-import { handleError, ok } from '$lib/server/http';
-import { requireSession } from '$lib/server/require';
-import { savedTokenStatus } from '$lib/server/updater/saved-token';
-import { jobExpired, readJob, readPrevious, readTarget } from '$lib/server/updater/state';
+import { githubUpdateTarget } from '#lib/domain/github-update.js';
+import { handleError, ok } from '#lib/server/http.js';
+import { requireSession } from '#lib/server/require.js';
+import { savedTokenStatus } from '#lib/server/updater/saved-token.js';
+import { jobExpired, readJob, readPrevious, readTarget } from '#lib/server/updater/state.js';
 
 /**
  * Where an in-app update stands, for Settings to resume from or offer a

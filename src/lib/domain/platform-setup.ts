@@ -1,4 +1,4 @@
-import { platformName } from '$lib/domain/platforms';
+import { platformName } from '#lib/domain/platforms.js';
 
 /**
  * The three platforms whose client credentials belong to whoever runs the

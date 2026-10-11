@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
-import { clearMfaCookie, setSessionCookie } from '$lib/server/cookies';
-import { fail, handleError, ok } from '$lib/server/http';
-import { MFA_COOKIE, verifyMfa } from '$lib/server/totp';
+import { clearMfaCookie, setSessionCookie } from '#lib/server/cookies.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { MFA_COOKIE, verifyMfa } from '#lib/server/totp.js';
 
 export const POST: RequestHandler = async ({ request, locals, cookies, url }) => {
 	try {

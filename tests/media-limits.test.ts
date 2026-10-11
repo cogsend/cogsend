@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_VIDEO_BYTES, mediaSizeProblem, validateVideoUpload } from '$lib/domain/media-limits';
+import {
+	MAX_VIDEO_BYTES,
+	mediaSizeProblem,
+	validateVideoUpload
+} from '#lib/domain/media-limits.js';
 
 /** `ftyp` at offset 4 is what `looksLikeMp4` sniffs. */
 function mp4(size: number): Uint8Array {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isLocalAppUrl, resolveAppUrl, type AppUrlSource } from '$lib/domain/app-url';
+import { isLocalAppUrl, resolveAppUrl, type AppUrlSource } from '#lib/domain/app-url.js';
 import { deriveSecrets } from './derived-secrets';
 
 const envSchema = z.object({
@@ -7,7 +7,7 @@ const envSchema = z.object({
 	// the Worker does, so a deploy cannot set it. envFromPlatform resolves it
 	// per request from the request's own origin when this is unset (or still the
 	// localhost value .dev.vars.example ships). Set it to pin a custom domain or
-	// a deliberate public origin. See $lib/domain/app-url.
+	// a deliberate public origin. See #lib/domain/app-url.
 	APP_URL: z.string().optional(),
 	// Instance display name: the UI title, header and login screen. Self-hosters
 	// can rename their instance from config without touching code.

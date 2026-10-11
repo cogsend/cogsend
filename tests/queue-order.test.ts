@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { connections, drafts, publishTargets, users } from '$lib/server/db/schema';
-import { createTestDb } from '$lib/server/db/test';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { connections, drafts, publishTargets, users } from '#lib/server/db/schema.js';
+import { createTestDb } from '#lib/server/db/test.js';
 import { GET as queueGET } from '../src/routes/api/queue/+server';
 
 /**

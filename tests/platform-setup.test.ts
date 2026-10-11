@@ -18,7 +18,7 @@ import {
 	setupFor,
 	setupGuideUrl,
 	type PlatformConfigured
-} from '$lib/domain/platform-setup';
+} from '#lib/domain/platform-setup.js';
 
 /**
  * The accounts dialog shows a "Needs setup" chip and setup steps for the

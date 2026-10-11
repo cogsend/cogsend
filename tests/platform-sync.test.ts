@@ -9,7 +9,7 @@ import {
 	resetPlatformToFollow,
 	resolveRestoredSelection,
 	resolveSavedSelection
-} from '$lib/domain/platform-sync';
+} from '#lib/domain/platform-sync.js';
 
 describe('platform follow / customize / reset', () => {
 	it('follows main until customized', () => {

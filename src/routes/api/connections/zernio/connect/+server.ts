@@ -1,16 +1,20 @@
 import type { RequestHandler } from './$types';
-import { randomHex } from '$lib/domain/bytes';
-import { OAUTH_PENDING_TTL_MS } from '$lib/domain/oauth-pending';
-import { isPlatformId } from '$lib/domain/platforms';
-import { ZERNIO_PENDING_MARKER, toZernioPlatform } from '$lib/domain/zernio';
-import { SESSION_COOKIE } from '$lib/server/auth';
-import { encryptSecret } from '$lib/server/crypto';
-import { oauthPending } from '$lib/server/db/schema';
-import { fail, handleError, ok } from '$lib/server/http';
-import { bindOAuthState } from '$lib/server/oauth-state';
-import { requireSession } from '$lib/server/require';
-import { connectUrl } from '$lib/server/zernio';
-import { resolveZernioKey, zernioCallbackUrl, zernioKeyProblem } from '$lib/server/zernio-import';
+import { randomHex } from '#lib/domain/bytes.js';
+import { OAUTH_PENDING_TTL_MS } from '#lib/domain/oauth-pending.js';
+import { isPlatformId } from '#lib/domain/platforms.js';
+import { ZERNIO_PENDING_MARKER, toZernioPlatform } from '#lib/domain/zernio.js';
+import { SESSION_COOKIE } from '#lib/server/auth.js';
+import { encryptSecret } from '#lib/server/crypto.js';
+import { oauthPending } from '#lib/server/db/schema.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { bindOAuthState } from '#lib/server/oauth-state.js';
+import { requireSession } from '#lib/server/require.js';
+import { connectUrl } from '#lib/server/zernio.js';
+import {
+	resolveZernioKey,
+	zernioCallbackUrl,
+	zernioKeyProblem
+} from '#lib/server/zernio-import.js';
 
 export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 	try {

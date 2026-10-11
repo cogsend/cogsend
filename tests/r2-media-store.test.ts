@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { r2MediaStore, serveMediaBytes } from '$lib/server/media';
+import { r2MediaStore, serveMediaBytes } from '#lib/server/media.js';
 
 /**
  * `r2MediaStore` is the production store — every upload, media serve and

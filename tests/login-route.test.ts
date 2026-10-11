@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createTestAdmin, createTestDb, TEST_ADMIN, TEST_ENV } from '$lib/server/db/test';
-import type { AppDb } from '$lib/server/db/client';
+import { createTestAdmin, createTestDb, TEST_ADMIN, TEST_ENV } from '#lib/server/db/test.js';
+import type { AppDb } from '#lib/server/db/client.js';
 import { POST as login } from '../src/routes/api/auth/login/+server';
 
 /**

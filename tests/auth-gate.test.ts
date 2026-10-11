@@ -5,10 +5,10 @@ import {
 	AUTH_GATE_WINDOW_MS,
 	assertAuthGateOpen,
 	recordAuthGateFailure
-} from '$lib/server/auth-gate';
-import { mfaChallenges } from '$lib/server/db/schema';
-import { createTestAdmin, createTestDb, TEST_ENV } from '$lib/server/db/test';
-import type { AppDb } from '$lib/server/db/client';
+} from '#lib/server/auth-gate.js';
+import { mfaChallenges } from '#lib/server/db/schema.js';
+import { createTestAdmin, createTestDb, TEST_ENV } from '#lib/server/db/test.js';
+import type { AppDb } from '#lib/server/db/client.js';
 
 describe('auth gate', () => {
 	let db: AppDb;

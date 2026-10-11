@@ -4,8 +4,8 @@ import {
 	fetchOgImage,
 	fetchOpenGraph,
 	parseOpenGraphHtml
-} from '$lib/server/opengraph';
-import type { FetchLike } from '$lib/server/providers/types';
+} from '#lib/server/opengraph.js';
+import type { FetchLike } from '#lib/server/providers/types.js';
 
 describe('parseOpenGraphHtml', () => {
 	it('prefers og: tags over title/description', () => {

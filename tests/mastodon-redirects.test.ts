@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { mastodonExchangeCode } from '$lib/server/providers/mastodon';
-import type { FetchLike } from '$lib/server/providers/types';
+import { mastodonExchangeCode } from '#lib/server/providers/mastodon.js';
+import type { FetchLike } from '#lib/server/providers/types.js';
 
 const json = (value: unknown) =>
 	new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } });

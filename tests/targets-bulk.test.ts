@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { connections, drafts, publishTargets, users } from '$lib/server/db/schema';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { createTestDb } from '$lib/server/db/test';
+import { connections, drafts, publishTargets, users } from '#lib/server/db/schema.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { createTestDb } from '#lib/server/db/test.js';
 import { POST as bulkPOST } from '../src/routes/api/targets/bulk/+server';
 
 describe('POST /api/targets/bulk', () => {

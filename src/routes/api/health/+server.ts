@@ -1,8 +1,8 @@
 import { json } from '@sveltejs/kit';
 import { sql } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { first } from '$lib/server/db/client';
-import { users } from '$lib/server/db/schema';
+import { first } from '#lib/server/db/client.js';
+import { users } from '#lib/server/db/schema.js';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	try {

@@ -31,7 +31,7 @@ import {
 	GITHUB_UPDATE_WORKFLOW,
 	githubUpdateLinks,
 	githubUpdateTarget
-} from '$lib/domain/github-update';
+} from '#lib/domain/github-update.js';
 
 /**
  * Updating a Deploy-button install through its GitHub repository. The Action

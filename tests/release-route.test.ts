@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { CRON_STATE_SETTING, readAppSetting } from '$lib/server/app-settings';
-import { checkForRelease, setOfferPrereleases } from '$lib/server/release';
-import type { AppDb } from '$lib/server/db/client';
-import { createTestDb, TEST_ENV } from '$lib/server/db/test';
+import { CRON_STATE_SETTING, readAppSetting } from '#lib/server/app-settings.js';
+import { checkForRelease, setOfferPrereleases } from '#lib/server/release.js';
+import type { AppDb } from '#lib/server/db/client.js';
+import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
 import { GET as releaseGET } from '../src/routes/api/release/+server';
 
 /**

@@ -3,17 +3,17 @@ import {
 	escapeLittleText,
 	linkedinPostUrl,
 	linkedinProvider
-} from '$lib/server/providers/linkedin';
+} from '#lib/server/providers/linkedin.js';
 import {
 	isThreadsPermalink,
 	threadsAuthorizeUrl,
 	threadsPostUrl,
 	threadsProvider,
 	threadsUpstreamError
-} from '$lib/server/providers/threads';
-import { PublishPartialError } from '$lib/server/providers/types';
-import type { FetchLike } from '$lib/server/providers/types';
-import { validateLinkedinText, validateThreadsText } from '$lib/domain/validation/text';
+} from '#lib/server/providers/threads.js';
+import { PublishPartialError } from '#lib/server/providers/types.js';
+import type { FetchLike } from '#lib/server/providers/types.js';
+import { validateLinkedinText, validateThreadsText } from '#lib/domain/validation/text.js';
 import { captureConsole, loggedLines } from './console-spy';
 
 function mockFetch(
@@ -911,7 +911,7 @@ describe('threads profile resolution', () => {
 				});
 			}
 		});
-		const { threadsExchangeCode } = await import('$lib/server/providers/threads');
+		const { threadsExchangeCode } = await import('#lib/server/providers/threads.js');
 		const out = await threadsExchangeCode(
 			{ appId: 'app', appSecret: 'sec', code: 'CODE', appUrl: 'https://app.test' },
 			fetchImpl
@@ -943,7 +943,7 @@ describe('threads profile resolution', () => {
 			'/access_token': async () => Response.json({ access_token: 'long-tok' }),
 			'graph.threads.net': async () => new Response('denied', { status: 400 })
 		});
-		const { threadsExchangeCode } = await import('$lib/server/providers/threads');
+		const { threadsExchangeCode } = await import('#lib/server/providers/threads.js');
 		const out = await threadsExchangeCode(
 			{ appId: 'app', appSecret: 'sec', code: 'CODE', appUrl: 'https://app.test' },
 			fetchImpl
@@ -966,7 +966,7 @@ describe('threads profile resolution', () => {
 				return Response.json({ id: '999', username: 'testuser', name: 'Test User' });
 			}
 		});
-		const { threadsExchangeCode } = await import('$lib/server/providers/threads');
+		const { threadsExchangeCode } = await import('#lib/server/providers/threads.js');
 		const out = await threadsExchangeCode(
 			{ appId: 'app', appSecret: 'sec', code: 'CODE', appUrl: 'https://app.test' },
 			fetchImpl
@@ -985,7 +985,7 @@ describe('threads profile resolution', () => {
 					threads_profile_picture_url: 'https://cdn.test/pic.jpg'
 				})
 		});
-		const { threadsVerify } = await import('$lib/server/providers/threads');
+		const { threadsVerify } = await import('#lib/server/providers/threads.js');
 		const info = await threadsVerify(
 			{ accessToken: 'tok', threadsUserId: '12345678901234560' },
 			fetchImpl
@@ -997,7 +997,7 @@ describe('threads profile resolution', () => {
 	});
 
 	it('postUrl skips numeric fallback but prefers healed handle', async () => {
-		const { threadsPostUrl } = await import('$lib/server/providers/threads');
+		const { threadsPostUrl } = await import('#lib/server/providers/threads.js');
 		expect(
 			threadsPostUrl('DdHkaqrEruo', {
 				threadsUserId: '12345678901234560',

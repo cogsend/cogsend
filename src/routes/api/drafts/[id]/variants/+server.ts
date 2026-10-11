@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
-import { handleError, ok } from '$lib/server/http';
-import { requireScope, requireUser } from '$lib/server/require';
-import { deleteDraftVariant, setDraftVariant } from '$lib/server/api/operations';
+import { handleError, ok } from '#lib/server/http.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
+import { deleteDraftVariant, setDraftVariant } from '#lib/server/api/operations.js';
 
 export const PUT: RequestHandler = async ({ params, request, locals }) => {
 	try {

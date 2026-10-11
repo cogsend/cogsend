@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types';
-import { loadInsights } from '$lib/server/insights-report';
-import { requireUser } from '$lib/server/require';
+import { loadInsights } from '#lib/server/insights-report.js';
+import { requireUser } from '#lib/server/require.js';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const user = requireUser(locals.user);

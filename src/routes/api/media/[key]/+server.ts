@@ -1,8 +1,8 @@
 import { and, eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { first } from '$lib/server/db/client';
-import { draftMedia, drafts } from '$lib/server/db/schema';
-import { fail, handleError } from '$lib/server/http';
+import { first } from '#lib/server/db/client.js';
+import { draftMedia, drafts } from '#lib/server/db/schema.js';
+import { fail, handleError } from '#lib/server/http.js';
 import {
 	assertSafeStorageKey,
 	jpegResponse,
@@ -11,8 +11,8 @@ import {
 	storedThumbnail,
 	thumbCandidate,
 	type ImageResizer
-} from '$lib/server/media';
-import { requireScope, requireUser } from '$lib/server/require';
+} from '#lib/server/media.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
 
 export const GET: RequestHandler = async ({ params, locals, request, url, platform }) => {
 	try {

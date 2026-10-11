@@ -2,8 +2,8 @@ import {
 	formatThreadsMetaMarker,
 	isThreadsMediaFetchFailure,
 	THREADS_META_AUTH_CODES
-} from '$lib/domain/threads-error';
-import { validateThreadsText } from '$lib/domain/validation/text';
+} from '#lib/domain/threads-error.js';
+import { validateThreadsText } from '#lib/domain/validation/text.js';
 import {
 	mediaByteLength,
 	ProviderError,
@@ -21,7 +21,7 @@ import type {
 	ValidationIssue
 } from './types';
 import { providerFetch } from './timed-fetch';
-import { THREADS_MAX_IMAGE_BYTES } from '$lib/domain/media-limits';
+import { THREADS_MAX_IMAGE_BYTES } from '#lib/domain/media-limits.js';
 
 export const THREADS_MAX_CHARS = 500;
 // Carousel children cap at 20 in the API; the apps allow 10 — match the apps.

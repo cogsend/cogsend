@@ -7,8 +7,8 @@ import {
 	hasAllowedMutationOrigin,
 	isInternalApiPath,
 	secretMatches
-} from '$lib/domain/bearer';
-import { isApiKeyFormat, touchApiKey, verifyApiKey } from '$lib/server/api-keys';
+} from '#lib/domain/bearer.js';
+import { isApiKeyFormat, touchApiKey, verifyApiKey } from '#lib/server/api-keys.js';
 import {
 	SESSION_COOKIE,
 	asMachineUser,
@@ -17,31 +17,31 @@ import {
 	getSessionUser,
 	isFullyVerified,
 	needsTotpEnroll
-} from '$lib/server/auth';
-import { createD1Db, first } from '$lib/server/db/client';
-import { ensureSchemaOnce } from '$lib/server/db/init-sql';
-import { users } from '$lib/server/db/schema';
-import { envFromPlatform } from '$lib/server/env';
-import type { AppEnv } from '$lib/server/env';
-import { memoryMediaStore, r2MediaStore } from '$lib/server/media';
+} from '#lib/server/auth.js';
+import { createD1Db, first } from '#lib/server/db/client.js';
+import { ensureSchemaOnce } from '#lib/server/db/init-sql.js';
+import { users } from '#lib/server/db/schema.js';
+import { envFromPlatform } from '#lib/server/env.js';
+import type { AppEnv } from '#lib/server/env.js';
+import { memoryMediaStore, r2MediaStore } from '#lib/server/media.js';
 import {
 	countingD1,
 	countingMediaStore,
 	parseSubrequestLimit,
 	SubrequestBudget
-} from '$lib/server/budget';
-import { runSchedulerTick } from '$lib/server/scheduler';
-import { securityHeadersFor } from '$lib/server/security-headers';
-import { isPinnedAppUrl } from '$lib/domain/app-url';
-import { readStoredAppUrl, rememberAppUrl } from '$lib/server/app-settings';
-import { verifyTickToken } from '$lib/server/tick-token';
-import { authorizeMcpRequest } from '$lib/server/mcp-auth';
+} from '#lib/server/budget.js';
+import { runSchedulerTick } from '#lib/server/scheduler.js';
+import { securityHeadersFor } from '#lib/server/security-headers.js';
+import { isPinnedAppUrl } from '#lib/domain/app-url.js';
+import { readStoredAppUrl, rememberAppUrl } from '#lib/server/app-settings.js';
+import { verifyTickToken } from '#lib/server/tick-token.js';
+import { authorizeMcpRequest } from '#lib/server/mcp-auth.js';
 import {
 	isRateLimitedPath,
 	rateLimitKey,
 	rateLimitProblem,
 	type RateLimiter
-} from '$lib/server/rate-limit';
+} from '#lib/server/rate-limit.js';
 
 export function isPublicPath(path: string): boolean {
 	if (path === '/login' || path === '/login/setup-2fa' || path === '/login/verify') return true;
@@ -105,7 +105,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	// Every D1, R2 and queue call below is counted against this request's
-	// subrequest limit; see $lib/server/budget.
+	// subrequest limit; see #lib/server/budget.
 	const budget = new SubrequestBudget(
 		parseSubrequestLimit((platformEnv as unknown as Record<string, unknown>).SUBREQUEST_LIMIT)
 	);
@@ -115,7 +115,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const db = createD1Db(d1);
 	event.locals.db = db;
 	// A deployment only learns its URL once it exists, so APP_URL is normally
-	// derived from the request itself (see $lib/domain/app-url) — and recorded
+	// derived from the request itself (see #lib/domain/app-url) — and recorded
 	// below for the invocations that have no request: the cron tick and queue
 	// consumers. A pinned APP_URL skips the read entirely.
 	const configuredAppUrl =

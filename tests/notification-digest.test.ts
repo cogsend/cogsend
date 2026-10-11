@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
 import { captureConsole, loggedLines } from './console-spy';
 import {
 	connections,
@@ -9,8 +9,8 @@ import {
 	notificationState,
 	publishTargets,
 	users
-} from '$lib/server/db/schema';
-import { DIGEST_ID, maybeSendFailureDigest, runSchedulerTick } from '$lib/server/scheduler';
+} from '#lib/server/db/schema.js';
+import { DIGEST_ID, maybeSendFailureDigest, runSchedulerTick } from '#lib/server/scheduler.js';
 
 function captureFetch(status = 200) {
 	const calls: Array<{ url: string; body: Record<string, unknown> }> = [];

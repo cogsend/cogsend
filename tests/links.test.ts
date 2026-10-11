@@ -5,7 +5,7 @@ import {
 	previewDomain,
 	safeHttpUrl,
 	shouldAttachLinkCard
-} from '$lib/domain/links';
+} from '#lib/domain/links.js';
 
 describe('links', () => {
 	it('extracts urls and strips trailing punctuation', () => {

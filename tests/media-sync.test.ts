@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { persistMediaLayout } from '$lib/domain/media-sync';
+import { persistMediaLayout } from '#lib/domain/media-sync.js';
 
 type Call = { method: string; url: string; body: unknown };
 

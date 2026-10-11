@@ -1,10 +1,10 @@
 import { eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { first } from '$lib/server/db/client';
-import { draftMedia } from '$lib/server/db/schema';
-import { fail, handleError } from '$lib/server/http';
-import { assertSafeStorageKey, serveMediaBytes } from '$lib/server/media';
-import { verifyPublicMediaSig } from '$lib/server/public-media';
+import { first } from '#lib/server/db/client.js';
+import { draftMedia } from '#lib/server/db/schema.js';
+import { fail, handleError } from '#lib/server/http.js';
+import { assertSafeStorageKey, serveMediaBytes } from '#lib/server/media.js';
+import { verifyPublicMediaSig } from '#lib/server/public-media.js';
 
 // Publish-time asset delivery (e.g. Threads fetches image_url server-side).
 // Possession of a fresh HMAC-signed URL is the authorization: no session, no

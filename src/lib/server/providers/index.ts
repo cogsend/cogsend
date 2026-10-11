@@ -1,4 +1,4 @@
-import { isZernioConnection } from '$lib/domain/zernio';
+import { isZernioConnection } from '#lib/domain/zernio.js';
 import { blueskyProvider } from './bluesky';
 import { linkedinProvider } from './linkedin';
 import { mastodonProvider } from './mastodon';

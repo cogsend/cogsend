@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { decryptJson, encryptJson } from '$lib/server/crypto';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { connections, users } from '$lib/server/db/schema';
-import { createTestDb, TEST_ENV } from '$lib/server/db/test';
+import { decryptJson, encryptJson } from '#lib/server/crypto.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { connections, users } from '#lib/server/db/schema.js';
+import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
 import {
 	resolveZernioKey,
 	storedZernioKey,
@@ -11,8 +11,8 @@ import {
 	upsertZernioConnection,
 	zernioCallbackUrl,
 	zernioKeyProblem
-} from '$lib/server/zernio-import';
-import { zernioHttpError, type ZernioAccount } from '$lib/server/zernio';
+} from '#lib/server/zernio-import.js';
+import { zernioHttpError, type ZernioAccount } from '#lib/server/zernio.js';
 
 const account = (over: Partial<ZernioAccount> = {}): ZernioAccount => ({
 	_id: 'acc-1',

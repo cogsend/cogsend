@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { handleError } from '$lib/server/http';
-import { ApiOperationError } from '$lib/server/api/operation-error';
+import { handleError } from '#lib/server/http.js';
+import { ApiOperationError } from '#lib/server/api/operation-error.js';
 import { captureConsole, loggedLines } from './console-spy';
 
 describe('handleError', () => {

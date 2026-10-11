@@ -14,10 +14,10 @@ import {
 	notExists,
 	or
 } from 'drizzle-orm';
-import { STALE_CLAIM_MS, selectDueScheduledTargets } from '$lib/domain/due-jobs';
-import { draftExcerpt } from '$lib/domain/excerpt';
-import { humanizeError } from '$lib/domain/human-error';
-import { displayHandle, platformName } from '$lib/domain/platforms';
+import { STALE_CLAIM_MS, selectDueScheduledTargets } from '#lib/domain/due-jobs.js';
+import { draftExcerpt } from '#lib/domain/excerpt.js';
+import { humanizeError } from '#lib/domain/human-error.js';
+import { displayHandle, platformName } from '#lib/domain/platforms.js';
 import { batchQueries, first, newId, type AppDb } from './db/client';
 import {
 	connections,

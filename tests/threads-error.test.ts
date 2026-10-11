@@ -5,7 +5,7 @@ import {
 	isThreadsAuthFailure,
 	isThreadsMediaFetchFailure,
 	parseThreadsMetaMarker
-} from '$lib/domain/threads-error';
+} from '#lib/domain/threads-error.js';
 
 describe('threads meta marker', () => {
 	it('formats and parses codes with and without subcodes', () => {

@@ -9,7 +9,7 @@
  * anywhere else.
  */
 
-import { parseXPostUrl, quotedPostText } from '$lib/domain/x-quote';
+import { parseXPostUrl, quotedPostText } from '#lib/domain/x-quote.js';
 import {
 	decodeHtmlEntities,
 	fetchOpenGraph,

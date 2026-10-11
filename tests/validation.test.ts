@@ -3,16 +3,16 @@ import {
 	PLATFORM_LIMITS,
 	isOverSelectedPlatformLimit,
 	platformLimit
-} from '$lib/domain/editor-limits';
-import { platformMark } from '$lib/domain/platform-marks';
+} from '#lib/domain/editor-limits.js';
+import { platformMark } from '#lib/domain/platform-marks.js';
 import {
 	countGraphemes,
 	mastodonWeightedLength,
 	validateBlueskyText,
 	validateMastodonText
-} from '$lib/domain/validation/text';
-import { blueskyProvider, buildLinkFacets, mastodonProvider } from '$lib/server/providers';
-import { utf8ByteLength } from '$lib/domain/bytes';
+} from '#lib/domain/validation/text.js';
+import { blueskyProvider, buildLinkFacets, mastodonProvider } from '#lib/server/providers/index.js';
+import { utf8ByteLength } from '#lib/domain/bytes.js';
 
 describe('countGraphemes', () => {
 	it('counts ascii 1:1', () => {

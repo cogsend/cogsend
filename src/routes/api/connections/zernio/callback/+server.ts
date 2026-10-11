@@ -1,14 +1,14 @@
 import { isRedirect, redirect } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { ZERNIO_PENDING_MARKER, fromZernioPlatform } from '$lib/domain/zernio';
-import { SESSION_COOKIE } from '$lib/server/auth';
-import { decryptSecret } from '$lib/server/crypto';
-import { first } from '$lib/server/db/client';
-import { oauthPending } from '$lib/server/db/schema';
-import { splitOAuthState, verifyOAuthState } from '$lib/server/oauth-state';
-import { listAccounts, zernioApiMessage } from '$lib/server/zernio';
-import { upsertZernioConnection } from '$lib/server/zernio-import';
+import { ZERNIO_PENDING_MARKER, fromZernioPlatform } from '#lib/domain/zernio.js';
+import { SESSION_COOKIE } from '#lib/server/auth.js';
+import { decryptSecret } from '#lib/server/crypto.js';
+import { first } from '#lib/server/db/client.js';
+import { oauthPending } from '#lib/server/db/schema.js';
+import { splitOAuthState, verifyOAuthState } from '#lib/server/oauth-state.js';
+import { listAccounts, zernioApiMessage } from '#lib/server/zernio.js';
+import { upsertZernioConnection } from '#lib/server/zernio-import.js';
 
 /**
  * Zernio lands here after its hosted flow with `connected`, `profileId`,

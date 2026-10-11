@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeyPairSync } from 'node:crypto';
 import { hash as blake3 } from 'blake3-wasm';
-import { compareVersions } from '$lib/domain/release-check';
+import { compareVersions } from '#lib/domain/release-check.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	REQUIRED_BINDINGS,
@@ -28,7 +28,7 @@ import {
 	verifyManifestSignature,
 	type ApiBinding,
 	type UpdateManifest
-} from '$lib/domain/update-manifest';
+} from '#lib/domain/update-manifest.js';
 
 /**
  * The release bundle is written by a Node script and read by the Worker. This

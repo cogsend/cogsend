@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types';
-import { listConnections } from '$lib/server/connection-list';
-import { requireUser } from '$lib/server/require';
+import { listConnections } from '#lib/server/connection-list.js';
+import { requireUser } from '#lib/server/require.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals.user);

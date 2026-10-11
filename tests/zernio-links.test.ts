@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { zernioLink } from '$lib/domain/zernio-links';
+import { zernioLink } from '#lib/domain/zernio-links.js';
 
 describe('zernioLink', () => {
 	it('sends a plain link through the CogSend short link, tagged with the UTMs and placement', () => {

@@ -1,11 +1,11 @@
 import { eq, inArray } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { getAdminUser, isFullyVerified, needsTotpEnroll } from '$lib/server/auth';
-import { clearMfaCookie, clearSessionCookie } from '$lib/server/cookies';
-import { chunkIds } from '$lib/server/db/client';
-import { draftMedia, drafts, users } from '$lib/server/db/schema';
-import { fail, handleError, ok } from '$lib/server/http';
-import { requireSession } from '$lib/server/require';
+import { getAdminUser, isFullyVerified, needsTotpEnroll } from '#lib/server/auth.js';
+import { clearMfaCookie, clearSessionCookie } from '#lib/server/cookies.js';
+import { chunkIds } from '#lib/server/db/client.js';
+import { draftMedia, drafts, users } from '#lib/server/db/schema.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { requireSession } from '#lib/server/require.js';
 import {
 	assertAuthGateOpen,
 	assertPasswordGateOpen,
@@ -13,11 +13,11 @@ import {
 	clearPasswordGate,
 	recordAuthGateFailure,
 	recordPasswordFailure
-} from '$lib/server/auth-gate';
-import { rateLimitKey } from '$lib/server/rate-limit';
-import { checkUserCode } from '$lib/server/totp';
-import { verifyPassword } from '$lib/server/crypto';
-import { deleteMediaObjects } from '$lib/server/media';
+} from '#lib/server/auth-gate.js';
+import { rateLimitKey } from '#lib/server/rate-limit.js';
+import { checkUserCode } from '#lib/server/totp.js';
+import { verifyPassword } from '#lib/server/crypto.js';
+import { deleteMediaObjects } from '#lib/server/media.js';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	const user = locals.user;

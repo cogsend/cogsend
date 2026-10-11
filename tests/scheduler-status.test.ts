@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { schedulerMessage, tickAdvice } from '$lib/domain/scheduler-status';
-import type { DeployCronState } from '$lib/server/app-settings';
+import { schedulerMessage, tickAdvice } from '#lib/domain/scheduler-status.js';
+import type { DeployCronState } from '#lib/server/app-settings.js';
 
 const cron = (status: DeployCronState['status']): DeployCronState => ({
 	status,

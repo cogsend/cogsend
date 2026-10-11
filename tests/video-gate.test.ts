@@ -1,11 +1,11 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { encryptJson } from '$lib/server/crypto';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { draftMedia, drafts, users } from '$lib/server/db/schema';
-import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
-import { readAppEnv } from '$lib/server/env';
-import { connections, publishTargets } from '$lib/server/db/schema';
-import { publishTarget } from '$lib/server/publish';
+import { encryptJson } from '#lib/server/crypto.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { draftMedia, drafts, users } from '#lib/server/db/schema.js';
+import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
+import { readAppEnv } from '#lib/server/env.js';
+import { connections, publishTargets } from '#lib/server/db/schema.js';
+import { publishTarget } from '#lib/server/publish.js';
 import { POST as mediaPOST } from '../src/routes/api/drafts/[id]/media/+server';
 
 /**

@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
-import { handleError, ok } from '$lib/server/http';
-import { assertSchedulerOrTickToken } from '$lib/server/require';
-import { runSchedulerTick } from '$lib/server/scheduler';
+import { handleError, ok } from '#lib/server/http.js';
+import { assertSchedulerOrTickToken } from '#lib/server/require.js';
+import { runSchedulerTick } from '#lib/server/scheduler.js';
 
 export const POST: RequestHandler = async ({ request, locals, platform }) => {
 	try {

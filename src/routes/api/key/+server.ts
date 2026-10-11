@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
-import { parseApiScopes } from '$lib/domain/api-scopes';
-import { getActiveApiKey, revokeApiKeys, rotateApiKey } from '$lib/server/api-keys';
-import { fail, handleError, ok } from '$lib/server/http';
-import { requireSession } from '$lib/server/require';
+import { parseApiScopes } from '#lib/domain/api-scopes.js';
+import { getActiveApiKey, revokeApiKeys, rotateApiKey } from '#lib/server/api-keys.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { requireSession } from '#lib/server/require.js';
 
 function metadataOf(
 	active: {

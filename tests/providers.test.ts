@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { blueskyProvider, mastodonProvider } from '$lib/server/providers';
-import { waitForMastodonMedia } from '$lib/server/providers/mastodon';
-import type { FetchLike } from '$lib/server/providers/types';
-import { TID_RE, targetRecordKey } from '$lib/domain/tid';
+import { blueskyProvider, mastodonProvider } from '#lib/server/providers/index.js';
+import { waitForMastodonMedia } from '#lib/server/providers/mastodon.js';
+import type { FetchLike } from '#lib/server/providers/types.js';
+import { TID_RE, targetRecordKey } from '#lib/domain/tid.js';
 
 function mockFetch(
 	handlers: Record<string, (req: Request) => Promise<Response> | Response>
@@ -480,7 +480,7 @@ describe('blueskyProvider resume cids', () => {
 
 describe('sanitizeBlueskyPdsHost', () => {
 	it('rejects private hosts and cleartext http in prod', async () => {
-		const { sanitizeBlueskyPdsHost } = await import('$lib/server/providers/bluesky');
+		const { sanitizeBlueskyPdsHost } = await import('#lib/server/providers/bluesky.js');
 		expect(sanitizeBlueskyPdsHost('https://bsky.social')).toBe('https://bsky.social');
 		expect(sanitizeBlueskyPdsHost('bsky.social')).toBe('https://bsky.social');
 		expect(() => sanitizeBlueskyPdsHost('http://127.0.0.1:8080')).toThrow(
@@ -603,7 +603,7 @@ describe('bluesky session refresh', () => {
 		`h.${btoa(JSON.stringify({ exp })).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')}.s`;
 
 	it('reads the expiry of an access token', async () => {
-		const { jwtExpiryMs } = await import('$lib/server/providers/bluesky');
+		const { jwtExpiryMs } = await import('#lib/server/providers/bluesky.js');
 		expect(jwtExpiryMs(jwt(1_900_000_000))).toBe(1_900_000_000_000);
 		expect(jwtExpiryMs('not-a-jwt')).toBeNull();
 		expect(jwtExpiryMs(undefined)).toBeNull();

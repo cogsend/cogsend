@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertScheduler } from '$lib/server/require';
+import { assertScheduler } from '#lib/server/require.js';
 
 const env = {
 	AUTH_SECRET: 'auth-secret-value',

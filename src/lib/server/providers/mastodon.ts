@@ -1,6 +1,6 @@
-import { isBlockedInstanceHost } from '$lib/domain/instance-host';
-import { validatePollConfig } from '$lib/domain/poll';
-import { validateMastodonText } from '$lib/domain/validation/text';
+import { isBlockedInstanceHost } from '#lib/domain/instance-host.js';
+import { validatePollConfig } from '#lib/domain/poll.js';
+import { validateMastodonText } from '#lib/domain/validation/text.js';
 import { mediaByteLength } from './types';
 import type {
 	ConnectionCredentials,

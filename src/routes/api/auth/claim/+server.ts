@@ -1,12 +1,12 @@
 import { sql } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { timingSafeEqual, utf8Bytes } from '$lib/domain/bytes';
-import { emailProblem, normalizeEmail, passwordProblem } from '$lib/domain/credentials';
-import { createSession, getAdminUser, needsSetup } from '$lib/server/auth';
-import { setMfaCookie, setSessionCookie } from '$lib/server/cookies';
-import { hashPassword, hmacHex } from '$lib/server/crypto';
-import { fail, handleError, ok } from '$lib/server/http';
-import { startEnrollChallenge } from '$lib/server/totp';
+import { timingSafeEqual, utf8Bytes } from '#lib/domain/bytes.js';
+import { emailProblem, normalizeEmail, passwordProblem } from '#lib/domain/credentials.js';
+import { createSession, getAdminUser, needsSetup } from '#lib/server/auth.js';
+import { setMfaCookie, setSessionCookie } from '#lib/server/cookies.js';
+import { hashPassword, hmacHex } from '#lib/server/crypto.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { startEnrollChallenge } from '#lib/server/totp.js';
 
 /** Both sides are MACed before the comparison, so it runs over equal-length
  *  digests and its timing says nothing about the key's length or prefix. */

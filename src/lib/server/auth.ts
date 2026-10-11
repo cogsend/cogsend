@@ -6,9 +6,9 @@ import {
 	shouldSlideSession,
 	shouldTouchSeen,
 	shouldUseSecureCookie
-} from '$lib/domain/session-cookie';
-import { randomHex } from '$lib/domain/bytes';
-import { parseProfileSettings } from '$lib/domain/profile-settings';
+} from '#lib/domain/session-cookie.js';
+import { randomHex } from '#lib/domain/bytes.js';
+import { parseProfileSettings } from '#lib/domain/profile-settings.js';
 import { hmacHex, verifyPassword } from './crypto';
 import { first, newId, type AppDb } from './db/client';
 import { sessions, users } from './db/schema';

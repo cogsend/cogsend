@@ -1,10 +1,10 @@
 import { and, eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { isZernioConnection } from '$lib/domain/zernio';
-import { decryptJson, encryptJson } from '$lib/server/crypto';
-import { first, parseJson } from '$lib/server/db/client';
-import { connections } from '$lib/server/db/schema';
-import { fail, handleError, ok } from '$lib/server/http';
+import { isZernioConnection } from '#lib/domain/zernio.js';
+import { decryptJson, encryptJson } from '#lib/server/crypto.js';
+import { first, parseJson } from '#lib/server/db/client.js';
+import { connections } from '#lib/server/db/schema.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
 import {
 	blueskyCreateSession,
 	getProvider,
@@ -13,11 +13,11 @@ import {
 	threadsVerify,
 	xVerify,
 	type ConnectionCredentials
-} from '$lib/server/providers';
-import { mastodonVerifyCredentials } from '$lib/server/providers/mastodon';
-import { isLocalAppUrl } from '$lib/domain/app-url';
-import { requireSession } from '$lib/server/require';
-import { isZernioAccountDead, listAccounts } from '$lib/server/zernio';
+} from '#lib/server/providers/index.js';
+import { mastodonVerifyCredentials } from '#lib/server/providers/mastodon.js';
+import { isLocalAppUrl } from '#lib/domain/app-url.js';
+import { requireSession } from '#lib/server/require.js';
+import { isZernioAccountDead, listAccounts } from '#lib/server/zernio.js';
 
 export const POST: RequestHandler = async ({ params, locals }) => {
 	const { id } = params;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bindOAuthState, splitOAuthState, verifyOAuthState } from '$lib/server/oauth-state';
+import { bindOAuthState, splitOAuthState, verifyOAuthState } from '#lib/server/oauth-state.js';
 
 const SECRET = 'test-oauth-binding-secret';
 

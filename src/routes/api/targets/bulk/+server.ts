@@ -1,17 +1,17 @@
 import { and, eq, inArray, isNull, lte, or } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { STALE_CLAIM_MS } from '$lib/domain/due-jobs';
+import { STALE_CLAIM_MS } from '#lib/domain/due-jobs.js';
 import {
 	connectionIdsOverflow,
 	normalizeConnectionIds,
 	runAtError
-} from '$lib/domain/request-limits';
-import { chunkIds, first } from '$lib/server/db/client';
-import { connections, drafts, publishTargets } from '$lib/server/db/schema';
-import { fail, handleError, ok } from '$lib/server/http';
-import { PUBLISH_RESERVE_CALLS, publishTarget, refreshDraftStatus } from '$lib/server/publish';
-import { refuseInFlightOrPublished } from '$lib/server/publish-plan';
-import { requireScope, requireUser } from '$lib/server/require';
+} from '#lib/domain/request-limits.js';
+import { chunkIds, first } from '#lib/server/db/client.js';
+import { connections, drafts, publishTargets } from '#lib/server/db/schema.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { PUBLISH_RESERVE_CALLS, publishTarget, refreshDraftStatus } from '#lib/server/publish.js';
+import { refuseInFlightOrPublished } from '#lib/server/publish-plan.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
 
 type BulkOp = 'cancel' | 'retry' | 'reschedule';
 
@@ -83,7 +83,7 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 
 		const staleBefore = new Date(now.getTime() - STALE_CLAIM_MS);
 		// Retries publish inline, one after another, inside this request's call
-		// budget (see $lib/server/budget). Once one is left for the scheduler,
+		// budget (see #lib/server/budget). Once one is left for the scheduler,
 		// the rest are only reset to "publish now" and the next tick sends them.
 		let retriesStarted = 0;
 		let deferring = false;

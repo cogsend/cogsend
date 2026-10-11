@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { newId } from '$lib/server/db/client';
-import type { AppDb } from '$lib/server/db/client';
-import { connections, oauthPending, users } from '$lib/server/db/schema';
-import { createTestDb, TEST_ENV } from '$lib/server/db/test';
-import { encryptSecret } from '$lib/server/crypto';
-import { bindOAuthState } from '$lib/server/oauth-state';
+import { newId } from '#lib/server/db/client.js';
+import type { AppDb } from '#lib/server/db/client.js';
+import { connections, oauthPending, users } from '#lib/server/db/schema.js';
+import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
+import { encryptSecret } from '#lib/server/crypto.js';
+import { bindOAuthState } from '#lib/server/oauth-state.js';
 import { GET as linkedinCallback } from '../src/routes/api/connections/linkedin/callback/+server';
 
 async function redirected(call: () => unknown): Promise<{ status: number; location: string }> {

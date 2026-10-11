@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findExistingConnection } from '$lib/server/oauth-callback';
+import { findExistingConnection } from '#lib/server/oauth-callback.js';
 
 describe('findExistingConnection', () => {
 	const rows = [

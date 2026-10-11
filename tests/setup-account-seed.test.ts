@@ -1,20 +1,20 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import type { AppDb } from '$lib/server/db/client';
-import { createTestDb } from '$lib/server/db/test';
+import type { AppDb } from '#lib/server/db/client.js';
+import { createTestDb } from '#lib/server/db/test.js';
 import {
 	hashPassword as appHashPassword,
 	verifyPassword as appVerifyPassword
-} from '$lib/server/crypto';
-import { authenticatePassword, needsSetup } from '$lib/server/auth';
+} from '#lib/server/crypto.js';
+import { authenticatePassword, needsSetup } from '#lib/server/auth.js';
 import {
 	EMAIL_MAX as APP_EMAIL_MAX,
 	PASSWORD_MIN as APP_PASSWORD_MIN,
 	emailProblem as appEmailProblem,
 	normalizeEmail as appNormalizeEmail,
 	passwordProblem as appPasswordProblem
-} from '$lib/domain/credentials';
+} from '#lib/domain/credentials.js';
 import {
 	EMAIL_MAX,
 	KDF_ITERATIONS,

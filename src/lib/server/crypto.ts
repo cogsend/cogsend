@@ -6,7 +6,7 @@ import {
 	randomBytes,
 	timingSafeEqual,
 	utf8Bytes
-} from '$lib/domain/bytes';
+} from '#lib/domain/bytes.js';
 
 /**
  * Workers Web Crypto rejects PBKDF2 iteration counts above 100_000 on every

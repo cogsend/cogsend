@@ -1,18 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { STALE_CLAIM_MS } from '$lib/domain/due-jobs';
-import { encryptJson } from '$lib/server/crypto';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { connections, drafts, publishTargets, users } from '$lib/server/db/schema';
-import { createTestDb, TEST_ENV } from '$lib/server/db/test';
+import { STALE_CLAIM_MS } from '#lib/domain/due-jobs.js';
+import { encryptJson } from '#lib/server/crypto.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { connections, drafts, publishTargets, users } from '#lib/server/db/schema.js';
+import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
 import {
 	classifyWinner,
 	refuseInFlightOrPublished,
 	ensureTargets,
 	isUniqueConstraintError,
 	pickTargetWinner
-} from '$lib/server/publish-plan';
-import { selectDueScheduledTargets } from '$lib/domain/due-jobs';
+} from '#lib/server/publish-plan.js';
+import { selectDueScheduledTargets } from '#lib/domain/due-jobs.js';
 
 describe('pickTargetWinner', () => {
 	it('prefers a remotePostId row over a newer scheduled sibling', () => {

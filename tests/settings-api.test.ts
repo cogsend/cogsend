@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { users } from '$lib/server/db/schema';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { createTestDb, TEST_ENV } from '$lib/server/db/test';
+import { users } from '#lib/server/db/schema.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
 import { GET as settingsGET, PATCH as settingsPATCH } from '../src/routes/api/settings/+server';
 
 describe('settings api', () => {

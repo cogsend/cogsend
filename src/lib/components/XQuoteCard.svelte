@@ -16,8 +16,8 @@
 
 <script lang="ts">
 	import { TriangleAlert, X } from '@lucide/svelte';
-	import { parseXPostUrl, quotedPostText } from '$lib/domain/x-quote';
-	import { platformNames } from '$lib/domain/platforms';
+	import { parseXPostUrl, quotedPostText } from '#lib/domain/x-quote.js';
+	import { platformNames } from '#lib/domain/platforms.js';
 
 	let {
 		url,

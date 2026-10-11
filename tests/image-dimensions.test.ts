@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeImageDimensions } from '$lib/server/image-dimensions';
+import { decodeImageDimensions } from '#lib/server/image-dimensions.js';
 
 function pngBytes(width: number, height: number): Uint8Array {
 	const b = new Uint8Array(33);

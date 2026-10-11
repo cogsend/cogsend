@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildAgentPrompt } from '$lib/domain/agent-prompt';
-import { PLATFORM_SETUP, callbackUri, type OAuthPlatformId } from '$lib/domain/platform-setup';
+import { buildAgentPrompt } from '#lib/domain/agent-prompt.js';
+import { PLATFORM_SETUP, callbackUri, type OAuthPlatformId } from '#lib/domain/platform-setup.js';
 
 /**
  * The prompt an operator hands to a browser agent. It is only useful if the

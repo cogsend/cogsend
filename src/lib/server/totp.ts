@@ -1,15 +1,15 @@
 import { and, count, eq, isNull, lt, or } from 'drizzle-orm';
-import { generateBackupCodes, normalizeBackupCode } from '$lib/domain/backup-codes';
-import { formatSecretGroups } from '$lib/domain/base32';
-import { randomHex } from '$lib/domain/bytes';
+import { generateBackupCodes, normalizeBackupCode } from '#lib/domain/backup-codes.js';
+import { formatSecretGroups } from '#lib/domain/base32.js';
+import { randomHex } from '#lib/domain/bytes.js';
 import {
 	buildOtpauthUrl,
 	generateTotpSecret,
 	secretFromBase32,
 	verifyTotp
-} from '$lib/domain/totp';
+} from '#lib/domain/totp.js';
 import { createSession, revokeOtherSessions, type SessionUser } from './auth';
-import { timingSafeEqual, utf8Bytes } from '$lib/domain/bytes';
+import { timingSafeEqual, utf8Bytes } from '#lib/domain/bytes.js';
 import { decryptSecret, encryptSecret, hmacHex } from './crypto';
 import { first, newId, type AppDb } from './db/client';
 import { mfaChallenges, totpBackupCodes, users } from './db/schema';

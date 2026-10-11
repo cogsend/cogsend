@@ -1,12 +1,12 @@
 import { and, eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { encryptJson } from '$lib/server/crypto';
-import { newId } from '$lib/server/db/client';
-import { findExistingConnection } from '$lib/server/oauth-callback';
-import { connections } from '$lib/server/db/schema';
-import { fail, handleError, ok } from '$lib/server/http';
-import { blueskyCreateSession } from '$lib/server/providers';
-import { requireSession } from '$lib/server/require';
+import { encryptJson } from '#lib/server/crypto.js';
+import { newId } from '#lib/server/db/client.js';
+import { findExistingConnection } from '#lib/server/oauth-callback.js';
+import { connections } from '#lib/server/db/schema.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { blueskyCreateSession } from '#lib/server/providers/index.js';
+import { requireSession } from '#lib/server/require.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {

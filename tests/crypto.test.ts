@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bytesToHex, hexToBytes } from '$lib/domain/bytes';
+import { bytesToHex, hexToBytes } from '#lib/domain/bytes.js';
 import {
 	decryptJson,
 	decryptSecret,
@@ -7,7 +7,7 @@ import {
 	encryptSecret,
 	hashPassword,
 	verifyPassword
-} from '$lib/server/crypto';
+} from '#lib/server/crypto.js';
 
 const KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 

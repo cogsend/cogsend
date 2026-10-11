@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
-import { humanizedCause } from '$lib/domain/human-error';
-import { ApiOperationError } from '$lib/server/api/operation-error';
+import { humanizedCause } from '#lib/domain/human-error.js';
+import { ApiOperationError } from '#lib/server/api/operation-error.js';
 
 export function ok(data: unknown, status = 200) {
 	return json(data, { status });

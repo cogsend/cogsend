@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types';
-import { loadDraftSummaries, loadQueueList } from '$lib/server/post-list';
-import { requireUser } from '$lib/server/require';
+import { loadDraftSummaries, loadQueueList } from '#lib/server/post-list.js';
+import { requireUser } from '#lib/server/require.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals.user);

@@ -1,6 +1,6 @@
-import { randomHex } from '$lib/domain/bytes';
+import { randomHex } from '#lib/domain/bytes.js';
 import { decodeImageDimensions } from './image-dimensions';
-import { validateImageUpload, validateVideoUpload } from '$lib/domain/media-limits';
+import { validateImageUpload, validateVideoUpload } from '#lib/domain/media-limits.js';
 import type { MediaStore } from './providers/types';
 
 export type { MediaStore };

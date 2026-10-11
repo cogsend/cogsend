@@ -19,7 +19,7 @@ import {
 	platformSecretNames,
 	type OAuthPlatformId,
 	type PlatformConfigured
-} from '$lib/domain/platform-setup';
+} from '#lib/domain/platform-setup.js';
 import { decryptJson, encryptJson } from './crypto';
 import { first, type AppDb } from './db/client';
 import { appSettings } from './db/schema';

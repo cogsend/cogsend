@@ -13,18 +13,18 @@
 	} from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
-	import favicon from '$lib/assets/favicon.svg';
-	import faviconDark from '$lib/assets/favicon-dark.svg';
-	import logoGlyph from '$lib/assets/logo-glyph.svg';
-	import { initialsOf } from '$lib/components/initials';
-	import { menuNav } from '$lib/components/menu-nav';
+	import favicon from '#lib/assets/favicon.svg';
+	import faviconDark from '#lib/assets/favicon-dark.svg';
+	import logoGlyph from '#lib/assets/logo-glyph.svg';
+	import { initialsOf } from '#lib/components/initials.js';
+	import { menuNav } from '#lib/components/menu-nav.js';
 	import {
 		markUpdateSeen,
 		noteRelease,
 		readUpdateSeen,
 		updateNotice
-	} from '$lib/components/update-notice.svelte';
-	import { browserTimeZone } from '$lib/domain/time-zone';
+	} from '#lib/components/update-notice.svelte.js';
+	import { browserTimeZone } from '#lib/domain/time-zone.js';
 
 	let workspaceTrigger: HTMLButtonElement | null = $state(null);
 	let profileTrigger: HTMLButtonElement | null = $state(null);

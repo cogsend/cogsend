@@ -24,11 +24,11 @@
 		PLATFORM_LIMITS,
 		isOverSelectedPlatformLimit,
 		platformLimit
-	} from '$lib/domain/editor-limits';
-	import { humanizeError } from '$lib/domain/human-error';
-	import { dialogFocus } from '$lib/components/dialog-focus';
-	import { initialsOf } from '$lib/components/initials';
-	import { platformColorClass } from '$lib/components/platform-color';
+	} from '#lib/domain/editor-limits.js';
+	import { humanizeError } from '#lib/domain/human-error.js';
+	import { dialogFocus } from '#lib/components/dialog-focus.js';
+	import { initialsOf } from '#lib/components/initials.js';
+	import { platformColorClass } from '#lib/components/platform-color.js';
 	import {
 		BLUESKY_MAX_IMAGE_BYTES,
 		LINKEDIN_MAX_IMAGES,
@@ -39,9 +39,9 @@
 		groupMediaBySegment,
 		mediaSizeProblem,
 		remapSegmentIndexAfterRemoval
-	} from '$lib/domain/media-limits';
-	import { shrinkToFit } from '$lib/components/shrink-image';
-	import { persistMediaLayout, type MediaMove } from '$lib/domain/media-sync';
+	} from '#lib/domain/media-limits.js';
+	import { shrinkToFit } from '#lib/components/shrink-image.js';
+	import { persistMediaLayout, type MediaMove } from '#lib/domain/media-sync.js';
 	import {
 		customizePlatformBody,
 		effectivePlatformBody,
@@ -54,7 +54,7 @@
 		customizedBodiesForSave,
 		type PlatformId,
 		type PlatformOverrideMap
-	} from '$lib/domain/platform-sync';
+	} from '#lib/domain/platform-sync.js';
 	import {
 		supportsThreads,
 		accountLabel,
@@ -63,9 +63,9 @@
 		platformNames,
 		platformRank,
 		PLATFORM_ORDER
-	} from '$lib/domain/platforms';
-	import { parsePollConfig, validatePollConfig, type PollConfig } from '$lib/domain/poll';
-	import type { ProfileSettings } from '$lib/domain/profile-settings';
+	} from '#lib/domain/platforms.js';
+	import { parsePollConfig, validatePollConfig, type PollConfig } from '#lib/domain/poll.js';
+	import type { ProfileSettings } from '#lib/domain/profile-settings.js';
 	import {
 		DEFAULT_SCHEDULE_OFFSET,
 		earliestFutureScheduleValue,
@@ -75,9 +75,9 @@
 		scheduleFromDHM,
 		schedulePreviewText,
 		scheduleValueToIso
-	} from '$lib/domain/schedule-helpers';
-	import { localTimezoneShort } from '$lib/domain/relative-time';
-	import { splitLongText } from '$lib/domain/text-split';
+	} from '#lib/domain/schedule-helpers.js';
+	import { localTimezoneShort } from '#lib/domain/relative-time.js';
+	import { splitLongText } from '#lib/domain/text-split.js';
 	import {
 		addSegment,
 		flattenThreadBody,
@@ -90,14 +90,14 @@
 		splitAtMarkers,
 		splitThreadSegments,
 		updateSegment
-	} from '$lib/domain/thread-segments';
+	} from '#lib/domain/thread-segments.js';
 	import {
 		countGraphemes,
 		mastodonWeightedLength,
 		xWeightedLength
-	} from '$lib/domain/validation/text';
-	import { utf8ByteLength } from '$lib/domain/bytes';
-	import { draftExcerpt } from '$lib/domain/excerpt';
+	} from '#lib/domain/validation/text.js';
+	import { utf8ByteLength } from '#lib/domain/bytes.js';
+	import { draftExcerpt } from '#lib/domain/excerpt.js';
 	import {
 		attachXQuote,
 		keepXQuoteOnX,
@@ -109,7 +109,7 @@
 		trailingXQuote,
 		type QuotableTarget,
 		type XQuote
-	} from '$lib/domain/x-quote';
+	} from '#lib/domain/x-quote.js';
 	import SocialIcon from './SocialIcon.svelte';
 	import LinkPreview from './LinkPreview.svelte';
 	import XQuoteCard from './XQuoteCard.svelte';

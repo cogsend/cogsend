@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { newId } from '$lib/server/db/client';
-import { createTestDb } from '$lib/server/db/test';
-import { rotateApiKey } from '$lib/server/api-keys';
-import { users } from '$lib/server/db/schema';
-import { authorizeMcpRequest } from '$lib/server/mcp-auth';
+import { newId } from '#lib/server/db/client.js';
+import { createTestDb } from '#lib/server/db/test.js';
+import { rotateApiKey } from '#lib/server/api-keys.js';
+import { users } from '#lib/server/db/schema.js';
+import { authorizeMcpRequest } from '#lib/server/mcp-auth.js';
 
 const verifiedUser = (id: string) => ({
 	id,

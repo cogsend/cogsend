@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { destroySession, getSessionUser, SESSION_COOKIE } from '$lib/server/auth';
-import { clearMfaCookie, clearSessionCookie } from '$lib/server/cookies';
-import { mfaChallenges } from '$lib/server/db/schema';
-import { ok } from '$lib/server/http';
+import { destroySession, getSessionUser, SESSION_COOKIE } from '#lib/server/auth.js';
+import { clearMfaCookie, clearSessionCookie } from '#lib/server/cookies.js';
+import { mfaChallenges } from '#lib/server/db/schema.js';
+import { ok } from '#lib/server/http.js';
 
 export const POST: RequestHandler = async ({ locals, cookies, url }) => {
 	// Look up the session owner first: MFA challenges must die with logout or

@@ -8,7 +8,7 @@ import {
 	platformRank,
 	PREVIEW_PRIORITY,
 	supportsThreads
-} from '$lib/domain/platforms';
+} from '#lib/domain/platforms.js';
 
 describe('platforms', () => {
 	it('recognizes the five platform ids', () => {

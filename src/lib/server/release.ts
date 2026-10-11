@@ -20,7 +20,7 @@ import {
 	releaseCheckResult,
 	type ReleaseCheck,
 	type ReleaseInfo
-} from '$lib/domain/release-check';
+} from '#lib/domain/release-check.js';
 import { readAppSetting, writeAppSetting } from './app-settings';
 import type { AppDb } from './db/client';
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { qrSvg } from '$lib/server/qr';
+import { qrSvg } from '#lib/server/qr.js';
 
 describe('qrSvg', () => {
 	it('emits an svg with an explicit size so it cannot collapse', () => {

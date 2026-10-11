@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PLACEHOLDER_SECRETS } from '$lib/server/env';
+import { PLACEHOLDER_SECRETS } from '#lib/server/env.js';
 import { PLACEHOLDER_VALUES, isPlaceholderValue } from '../scripts/lib/dev-vars.mjs';
 
 /**

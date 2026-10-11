@@ -7,7 +7,7 @@ import {
 	INIT_SQL,
 	SCHEMA_FINGERPRINT,
 	SCHEMA_MARKER_KEY
-} from '$lib/server/db/init-sql';
+} from '#lib/server/db/init-sql.js';
 
 /**
  * The bootstrap DDL is what a cold Worker runs before anything else, and until

@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
-import { handleError, ok } from '$lib/server/http';
-import { publishDraft } from '$lib/server/api/operations';
-import { requireScope, requireUser } from '$lib/server/require';
+import { handleError, ok } from '#lib/server/http.js';
+import { publishDraft } from '#lib/server/api/operations.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
 
 export const POST: RequestHandler = async ({ params, request, locals, platform }) => {
 	try {

@@ -5,16 +5,22 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { eq } from 'drizzle-orm';
-import * as schema from '$lib/server/db/schema';
-import { connections, drafts, publishAttempts, publishTargets, users } from '$lib/server/db/schema';
-import { newId, type AppDb } from '$lib/server/db/client';
+import * as schema from '#lib/server/db/schema.js';
+import {
+	connections,
+	drafts,
+	publishAttempts,
+	publishTargets,
+	users
+} from '#lib/server/db/schema.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
 import { DELETE as disconnectDELETE } from '../src/routes/api/connections/[id]/+server';
 import { POST as blueskyPOST } from '../src/routes/api/connections/bluesky/+server';
 import { GET as connectionsGET } from '../src/routes/api/connections/+server';
 import { POST as verifyPOST } from '../src/routes/api/connections/[id]/verify/+server';
 import { GET as queueGET } from '../src/routes/api/queue/+server';
-import { claimDueTargets, purgeDisconnectedConnections } from '$lib/server/scheduler';
-import { TEST_ENV, createTestDb } from '$lib/server/db/test';
+import { claimDueTargets, purgeDisconnectedConnections } from '#lib/server/scheduler.js';
+import { TEST_ENV, createTestDb } from '#lib/server/db/test.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 

@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { encryptJson } from '$lib/server/crypto';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { connections, drafts, publishTargets, users } from '$lib/server/db/schema';
-import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
-import { publishTarget } from '$lib/server/publish';
-import type { FetchLike } from '$lib/server/providers/types';
+import { encryptJson } from '#lib/server/crypto.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { connections, drafts, publishTargets, users } from '#lib/server/db/schema.js';
+import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
+import { publishTarget } from '#lib/server/publish.js';
+import type { FetchLike } from '#lib/server/providers/types.js';
 
 /**
  * X rotates the refresh token on every use. Two publishes of one account that

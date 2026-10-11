@@ -15,7 +15,7 @@
  * derivation per request), and the token itself never reaches the browser.
  * That copy is deleted when the update is installed, rolled back or cancelled.
  */
-import { bytesToBase64, base64ToBytes, bytesToHex, randomBytes } from '$lib/domain/bytes';
+import { bytesToBase64, base64ToBytes, bytesToHex, randomBytes } from '#lib/domain/bytes.js';
 import { decryptSecret, encryptSecret, passwordKeyHex } from '../crypto';
 import type { AppDb } from '../db/client';
 import {

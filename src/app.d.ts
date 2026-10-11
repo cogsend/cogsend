@@ -1,9 +1,9 @@
-import type { AppDb } from '$lib/server/db/client';
-import type { AppEnv } from '$lib/server/env';
-import type { SessionUser } from '$lib/server/auth';
-import type { MediaStore } from '$lib/server/media';
-import type { QueueLike } from '$lib/server/scheduler';
-import type { SubrequestBudget } from '$lib/server/budget';
+import type { AppDb } from '#lib/server/db/client.js';
+import type { AppEnv } from '#lib/server/env.js';
+import type { SessionUser } from '#lib/server/auth.js';
+import type { MediaStore } from '#lib/server/media.js';
+import type { QueueLike } from '#lib/server/scheduler.js';
+import type { SubrequestBudget } from '#lib/server/budget.js';
 
 declare global {
 	/** Injected by vite.config.ts from package.json — the running version. */

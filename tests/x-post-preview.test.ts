@@ -4,8 +4,8 @@ import {
 	fetchXPostCard,
 	fetchXPostPreview,
 	parseOEmbedHtml
-} from '$lib/server/x-post-preview';
-import type { FetchLike } from '$lib/server/providers/types';
+} from '#lib/server/x-post-preview.js';
+import type { FetchLike } from '#lib/server/providers/types.js';
 
 const LINK = 'https://x.com/XDevelopers/status/2044919377544261979?s=20';
 

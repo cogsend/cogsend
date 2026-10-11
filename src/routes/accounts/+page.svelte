@@ -3,12 +3,12 @@
 	import { page } from '$app/state';
 	import { ChevronDown, Plug, Plus, X } from '@lucide/svelte';
 	import { fade, fly } from 'svelte/transition';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import CopyButton from '$lib/components/CopyButton.svelte';
-	import AccountAvatar from '$lib/components/AccountAvatar.svelte';
-	import SocialIcon from '$lib/components/SocialIcon.svelte';
-	import { accountLabel, displayHost, platformName, platformRank } from '$lib/domain/platforms';
-	import { humanizeError } from '$lib/domain/human-error';
+	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
+	import CopyButton from '#lib/components/CopyButton.svelte';
+	import AccountAvatar from '#lib/components/AccountAvatar.svelte';
+	import SocialIcon from '#lib/components/SocialIcon.svelte';
+	import { accountLabel, displayHost, platformName, platformRank } from '#lib/domain/platforms.js';
+	import { humanizeError } from '#lib/domain/human-error.js';
 	import {
 		PLATFORM_SETUP,
 		callbackUri,
@@ -21,12 +21,12 @@
 		secretLabel,
 		setupGuideUrl,
 		type OAuthPlatformId
-	} from '$lib/domain/platform-setup';
-	import { buildAgentPrompt } from '$lib/domain/agent-prompt';
-	import { sessionExpiredIfUnauthorized } from '$lib/components/session-expired';
-	import { dialogFocus } from '$lib/components/dialog-focus';
-	import { ZERNIO_API_KEYS_URL } from '$lib/domain/zernio';
-	import { zernioLink } from '$lib/domain/zernio-links';
+	} from '#lib/domain/platform-setup.js';
+	import { buildAgentPrompt } from '#lib/domain/agent-prompt.js';
+	import { sessionExpiredIfUnauthorized } from '#lib/components/session-expired.js';
+	import { dialogFocus } from '#lib/components/dialog-focus.js';
+	import { ZERNIO_API_KEYS_URL } from '#lib/domain/zernio.js';
+	import { zernioLink } from '#lib/domain/zernio-links.js';
 
 	let { data } = $props();
 

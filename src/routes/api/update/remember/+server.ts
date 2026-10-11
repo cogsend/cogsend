@@ -1,14 +1,14 @@
 import type { RequestHandler } from './$types';
-import { checkAccountPassword } from '$lib/server/auth-gate';
-import { getAdminUser } from '$lib/server/auth';
-import { fail, handleError, ok } from '$lib/server/http';
-import { rateLimitKey } from '$lib/server/rate-limit';
-import { requireSession } from '$lib/server/require';
-import { forgetToken, saveToken } from '$lib/server/updater/saved-token';
+import { checkAccountPassword } from '#lib/server/auth-gate.js';
+import { getAdminUser } from '#lib/server/auth.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { rateLimitKey } from '#lib/server/rate-limit.js';
+import { requireSession } from '#lib/server/require.js';
+import { forgetToken, saveToken } from '#lib/server/updater/saved-token.js';
 
 /**
  * Remember the Cloudflare token for later updates, locked with the account
- * password (see $lib/server/updater/saved-token), or forget it. Session only:
+ * password (see #lib/server/updater/saved-token), or forget it. Session only:
  * an API key must never be able to plant or read the token that replaces this
  * instance's code. Answers with the token's last four characters at most.
  */

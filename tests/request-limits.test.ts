@@ -3,7 +3,7 @@ import {
 	connectionIdsOverflow,
 	normalizeConnectionIds,
 	runAtError
-} from '$lib/domain/request-limits';
+} from '#lib/domain/request-limits.js';
 
 describe('normalizeConnectionIds', () => {
 	it('dedupes and trims', () => {

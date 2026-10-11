@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq, isNull } from 'drizzle-orm';
-import { hotp, secretFromBase32, totpAt, totpCounter } from '$lib/domain/totp';
-import { getSessionUser, SESSION_COOKIE } from '$lib/server/auth';
-import type { AppDb } from '$lib/server/db/client';
-import { totpBackupCodes, users } from '$lib/server/db/schema';
-import { createTestAdmin, createTestDb, TEST_ADMIN, TEST_ENV } from '$lib/server/db/test';
-import { MFA_COOKIE } from '$lib/server/totp';
+import { hotp, secretFromBase32, totpAt, totpCounter } from '#lib/domain/totp.js';
+import { getSessionUser, SESSION_COOKIE } from '#lib/server/auth.js';
+import type { AppDb } from '#lib/server/db/client.js';
+import { totpBackupCodes, users } from '#lib/server/db/schema.js';
+import { createTestAdmin, createTestDb, TEST_ADMIN, TEST_ENV } from '#lib/server/db/test.js';
+import { MFA_COOKIE } from '#lib/server/totp.js';
 import { POST as loginPOST } from '../src/routes/api/auth/login/+server';
 import { GET as meGET } from '../src/routes/api/auth/me/+server';
 import { POST as logoutPOST } from '../src/routes/api/auth/logout/+server';

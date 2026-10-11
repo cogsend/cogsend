@@ -17,7 +17,7 @@
  * `SCHEDULER_SECRET` and `API_TOKEN` keep working exactly as before for anyone
  * already using them, and the built-in cron is unaffected either way.
  */
-import { bytesToHex, randomHex, timingSafeEqual, utf8Bytes } from '$lib/domain/bytes';
+import { bytesToHex, randomHex, timingSafeEqual, utf8Bytes } from '#lib/domain/bytes.js';
 import { readAppSetting, writeAppSetting } from './app-settings';
 import type { AppDb } from './db/client';
 

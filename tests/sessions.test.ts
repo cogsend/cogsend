@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { createSession, getSessionUser } from '$lib/server/auth';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { sessions, users } from '$lib/server/db/schema';
-import { createTestDb, TEST_ENV } from '$lib/server/db/test';
-import { hashPassword } from '$lib/server/crypto';
+import { createSession, getSessionUser } from '#lib/server/auth.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { sessions, users } from '#lib/server/db/schema.js';
+import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
+import { hashPassword } from '#lib/server/crypto.js';
 
 describe('session password binding and idle timeout', () => {
 	let db: AppDb;

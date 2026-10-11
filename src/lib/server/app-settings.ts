@@ -23,7 +23,7 @@ import {
 	parseDeployCronState,
 	type DeployCronState,
 	type DeployCronStatus
-} from '$lib/domain/deploy-cron';
+} from '#lib/domain/deploy-cron.js';
 import { first, type AppDb } from './db/client';
 import { appSettings } from './db/schema';
 import { rawBinding } from './budget';

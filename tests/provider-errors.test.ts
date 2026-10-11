@@ -3,9 +3,9 @@ import {
 	classifyProviderError,
 	providerErrorForStatus,
 	ProviderError
-} from '$lib/server/providers/types';
-import { getProvider } from '$lib/server/providers/index';
-import { isAuthFailure, isFailureRetryable } from '$lib/server/publish';
+} from '#lib/server/providers/types.js';
+import { getProvider } from '#lib/server/providers/index.js';
+import { isAuthFailure, isFailureRetryable } from '#lib/server/publish.js';
 
 describe('providerErrorForStatus', () => {
 	it('keeps the legacy message shape', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { dayGroupLabel, formatRelativeTime } from '$lib/domain/relative-time';
-import { remapSegmentIndexAfterReorder, reorderSegments } from '$lib/domain/thread-segments';
+import { dayGroupLabel, formatRelativeTime } from '#lib/domain/relative-time.js';
+import { remapSegmentIndexAfterReorder, reorderSegments } from '#lib/domain/thread-segments.js';
 
 const now = new Date(2026, 8, 7, 12, 0, 0); // Mon Sep 7 2026, noon local
 

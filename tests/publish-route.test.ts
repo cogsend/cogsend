@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { captureConsole, loggedLines } from './console-spy';
-import { encryptJson } from '$lib/server/crypto';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { connections, drafts, publishTargets, users } from '$lib/server/db/schema';
-import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
+import { encryptJson } from '#lib/server/crypto.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { connections, drafts, publishTargets, users } from '#lib/server/db/schema.js';
+import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
 import { POST as publishPOST } from '../src/routes/api/drafts/[id]/publish/+server';
 
 describe('POST /api/drafts/[id]/publish guard', () => {

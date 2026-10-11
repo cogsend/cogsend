@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
-import { handleError, ok } from '$lib/server/http';
-import { requireSession } from '$lib/server/require';
-import { totpStatus } from '$lib/server/totp';
+import { handleError, ok } from '#lib/server/http.js';
+import { requireSession } from '#lib/server/require.js';
+import { totpStatus } from '#lib/server/totp.js';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	try {

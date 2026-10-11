@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { securityHeadersFor } from '$lib/server/security-headers';
+import { securityHeadersFor } from '#lib/server/security-headers.js';
 
 /**
  * The header policy lives in one function so the https-only branch can be

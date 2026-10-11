@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { blueskyProvider } from '$lib/server/providers/bluesky';
-import { linkedinProvider } from '$lib/server/providers/linkedin';
-import type { FetchLike } from '$lib/server/providers/types';
+import { blueskyProvider } from '#lib/server/providers/bluesky.js';
+import { linkedinProvider } from '#lib/server/providers/linkedin.js';
+import type { FetchLike } from '#lib/server/providers/types.js';
 
 function mockFetch(
 	handlers: Record<string, (req: Request) => Promise<Response> | Response>

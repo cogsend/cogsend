@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { connections, drafts, users } from '$lib/server/db/schema';
-import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { connections, drafts, users } from '#lib/server/db/schema.js';
+import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
 import { GET as draftGET, PATCH as draftPATCH } from '../src/routes/api/drafts/[id]/+server';
 import { POST as draftsPOST } from '../src/routes/api/drafts/+server';
 import { POST as duplicatePOST } from '../src/routes/api/drafts/[id]/duplicate/+server';

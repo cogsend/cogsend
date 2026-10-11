@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateXText, xWeightedLength } from '$lib/domain/validation/text';
+import { validateXText, xWeightedLength } from '#lib/domain/validation/text.js';
 import {
 	codeChallenge,
 	generateCodeVerifier,
@@ -11,8 +11,8 @@ import {
 	xProvider,
 	xVerify,
 	X_SCOPES
-} from '$lib/server/providers/x';
-import type { FetchLike } from '$lib/server/providers/types';
+} from '#lib/server/providers/x.js';
+import type { FetchLike } from '#lib/server/providers/types.js';
 
 function mockFetch(
 	handlers: Record<string, (req: Request) => Promise<Response> | Response>

@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
-import { fail, handleError, ok } from '$lib/server/http';
-import { assertScheduler } from '$lib/server/require';
-import { consumePublishJob } from '$lib/server/scheduler';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { assertScheduler } from '#lib/server/require.js';
+import { consumePublishJob } from '#lib/server/scheduler.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {

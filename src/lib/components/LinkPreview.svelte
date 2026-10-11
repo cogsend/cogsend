@@ -23,7 +23,7 @@
 </script>
 
 <script lang="ts">
-	import { extractFirstUrl, previewDomain } from '$lib/domain/links';
+	import { extractFirstUrl, previewDomain } from '#lib/domain/links.js';
 
 	let { text = '', hasMedia = false }: { text: string; hasMedia: boolean } = $props();
 

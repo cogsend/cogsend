@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { AppDb } from '$lib/server/db/client';
-import { createTestDb } from '$lib/server/db/test';
+import type { AppDb } from '#lib/server/db/client.js';
+import { createTestDb } from '#lib/server/db/test.js';
 import {
 	readStoredAppUrl,
 	rememberAppUrl,
 	readStoredAppName,
 	rememberAppName,
 	APP_URL_SETTING
-} from '$lib/server/app-settings';
-import { appSettings } from '$lib/server/db/schema';
+} from '#lib/server/app-settings.js';
+import { appSettings } from '#lib/server/db/schema.js';
 
 /**
  * The remembered origin is what a scheduled invocation has instead of a

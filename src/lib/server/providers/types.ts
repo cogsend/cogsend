@@ -1,6 +1,6 @@
-import type { PlatformId } from '$lib/domain/platforms';
-export type { PlatformId } from '$lib/domain/platforms';
-export { PLATFORM_IDS, isPlatformId } from '$lib/domain/platforms';
+import type { PlatformId } from '#lib/domain/platforms.js';
+export type { PlatformId } from '#lib/domain/platforms.js';
+export { PLATFORM_IDS, isPlatformId } from '#lib/domain/platforms.js';
 
 export interface MediaAttachment {
 	storageKey?: string;
@@ -258,7 +258,7 @@ export interface PlatformProvider {
 		opts?: {
 			resume?: PublishResume;
 			/** Allow localhost/private Mastodon hosts. True only for a local
-			 *  instance — see $lib/domain/app-url. */
+			 *  instance — see #lib/domain/app-url. */
 			allowLocalHosts?: boolean;
 			mediaUrlFor?: (storageKey: string) => Promise<string> | string;
 			checkpoint?: (state: PublishCheckpoint) => Promise<void> | void;

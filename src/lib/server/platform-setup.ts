@@ -1,6 +1,6 @@
-import { platformName } from '$lib/domain/platforms';
-import { PLATFORM_SETUP, type OAuthPlatformId } from '$lib/domain/platform-setup';
-import { fail } from '$lib/server/http';
+import { platformName } from '#lib/domain/platforms.js';
+import { PLATFORM_SETUP, type OAuthPlatformId } from '#lib/domain/platform-setup.js';
+import { fail } from '#lib/server/http.js';
 
 /**
  * A connect route whose platform has no credentials on this deployment.

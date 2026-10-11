@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import type { AppDb } from '$lib/server/db/client';
-import { appSettings, users } from '$lib/server/db/schema';
-import { createTestDb, TEST_ENV } from '$lib/server/db/test';
-import { secretLabel } from '$lib/domain/platform-setup';
+import type { AppDb } from '#lib/server/db/client.js';
+import { appSettings, users } from '#lib/server/db/schema.js';
+import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
+import { secretLabel } from '#lib/domain/platform-setup.js';
 import {
 	platformAppSettingKey,
 	platformCredentialStatus,
 	resolvePlatformCredentials
-} from '$lib/server/platform-credentials';
+} from '#lib/server/platform-credentials.js';
 import { GET as connectionsGET } from '../src/routes/api/connections/+server';
 import { POST as xPOST } from '../src/routes/api/connections/x/+server';
 import { POST as linkedinPOST } from '../src/routes/api/connections/linkedin/+server';

@@ -1,4 +1,4 @@
-import { fnv1a } from '$lib/domain/hash';
+import { fnv1a } from '#lib/domain/hash.js';
 import { rawBinding } from '../budget';
 
 /** Bootstrap DDL for first request. Squashed to latest: 0001 + 0002 + 0004-final + 0005 + 0007 + 0008 + 0009 + 0010 + 0012 + 0014 + 0015 + 0016 + 0017 (+ 0003 transient). Keep in lockstep with drizzle/*.sql; `tests/schema-bootstrap.test.ts` fails when an index a migration creates is missing here. */
@@ -261,7 +261,7 @@ const ensuredBindings = new WeakMap<object, Promise<void>>();
 
 export function ensureSchemaOnce(d1: D1Database): Promise<void> {
 	// Keyed on the real binding: each request hands in its own counting
-	// wrapper around it (see $lib/server/budget).
+	// wrapper around it (see #lib/server/budget).
 	const key = rawBinding(d1);
 	const existing = ensuredBindings.get(key);
 	if (existing) return existing;

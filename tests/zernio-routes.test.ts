@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { connections, users } from '$lib/server/db/schema';
-import { createTestDb, TEST_ENV } from '$lib/server/db/test';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { connections, users } from '#lib/server/db/schema.js';
+import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
 import { POST as accountsPOST } from '../src/routes/api/connections/zernio/accounts/+server';
 import { POST as importPOST } from '../src/routes/api/connections/zernio/import/+server';
 

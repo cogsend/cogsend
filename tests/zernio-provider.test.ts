@@ -3,9 +3,9 @@ import {
 	buildZernioPostBody,
 	ZERNIO_MAX_POLLS,
 	zernioProviderFor
-} from '$lib/server/providers/zernio';
-import { providerFor, estimateKeyFor } from '$lib/server/providers';
-import { ProviderError, PublishPartialError, type FetchLike } from '$lib/server/providers/types';
+} from '#lib/server/providers/zernio.js';
+import { providerFor, estimateKeyFor } from '#lib/server/providers/index.js';
+import { ProviderError, PublishPartialError, type FetchLike } from '#lib/server/providers/types.js';
 
 function mockFetch(
 	handlers: Record<string, (req: Request) => Response | Promise<Response>>,

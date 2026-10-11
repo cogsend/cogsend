@@ -7,7 +7,7 @@ import {
 	parseRelease,
 	parseVersion,
 	releaseCheckResult
-} from '$lib/domain/release-check';
+} from '#lib/domain/release-check.js';
 
 describe('version parsing', () => {
 	it('reads tags with or without a leading v', () => {

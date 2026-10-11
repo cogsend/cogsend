@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
-import { fail, handleError, ok } from '$lib/server/http';
-import { requireSession } from '$lib/server/require';
-import { readTickToken, revokeTickToken, rotateTickToken } from '$lib/server/tick-token';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { requireSession } from '#lib/server/require.js';
+import { readTickToken, revokeTickToken, rotateTickToken } from '#lib/server/tick-token.js';
 
 /**
  * The credential an external cron uses to tick this instance.

@@ -1,10 +1,10 @@
-import { utf8ByteLength } from '$lib/domain/bytes';
-import { extractFirstUrl } from '$lib/domain/links';
+import { utf8ByteLength } from '#lib/domain/bytes.js';
+import { extractFirstUrl } from '#lib/domain/links.js';
 import { fetchOgImage } from '../opengraph';
 import { fetchLinkCard } from '../x-post-preview';
-import { isBlockedInstanceHost } from '$lib/domain/instance-host';
-import { validateBlueskyText } from '$lib/domain/validation/text';
-import { BLUESKY_MAX_IMAGE_BYTES } from '$lib/domain/media-limits';
+import { isBlockedInstanceHost } from '#lib/domain/instance-host.js';
+import { validateBlueskyText } from '#lib/domain/validation/text.js';
+import { BLUESKY_MAX_IMAGE_BYTES } from '#lib/domain/media-limits.js';
 import type {
 	ConnectionCredentials,
 	FetchLike,

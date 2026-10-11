@@ -1,5 +1,5 @@
-import { toZernioPlatform, zernioRequestId } from '$lib/domain/zernio';
-import { platformName } from '$lib/domain/platforms';
+import { toZernioPlatform, zernioRequestId } from '#lib/domain/zernio.js';
+import { platformName } from '#lib/domain/platforms.js';
 import {
 	createPost,
 	getPost,

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { users } from '$lib/server/db/schema';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { createTestDb } from '$lib/server/db/test';
+import { users } from '#lib/server/db/schema.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { createTestDb } from '#lib/server/db/test.js';
 import {
 	getActiveApiKey,
 	hashApiKey,

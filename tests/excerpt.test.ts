@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { draftExcerpt } from '$lib/domain/excerpt';
+import { draftExcerpt } from '#lib/domain/excerpt.js';
 
 describe('draftExcerpt', () => {
 	it('falls back for empty bodies', () => {
@@ -37,7 +37,7 @@ describe('draftExcerpt', () => {
 
 describe('zwj sequences', () => {
 	it('never splits joiners or flags', async () => {
-		const { draftExcerpt } = await import('$lib/domain/excerpt');
+		const { draftExcerpt } = await import('#lib/domain/excerpt.js');
 		expect(draftExcerpt('👨‍👩‍👧‍👦', 1)).toBe('👨‍👩‍👧‍👦');
 		expect(draftExcerpt('👍🏽 hello', 1)).toBe('👍🏽…');
 	});

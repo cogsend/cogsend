@@ -6,7 +6,7 @@ import {
 	shouldSlideSession,
 	shouldUseSecureCookie,
 	SESSION_MAX_AGE_REMEMBER
-} from '$lib/domain/session-cookie';
+} from '#lib/domain/session-cookie.js';
 
 describe('shouldUseSecureCookie', () => {
 	it('is false for http localhost even in production', () => {

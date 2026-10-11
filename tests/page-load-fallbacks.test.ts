@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { connections, drafts, publishTargets, users } from '$lib/server/db/schema';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { createTestDb, TEST_ENV } from '$lib/server/db/test';
-import { loadOwnedDraft } from '$lib/server/draft-record';
+import { connections, drafts, publishTargets, users } from '#lib/server/db/schema.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
+import { loadOwnedDraft } from '#lib/server/draft-record.js';
 import { load as accountsLoad } from '../src/routes/accounts/+page.server';
 import { load as composeLoad } from '../src/routes/compose/+page.server';
 

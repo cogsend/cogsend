@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { countGraphemes } from '$lib/domain/validation/text';
-import { MAX_AUTO_SEGMENTS, splitLongText } from '$lib/domain/text-split';
+import { countGraphemes } from '#lib/domain/validation/text.js';
+import { MAX_AUTO_SEGMENTS, splitLongText } from '#lib/domain/text-split.js';
 
 const count = countGraphemes;
 

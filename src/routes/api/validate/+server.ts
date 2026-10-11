@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
-import { fail, handleError, ok } from '$lib/server/http';
-import { validatePost } from '$lib/server/api/operations';
-import { requireScope, requireUser } from '$lib/server/require';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { validatePost } from '#lib/server/api/operations.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		requireUser(locals.user);

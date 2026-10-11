@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { draftMedia, draftVariants, drafts, users } from '$lib/server/db/schema';
-import { createTestDb, createTestMedia } from '$lib/server/db/test';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { draftMedia, draftVariants, drafts, users } from '#lib/server/db/schema.js';
+import { createTestDb, createTestMedia } from '#lib/server/db/test.js';
 import { POST as mediaPOST } from '../src/routes/api/drafts/[id]/media/+server';
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);

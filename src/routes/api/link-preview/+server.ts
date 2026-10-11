@@ -1,11 +1,11 @@
 import type { RequestHandler } from './$types';
-import { extractFirstUrl } from '$lib/domain/links';
-import { handleError, ok, fail } from '$lib/server/http';
-import { parseXPostUrl } from '$lib/domain/x-quote';
-import { fetchOpenGraph } from '$lib/server/opengraph';
-import { providerFetch } from '$lib/server/providers/timed-fetch';
-import { requireScope, requireUser } from '$lib/server/require';
-import { fetchXPostPreview } from '$lib/server/x-post-preview';
+import { extractFirstUrl } from '#lib/domain/links.js';
+import { handleError, ok, fail } from '#lib/server/http.js';
+import { parseXPostUrl } from '#lib/domain/x-quote.js';
+import { fetchOpenGraph } from '#lib/server/opengraph.js';
+import { providerFetch } from '#lib/server/providers/timed-fetch.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
+import { fetchXPostPreview } from '#lib/server/x-post-preview.js';
 
 /**
  * GET /api/link-preview?url=… → { url, title, description, image, siteName }

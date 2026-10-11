@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
-import { listConnections } from '$lib/server/connection-list';
-import { handleError, ok } from '$lib/server/http';
-import { requireScope, requireUser } from '$lib/server/require';
+import { listConnections } from '#lib/server/connection-list.js';
+import { handleError, ok } from '#lib/server/http.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	try {

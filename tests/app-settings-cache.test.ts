@@ -1,10 +1,14 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import type { AppDb } from '$lib/server/db/client';
-import { createTestDb } from '$lib/server/db/test';
-import { APP_SETTING_CACHE_MS, readStoredAppName, rememberAppName } from '$lib/server/app-settings';
-import { appSettings } from '$lib/server/db/schema';
-import { revokeTickToken, rotateTickToken, verifyTickToken } from '$lib/server/tick-token';
+import type { AppDb } from '#lib/server/db/client.js';
+import { createTestDb } from '#lib/server/db/test.js';
+import {
+	APP_SETTING_CACHE_MS,
+	readStoredAppName,
+	rememberAppName
+} from '#lib/server/app-settings.js';
+import { appSettings } from '#lib/server/db/schema.js';
+import { revokeTickToken, rotateTickToken, verifyTickToken } from '#lib/server/tick-token.js';
 
 /**
  * A Worker runs many isolates and each keeps its own copy of these values. A

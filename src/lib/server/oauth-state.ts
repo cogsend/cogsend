@@ -1,4 +1,4 @@
-import { timingSafeEqual, utf8Bytes } from '$lib/domain/bytes';
+import { timingSafeEqual, utf8Bytes } from '#lib/domain/bytes.js';
 import { hmacHex } from './crypto';
 
 /**

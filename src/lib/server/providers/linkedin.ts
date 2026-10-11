@@ -1,6 +1,6 @@
-import { extractFirstUrl } from '$lib/domain/links';
-import { joinThreadTexts } from '$lib/domain/thread-segments';
-import { validateLinkedinText } from '$lib/domain/validation/text';
+import { extractFirstUrl } from '#lib/domain/links.js';
+import { joinThreadTexts } from '#lib/domain/thread-segments.js';
+import { validateLinkedinText } from '#lib/domain/validation/text.js';
 import { fetchOgImage } from '../opengraph';
 import { fetchLinkCard } from '../x-post-preview';
 import type {
@@ -14,11 +14,11 @@ import type {
 	ValidationIssue
 } from './types';
 import { mediaByteLength, ProviderError, unconfirmedPostError } from './types';
-import { LINKEDIN_MAX_IMAGE_BYTES, LINKEDIN_MAX_IMAGES } from '$lib/domain/media-limits';
+import { LINKEDIN_MAX_IMAGE_BYTES, LINKEDIN_MAX_IMAGES } from '#lib/domain/media-limits.js';
 import { providerFetch } from './timed-fetch';
 
 export const LINKEDIN_MAX_CHARS = 3000;
-export { LINKEDIN_MAX_IMAGE_BYTES, LINKEDIN_MAX_IMAGES } from '$lib/domain/media-limits';
+export { LINKEDIN_MAX_IMAGE_BYTES, LINKEDIN_MAX_IMAGES } from '#lib/domain/media-limits.js';
 // Single mp4 per post; 95MB keeps uploads under the Worker request body limit.
 export const LINKEDIN_VIDEO_MIMES = ['video/mp4'];
 export const LINKEDIN_MAX_VIDEO_BYTES = 95_000_000;

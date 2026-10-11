@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { isFullyVerified, needsTotpEnroll } from '$lib/server/auth';
+import { isFullyVerified, needsTotpEnroll } from '#lib/server/auth.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {

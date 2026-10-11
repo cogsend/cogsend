@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { base32Decode, base32Encode, formatSecretGroups } from '$lib/domain/base32';
-import { generateBackupCode, normalizeBackupCode } from '$lib/domain/backup-codes';
-import { buildOtpauthUrl, hotp, totpAt, totpCounter, verifyTotp } from '$lib/domain/totp';
+import { base32Decode, base32Encode, formatSecretGroups } from '#lib/domain/base32.js';
+import { generateBackupCode, normalizeBackupCode } from '#lib/domain/backup-codes.js';
+import { buildOtpauthUrl, hotp, totpAt, totpCounter, verifyTotp } from '#lib/domain/totp.js';
 
 const RFC_SECRET = new TextEncoder().encode('12345678901234567890');
 

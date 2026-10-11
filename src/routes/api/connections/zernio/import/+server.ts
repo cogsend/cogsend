@@ -1,14 +1,14 @@
 import type { RequestHandler } from './$types';
-import { fail, handleError, ok } from '$lib/server/http';
-import { requireSession } from '$lib/server/require';
-import { serializeConnection } from '$lib/server/serialize';
-import { listAccounts } from '$lib/server/zernio';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { requireSession } from '#lib/server/require.js';
+import { serializeConnection } from '#lib/server/serialize.js';
+import { listAccounts } from '#lib/server/zernio.js';
 import {
 	resolveZernioKey,
 	toImportable,
 	upsertZernioConnection,
 	zernioKeyProblem
-} from '$lib/server/zernio-import';
+} from '#lib/server/zernio-import.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {

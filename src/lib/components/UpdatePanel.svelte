@@ -4,20 +4,20 @@
 		GITHUB_UPDATE_WORKFLOW,
 		githubUpdateLinks,
 		type GithubUpdateTarget
-	} from '$lib/domain/github-update';
-	import { UPDATE_TOKEN_URL } from '$lib/domain/update-manifest';
+	} from '#lib/domain/github-update.js';
+	import { UPDATE_TOKEN_URL } from '#lib/domain/update-manifest.js';
 
 	/**
 	 * Settings → Instance: install a release, or roll one back, without a
 	 * checkout. The browser drives the server's steps in order (see
-	 * $lib/server/updater/steps) and does the one check only a browser can do
+	 * #lib/server/updater/steps) and does the one check only a browser can do
 	 * from outside the Worker: ask the new version, staged at 0%, for its
 	 * health through a version-override header before any traffic moves.
 	 *
 	 * The Cloudflare token lives in this component's memory for one update and
 	 * is sent with each step. Remembered, it is saved locked with the account
 	 * password, and an update then sends the password once and a one-update key
-	 * with each step instead (see $lib/server/updater/saved-token); the token
+	 * with each step instead (see #lib/server/updater/saved-token); the token
 	 * itself never comes back to the browser.
 	 *
 	 * Errors are shown whole rather than through humanizeError: they say what to

@@ -261,7 +261,7 @@ export const notificationState = sqliteTable('notification_state', {
 });
 
 /** Instance-level values discovered or set at runtime rather than configured —
- *  see drizzle/0017_app_settings.sql and the keys in $lib/server/app-settings. */
+ *  see drizzle/0017_app_settings.sql and the keys in #lib/server/app-settings. */
 export const appSettings = sqliteTable('app_settings', {
 	key: text('key').primaryKey(),
 	value: text('value').notNull(),

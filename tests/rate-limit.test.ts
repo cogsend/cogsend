@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createClient, type Client } from '@libsql/client';
 import { handle } from '../src/hooks.server';
-import { ensureSchema } from '$lib/server/db/init-sql';
+import { ensureSchema } from '#lib/server/db/init-sql.js';
 import { captureConsole, loggedLines } from './console-spy';
 import {
 	RATE_LIMITED_PATHS,
@@ -9,7 +9,7 @@ import {
 	rateLimitKey,
 	rateLimitProblem,
 	type RateLimiter
-} from '$lib/server/rate-limit';
+} from '#lib/server/rate-limit.js';
 
 /** Same D1-shaped shim the tick-token hook test uses: the hook builds its own
  *  drizzle handle from the binding. */

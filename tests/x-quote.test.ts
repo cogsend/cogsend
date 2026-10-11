@@ -10,7 +10,7 @@ import {
 	strayXPostLinks,
 	swapXQuote,
 	trailingXQuote
-} from '$lib/domain/x-quote';
+} from '#lib/domain/x-quote.js';
 
 const LINK = 'https://x.com/ada_builds/status/1974452871209381904';
 

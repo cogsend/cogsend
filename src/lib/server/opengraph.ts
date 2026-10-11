@@ -17,7 +17,7 @@
  * follows http(s).
  */
 
-import { isBlockedInstanceHost } from '$lib/domain/instance-host';
+import { isBlockedInstanceHost } from '#lib/domain/instance-host.js';
 import type { FetchLike } from './providers/types';
 
 export interface OpenGraphData {

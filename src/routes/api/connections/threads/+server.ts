@@ -1,15 +1,15 @@
 import type { RequestHandler } from './$types';
-import { randomHex } from '$lib/domain/bytes';
-import { OAUTH_PENDING_TTL_MS } from '$lib/domain/oauth-pending';
-import { encryptSecret } from '$lib/server/crypto';
-import { oauthPending } from '$lib/server/db/schema';
-import { handleError, ok } from '$lib/server/http';
-import { resolvePlatformCredentials } from '$lib/server/platform-credentials';
-import { platformNotConfigured } from '$lib/server/platform-setup';
-import { threadsAuthorizeUrl } from '$lib/server/providers';
-import { SESSION_COOKIE } from '$lib/server/auth';
-import { bindOAuthState } from '$lib/server/oauth-state';
-import { requireSession } from '$lib/server/require';
+import { randomHex } from '#lib/domain/bytes.js';
+import { OAUTH_PENDING_TTL_MS } from '#lib/domain/oauth-pending.js';
+import { encryptSecret } from '#lib/server/crypto.js';
+import { oauthPending } from '#lib/server/db/schema.js';
+import { handleError, ok } from '#lib/server/http.js';
+import { resolvePlatformCredentials } from '#lib/server/platform-credentials.js';
+import { platformNotConfigured } from '#lib/server/platform-setup.js';
+import { threadsAuthorizeUrl } from '#lib/server/providers/index.js';
+import { SESSION_COOKIE } from '#lib/server/auth.js';
+import { bindOAuthState } from '#lib/server/oauth-state.js';
+import { requireSession } from '#lib/server/require.js';
 
 export const POST: RequestHandler = async ({ locals, cookies }) => {
 	try {

@@ -14,7 +14,7 @@ import {
 	schedulePreviewText,
 	scheduleValueToIso,
 	toDatetimeLocalValue
-} from '$lib/domain/schedule-helpers';
+} from '#lib/domain/schedule-helpers.js';
 
 describe('toDatetimeLocalValue / parseDatetimeLocal', () => {
 	it('round-trips local components', () => {

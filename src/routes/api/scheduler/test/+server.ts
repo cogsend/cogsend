@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
-import { handleError, ok } from '$lib/server/http';
-import { requireScope, requireUser } from '$lib/server/require';
-import { runSchedulerTick } from '$lib/server/scheduler';
+import { handleError, ok } from '#lib/server/http.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
+import { runSchedulerTick } from '#lib/server/scheduler.js';
 
 /**
  * "Tick now", for the Settings card that explains scheduled publishing.

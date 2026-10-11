@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { hasApiScope, normalizeApiScopes, parseApiScopes } from '$lib/domain/api-scopes';
-import { requireScope } from '$lib/server/require';
+import { hasApiScope, normalizeApiScopes, parseApiScopes } from '#lib/domain/api-scopes.js';
+import { requireScope } from '#lib/server/require.js';
 
 describe('parseApiScopes', () => {
 	it('grants full access to legacy keys', () => {
@@ -56,9 +56,9 @@ describe('requireScope', () => {
 
 describe('route enforcement', () => {
 	it('lets a read-only key list but not create drafts', async () => {
-		const { createTestDb } = await import('$lib/server/db/test');
-		const { users } = await import('$lib/server/db/schema');
-		const { newId } = await import('$lib/server/db/client');
+		const { createTestDb } = await import('#lib/server/db/test.js');
+		const { users } = await import('#lib/server/db/schema.js');
+		const { newId } = await import('#lib/server/db/client.js');
 		const { GET, POST } = await import('../src/routes/api/drafts/+server');
 		const { db, close } = await createTestDb();
 		try {

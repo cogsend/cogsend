@@ -1,9 +1,9 @@
 import type { RequestHandler } from './$types';
-import { fail, handleError, ok } from '$lib/server/http';
-import { requireSession } from '$lib/server/require';
-import { CloudflareApiError } from '$lib/server/updater/cloudflare-api';
-import { updaterContext } from '$lib/server/updater/context';
-import { SavedTokenError, tokenFromUnlockKey } from '$lib/server/updater/saved-token';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { requireSession } from '#lib/server/require.js';
+import { CloudflareApiError } from '#lib/server/updater/cloudflare-api.js';
+import { updaterContext } from '#lib/server/updater/context.js';
+import { SavedTokenError, tokenFromUnlockKey } from '#lib/server/updater/saved-token.js';
 import {
 	UpdateError,
 	stepAbort,
@@ -15,10 +15,10 @@ import {
 	stepTarget,
 	stepVersion,
 	type UpdaterContext
-} from '$lib/server/updater/steps';
+} from '#lib/server/updater/steps.js';
 
 /**
- * One step of the in-app update; see $lib/server/updater/steps for the order.
+ * One step of the in-app update; see #lib/server/updater/steps for the order.
  *
  * Session only, with a verified second factor: an API key or MCP client must
  * never be able to replace the code this instance runs. The Cloudflare token

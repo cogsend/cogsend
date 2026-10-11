@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePollConfig, validatePollConfig } from '$lib/domain/poll';
+import { parsePollConfig, validatePollConfig } from '#lib/domain/poll.js';
 
 describe('validatePollConfig', () => {
 	it('accepts a valid poll', () => {

@@ -1,15 +1,15 @@
 import type { RequestHandler } from './$types';
-import { handleError, ok } from '$lib/server/http';
-import { requireSession } from '$lib/server/require';
-import { listAccounts, listProfiles, probePublishAccess } from '$lib/server/zernio';
+import { handleError, ok } from '#lib/server/http.js';
+import { requireSession } from '#lib/server/require.js';
+import { listAccounts, listProfiles, probePublishAccess } from '#lib/server/zernio.js';
 import {
 	resolveZernioKey,
 	storedZernioKey,
 	toImportable,
 	zernioConnectionRows,
 	zernioKeyProblem
-} from '$lib/server/zernio-import';
-import { parseJson } from '$lib/server/db/client';
+} from '#lib/server/zernio-import.js';
+import { parseJson } from '#lib/server/db/client.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {

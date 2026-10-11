@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createClient, type Client } from '@libsql/client';
 import { handle } from '../src/hooks.server';
-import { createD1Db } from '$lib/server/db/client';
-import { rotateTickToken } from '$lib/server/tick-token';
-import { ensureSchema } from '$lib/server/db/init-sql';
+import { createD1Db } from '#lib/server/db/client.js';
+import { rotateTickToken } from '#lib/server/tick-token.js';
+import { ensureSchema } from '#lib/server/db/init-sql.js';
 
 /**
  * The authorization boundary around /api/internal/tick, exercised through the

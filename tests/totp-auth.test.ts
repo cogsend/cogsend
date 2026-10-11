@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq, isNull } from 'drizzle-orm';
-import { secretFromBase32, totpAt } from '$lib/domain/totp';
-import { authenticatePassword } from '$lib/server/auth';
-import { first } from '$lib/server/db/client';
-import { users } from '$lib/server/db/schema';
-import { createTestAdmin, createTestDb, TEST_ENV } from '$lib/server/db/test';
-import { mfaChallenges, totpBackupCodes } from '$lib/server/db/schema';
+import { secretFromBase32, totpAt } from '#lib/domain/totp.js';
+import { authenticatePassword } from '#lib/server/auth.js';
+import { first } from '#lib/server/db/client.js';
+import { users } from '#lib/server/db/schema.js';
+import { createTestAdmin, createTestDb, TEST_ENV } from '#lib/server/db/test.js';
+import { mfaChallenges, totpBackupCodes } from '#lib/server/db/schema.js';
 import {
 	checkUserCode,
 	enrollConfirm,
@@ -14,8 +14,8 @@ import {
 	startEnrollChallenge,
 	startLoginChallenge,
 	verifyMfa
-} from '$lib/server/totp';
-import type { AppDb } from '$lib/server/db/client';
+} from '#lib/server/totp.js';
+import type { AppDb } from '#lib/server/db/client.js';
 
 /** A database whose backup-code reads always answer with `rows` — the "both
  *  callers read before either wrote" race, with the timing taken out. Writes

@@ -1,12 +1,12 @@
 import type { RequestHandler } from './$types';
-import { handleError, ok } from '$lib/server/http';
+import { handleError, ok } from '#lib/server/http.js';
 import {
 	QUEUE_LIST_LIMIT,
 	QUEUE_LIST_MAX_LIMIT,
 	loadQueueList,
 	parseListLimit
-} from '$lib/server/post-list';
-import { requireScope, requireUser } from '$lib/server/require';
+} from '#lib/server/post-list.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
 
 export const GET: RequestHandler = async ({ locals, url }) => {
 	try {

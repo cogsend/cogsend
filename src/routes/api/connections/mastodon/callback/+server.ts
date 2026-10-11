@@ -1,7 +1,7 @@
-import { isLocalAppUrl } from '$lib/domain/app-url';
-import { createOAuthCallback } from '$lib/server/oauth-callback';
-import { decryptSecret } from '$lib/server/crypto';
-import { mastodonExchangeCode, providerFetch } from '$lib/server/providers';
+import { isLocalAppUrl } from '#lib/domain/app-url.js';
+import { createOAuthCallback } from '#lib/server/oauth-callback.js';
+import { decryptSecret } from '#lib/server/crypto.js';
+import { mastodonExchangeCode, providerFetch } from '#lib/server/providers/index.js';
 
 export const GET = createOAuthCallback({
 	platform: 'mastodon',

@@ -11,9 +11,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
-import { verifyPassword } from '$lib/server/crypto';
-import { assertAuthGateOpen, recordAuthGateFailure } from '$lib/server/auth-gate';
-import { createTestAdmin, createTestDb, TEST_ENV } from '$lib/server/db/test';
+import { verifyPassword } from '#lib/server/crypto.js';
+import { assertAuthGateOpen, recordAuthGateFailure } from '#lib/server/auth-gate.js';
+import { createTestAdmin, createTestDb, TEST_ENV } from '#lib/server/db/test.js';
 import { clearAuthGatesSql } from '../scripts/lib/account.mjs';
 
 // Each test starts real Node processes, which take far longer than vitest's

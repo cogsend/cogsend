@@ -1,18 +1,18 @@
 import { and, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
-import { isLocalAppUrl } from '$lib/domain/app-url';
-import { safeHttpUrl } from '$lib/domain/links';
-import { LEASE_REFRESH_MS, STALE_CLAIM_MS } from '$lib/domain/due-jobs';
-import type { PublishResult } from '$lib/server/providers/types';
+import { isLocalAppUrl } from '#lib/domain/app-url.js';
+import { safeHttpUrl } from '#lib/domain/links.js';
+import { LEASE_REFRESH_MS, STALE_CLAIM_MS } from '#lib/domain/due-jobs.js';
+import type { PublishResult } from '#lib/server/providers/types.js';
 import {
 	isThreadsAuthFailure,
 	isThreadsMediaFetchFailure,
 	parseThreadsMetaMarker
-} from '$lib/domain/threads-error';
+} from '#lib/domain/threads-error.js';
 import { decodeImageDimensions } from './image-dimensions';
-import { parsePollConfig } from '$lib/domain/poll';
+import { parsePollConfig } from '#lib/domain/poll.js';
 import { signPublicMediaUrl } from './public-media';
-import { resolvePublishSegments } from '$lib/domain/thread-segments';
-import { targetRecordKey } from '$lib/domain/tid';
+import { resolvePublishSegments } from '#lib/domain/thread-segments.js';
+import { targetRecordKey } from '#lib/domain/tid.js';
 import { decryptJson, encryptJson } from './crypto';
 import { chunkIds, first, newId, parseJson, type AppDb } from './db/client';
 import {
@@ -332,7 +332,7 @@ export async function publishTarget(
 	options: {
 		fetchImpl?: FetchLike;
 		now?: Date;
-		/** Counts this request's subrequests; see $lib/server/budget. */
+		/** Counts this request's subrequests; see #lib/server/budget. */
 		budget?: SubrequestBudget | null;
 		/** The first target of a request always runs, whatever the budget says:
 		 *  deferring it would only defer it again on every tick. */

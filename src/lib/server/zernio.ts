@@ -1,4 +1,4 @@
-import { ZERNIO_API_BASE } from '$lib/domain/zernio';
+import { ZERNIO_API_BASE } from '#lib/domain/zernio.js';
 import { ProviderError, type FetchLike } from './providers/types';
 import { providerFetch } from './providers/timed-fetch';
 

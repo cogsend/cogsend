@@ -31,9 +31,9 @@ import {
 	verifyManifestSignature,
 	type TrustedKey,
 	type UpdateManifest
-} from '$lib/domain/update-manifest';
-import { RELEASE_DOWNLOAD_BASE } from '$lib/domain/release-check';
-import { base64ToBytes, bytesToHex } from '$lib/domain/bytes';
+} from '#lib/domain/update-manifest.js';
+import { RELEASE_DOWNLOAD_BASE } from '#lib/domain/release-check.js';
+import { base64ToBytes, bytesToHex } from '#lib/domain/bytes.js';
 import type { SubrequestBudget } from '../budget';
 import type { AppDb } from '../db/client';
 import type { CloudflareApi } from './cloudflare-api';

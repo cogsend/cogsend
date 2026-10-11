@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { connections, drafts, publishTargets, users } from '$lib/server/db/schema';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { createTestDb } from '$lib/server/db/test';
-import { SERIES_BUCKETS_PER_STATEMENT } from '$lib/server/insights-report';
+import { connections, drafts, publishTargets, users } from '#lib/server/db/schema.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { createTestDb } from '#lib/server/db/test.js';
+import { SERIES_BUCKETS_PER_STATEMENT } from '#lib/server/insights-report.js';
 import {
 	bucketKind,
 	buildInsightSeries,
@@ -15,7 +15,7 @@ import {
 	rateOf,
 	tallyInsightFrames,
 	type InsightTargetRow
-} from '$lib/domain/insights';
+} from '#lib/domain/insights.js';
 import { GET as insightsGET } from '../src/routes/api/insights/+server';
 
 const DAY = 86_400_000;

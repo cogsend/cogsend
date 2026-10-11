@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { hashApiKey } from '$lib/server/api-keys';
-import type { AppDb } from '$lib/server/db/client';
-import { createTestDb } from '$lib/server/db/test';
+import { hashApiKey } from '#lib/server/api-keys.js';
+import type { AppDb } from '#lib/server/db/client.js';
+import { createTestDb } from '#lib/server/db/test.js';
 import {
 	TICK_TOKEN_PREFIX,
 	hashTickToken,
@@ -10,7 +10,7 @@ import {
 	revokeTickToken,
 	rotateTickToken,
 	verifyTickToken
-} from '$lib/server/tick-token';
+} from '#lib/server/tick-token.js';
 
 describe('tick token', () => {
 	let db: AppDb;
@@ -41,7 +41,7 @@ describe('tick token', () => {
 
 		expect(await verifyTickToken(db, token)).toBe(true);
 		// The raw value is not in the database, so a leak of the row is inert.
-		const rows = await db.select().from((await import('$lib/server/db/schema')).appSettings);
+		const rows = await db.select().from((await import('#lib/server/db/schema.js')).appSettings);
 		expect(rows.map((row) => row.value).join('|')).not.toContain(token);
 	});
 

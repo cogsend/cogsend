@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createClient } from '@libsql/client';
-import { INIT_SQL } from '$lib/server/db/init-sql';
+import { INIT_SQL } from '#lib/server/db/init-sql.js';
 import {
 	D1_MIGRATIONS_DDL,
 	INITIAL_TABLES,

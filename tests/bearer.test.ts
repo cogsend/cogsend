@@ -5,7 +5,7 @@ import {
 	hasAllowedMutationOrigin,
 	isInternalApiPath,
 	secretMatches
-} from '$lib/domain/bearer';
+} from '#lib/domain/bearer.js';
 
 describe('extractBearerToken', () => {
 	it('reads Authorization Bearer and alternate headers', () => {

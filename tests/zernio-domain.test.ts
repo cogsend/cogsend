@@ -4,7 +4,7 @@ import {
 	isZernioConnection,
 	toZernioPlatform,
 	zernioRequestId
-} from '$lib/domain/zernio';
+} from '#lib/domain/zernio.js';
 
 describe('zernio platform mapping', () => {
 	it('maps the four supported platforms both ways and refuses the rest', () => {

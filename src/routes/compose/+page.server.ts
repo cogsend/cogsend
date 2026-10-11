@@ -1,11 +1,11 @@
 import { and, desc, eq, ne } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
-import { parseProfileSettings } from '$lib/domain/profile-settings';
-import { batchQueries } from '$lib/server/db/client';
-import { connections, users } from '$lib/server/db/schema';
-import { loadOwnedDraft } from '$lib/server/draft-record';
-import { requireUser } from '$lib/server/require';
-import { serializeConnection } from '$lib/server/serialize';
+import { parseProfileSettings } from '#lib/domain/profile-settings.js';
+import { batchQueries } from '#lib/server/db/client.js';
+import { connections, users } from '#lib/server/db/schema.js';
+import { loadOwnedDraft } from '#lib/server/draft-record.js';
+import { requireUser } from '#lib/server/require.js';
+import { serializeConnection } from '#lib/server/serialize.js';
 
 type ConnectionRow = {
 	id: string;

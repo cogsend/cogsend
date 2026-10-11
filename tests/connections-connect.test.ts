@@ -1,16 +1,16 @@
 import { afterEach, beforeAll, afterAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { oauthPending, users } from '$lib/server/db/schema';
-import { createTestDb, TEST_ENV } from '$lib/server/db/test';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { oauthPending, users } from '#lib/server/db/schema.js';
+import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
 import { GET as connectionsGET } from '../src/routes/api/connections/+server';
 import { POST as linkedinPOST } from '../src/routes/api/connections/linkedin/+server';
 import { POST as mastodonPOST } from '../src/routes/api/connections/mastodon/+server';
 import { POST as threadsPOST } from '../src/routes/api/connections/threads/+server';
 import { POST as xPOST } from '../src/routes/api/connections/x/+server';
-import { platformName } from '$lib/domain/platforms';
-import { PLATFORM_SECRET_NAMES, PLATFORM_SETUP } from '$lib/domain/platform-setup';
-import { OAUTH_PENDING_TTL_MS } from '$lib/domain/oauth-pending';
+import { platformName } from '#lib/domain/platforms.js';
+import { PLATFORM_SECRET_NAMES, PLATFORM_SETUP } from '#lib/domain/platform-setup.js';
+import { OAUTH_PENDING_TTL_MS } from '#lib/domain/oauth-pending.js';
 
 /**
  * The four connect entry points. They were untested: a regression here (a

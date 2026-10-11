@@ -4,7 +4,7 @@ import {
 	isLocalRequestHost,
 	isPinnedAppUrl,
 	resolveAppUrl
-} from '$lib/domain/app-url';
+} from '#lib/domain/app-url.js';
 
 /**
  * The "local instance" signal decides whether example secrets are tolerated and

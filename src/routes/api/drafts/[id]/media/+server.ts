@@ -1,12 +1,12 @@
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { canAttachMoreImages, MAX_IMAGES_PER_SEGMENT } from '$lib/domain/media-limits';
-import { chunkIds, first, newId } from '$lib/server/db/client';
-import { draftMedia, draftVariants, drafts, publishTargets } from '$lib/server/db/schema';
-import { fail, handleError, ok } from '$lib/server/http';
-import { deleteMediaObjects, saveMediaBytes } from '$lib/server/media';
-import { draftHasInFlightPublish } from '$lib/server/publish-plan';
-import { requireScope, requireUser } from '$lib/server/require';
+import { canAttachMoreImages, MAX_IMAGES_PER_SEGMENT } from '#lib/domain/media-limits.js';
+import { chunkIds, first, newId } from '#lib/server/db/client.js';
+import { draftMedia, draftVariants, drafts, publishTargets } from '#lib/server/db/schema.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { deleteMediaObjects, saveMediaBytes } from '#lib/server/media.js';
+import { draftHasInFlightPublish } from '#lib/server/publish-plan.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
 
 const MAX_SEGMENT_INDEX = 100;
 const MAX_ALT_LENGTH = 1500;
@@ -41,8 +41,8 @@ async function rejectIfPublishing(db: App.Locals['db'], draftId: string) {
 	}
 	return null;
 }
-import { splitThreadSegments } from '$lib/domain/thread-segments';
-import { serializeMedia } from '$lib/server/serialize';
+import { splitThreadSegments } from '#lib/domain/thread-segments.js';
+import { serializeMedia } from '#lib/server/serialize.js';
 
 async function ownDraft(locals: App.Locals, id: string, userId: string) {
 	return first(

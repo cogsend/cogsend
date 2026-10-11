@@ -5,7 +5,7 @@ import {
 	formatLocalDateTime,
 	formatLocalDateTimeWithZone,
 	localTimezoneShort
-} from '$lib/domain/relative-time';
+} from '#lib/domain/relative-time.js';
 
 describe('local timezone formatting', () => {
 	it('exposes a non-empty local zone abbreviation', () => {

@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { connections, drafts, publishTargets, users } from '$lib/server/db/schema';
-import { encryptJson } from '$lib/server/crypto';
-import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
-import { writeHeartbeat } from '$lib/server/scheduler';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { connections, drafts, publishTargets, users } from '#lib/server/db/schema.js';
+import { encryptJson } from '#lib/server/crypto.js';
+import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
+import { writeHeartbeat } from '#lib/server/scheduler.js';
 import { POST as tickPOST } from '../src/routes/api/internal/tick/+server';
 import { GET as healthGET } from '../src/routes/api/health/+server';
 import { GET as schedulerHealthGET } from '../src/routes/api/scheduler/health/+server';

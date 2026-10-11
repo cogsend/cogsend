@@ -5,7 +5,7 @@ import {
 	parseProfileSettings,
 	PROFILE_PICTURE_URL_MAX,
 	sanitizeProfilePictureUrl
-} from '$lib/domain/profile-settings';
+} from '#lib/domain/profile-settings.js';
 
 describe('parseProfileSettings', () => {
 	it('falls back on garbage', () => {

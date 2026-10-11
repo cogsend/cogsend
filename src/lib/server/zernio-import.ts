@@ -1,6 +1,6 @@
 import { and, desc, eq, ne } from 'drizzle-orm';
-import type { PlatformId } from '$lib/domain/platforms';
-import { fromZernioPlatform, isZernioConnection } from '$lib/domain/zernio';
+import type { PlatformId } from '#lib/domain/platforms.js';
+import { fromZernioPlatform, isZernioConnection } from '#lib/domain/zernio.js';
 import { decryptJson, encryptJson } from './crypto';
 import { newId, parseJson, type AppDb } from './db/client';
 import { connections } from './db/schema';

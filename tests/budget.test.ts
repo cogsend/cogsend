@@ -9,15 +9,15 @@ import {
 	parseSubrequestLimit,
 	rawBinding,
 	SubrequestBudget
-} from '$lib/server/budget';
-import { encryptJson } from '$lib/server/crypto';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { ensureSchemaOnce } from '$lib/server/db/init-sql';
-import { connections, drafts, publishTargets, users } from '$lib/server/db/schema';
-import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
-import { publishCallEstimate, publishTarget } from '$lib/server/publish';
-import { runSchedulerTick } from '$lib/server/scheduler';
-import type { FetchLike } from '$lib/server/providers/types';
+} from '#lib/server/budget.js';
+import { encryptJson } from '#lib/server/crypto.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { ensureSchemaOnce } from '#lib/server/db/init-sql.js';
+import { connections, drafts, publishTargets, users } from '#lib/server/db/schema.js';
+import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
+import { publishCallEstimate, publishTarget } from '#lib/server/publish.js';
+import { runSchedulerTick } from '#lib/server/scheduler.js';
+import type { FetchLike } from '#lib/server/providers/types.js';
 
 describe('parseSubrequestLimit', () => {
 	it('defaults to the Free plan and accepts a positive integer as text or number', () => {

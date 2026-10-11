@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { platformMark } from '$lib/domain/platform-marks';
+	import { platformMark } from '#lib/domain/platform-marks.js';
 
 	let { platform, size = 10 }: { platform: string; size?: number } = $props();
 

@@ -4,11 +4,11 @@ import {
 	CLIENT_CAPABILITIES_META_KEY,
 	PROTOCOL_VERSION_META_KEY
 } from '@modelcontextprotocol/server';
-import { createTestAdmin, createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
-import { newId } from '$lib/server/db/client';
-import { connections, draftMedia, drafts, publishTargets } from '$lib/server/db/schema';
-import { memoryMediaStore, thumbCacheKey } from '$lib/server/media';
-import * as publish from '$lib/server/publish';
+import { createTestAdmin, createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
+import { newId } from '#lib/server/db/client.js';
+import { connections, draftMedia, drafts, publishTargets } from '#lib/server/db/schema.js';
+import { memoryMediaStore, thumbCacheKey } from '#lib/server/media.js';
+import * as publish from '#lib/server/publish.js';
 import { DELETE, GET, POST } from '../src/routes/api/mcp/+server';
 
 const toolNames = [

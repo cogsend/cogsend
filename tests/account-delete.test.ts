@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { hotp, secretFromBase32, totpAt, totpCounter } from '$lib/domain/totp';
-import { getSessionUser } from '$lib/server/auth';
-import { createSession } from '$lib/server/auth';
-import { hashPassword } from '$lib/server/crypto';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { draftMedia, drafts, sessions, totpBackupCodes, users } from '$lib/server/db/schema';
-import { createTestAdmin, createTestDb, TEST_ENV } from '$lib/server/db/test';
-import { enrollConfirm, enrollStart, startEnrollChallenge } from '$lib/server/totp';
+import { hotp, secretFromBase32, totpAt, totpCounter } from '#lib/domain/totp.js';
+import { getSessionUser } from '#lib/server/auth.js';
+import { createSession } from '#lib/server/auth.js';
+import { hashPassword } from '#lib/server/crypto.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { draftMedia, drafts, sessions, totpBackupCodes, users } from '#lib/server/db/schema.js';
+import { createTestAdmin, createTestDb, TEST_ENV } from '#lib/server/db/test.js';
+import { enrollConfirm, enrollStart, startEnrollChallenge } from '#lib/server/totp.js';
 import { DELETE } from '../src/routes/api/auth/me/+server';
 
 /**

@@ -5,14 +5,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createClient } from '@libsql/client';
 import { eq, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
-import * as schema from '$lib/server/db/schema';
-import { encryptJson } from '$lib/server/crypto';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { connections, drafts, publishTargets, sessions, users } from '$lib/server/db/schema';
-import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
+import * as schema from '#lib/server/db/schema.js';
+import { encryptJson } from '#lib/server/crypto.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { connections, drafts, publishTargets, sessions, users } from '#lib/server/db/schema.js';
+import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
 import { captureConsole, loggedLines } from './console-spy';
-import { writeAppSetting } from '$lib/server/app-settings';
-import { draftHasInFlightPublish } from '$lib/server/publish-plan';
+import { writeAppSetting } from '#lib/server/app-settings.js';
+import { draftHasInFlightPublish } from '#lib/server/publish-plan.js';
 import {
 	claimDueTargets,
 	consumePublishJob,
@@ -22,7 +22,7 @@ import {
 	runSchedulerTick,
 	schedulerHealth,
 	writeHeartbeat
-} from '$lib/server/scheduler';
+} from '#lib/server/scheduler.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 

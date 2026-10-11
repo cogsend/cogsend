@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseTimeZone } from '$lib/domain/time-zone';
+import { parseTimeZone } from '#lib/domain/time-zone.js';
 
 describe('parseTimeZone', () => {
 	it('accepts zones the runtime knows', () => {

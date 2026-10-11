@@ -1,13 +1,13 @@
 import type { RequestHandler } from './$types';
-import { listDrafts, createDraft } from '$lib/server/api/operations';
-import { fail, handleError, ok } from '$lib/server/http';
+import { listDrafts, createDraft } from '#lib/server/api/operations.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
 import {
 	DRAFTS_LIST_LIMIT,
 	DRAFTS_LIST_MAX_LIMIT,
 	loadDraftSummaries,
 	parseListLimit
-} from '$lib/server/post-list';
-import { requireScope, requireUser } from '$lib/server/require';
+} from '#lib/server/post-list.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
 
 export const GET: RequestHandler = async ({ locals, url }) => {
 	try {

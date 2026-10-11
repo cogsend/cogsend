@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { connections, drafts, publishTargets, users } from '$lib/server/db/schema';
-import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { connections, drafts, publishTargets, users } from '#lib/server/db/schema.js';
+import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
 import { PATCH as draftPATCH } from '../src/routes/api/drafts/[id]/+server';
 import { POST as schedulePOST } from '../src/routes/api/drafts/[id]/schedule/+server';
 import { POST as reschedulePOST } from '../src/routes/api/targets/[id]/reschedule/+server';

@@ -6,7 +6,7 @@ import {
 	MAX_IMAGES_PER_SEGMENT,
 	remapSegmentIndexAfterRemoval,
 	validateImageUpload
-} from '$lib/domain/media-limits';
+} from '#lib/domain/media-limits.js';
 
 describe('validateImageUpload', () => {
 	it('accepts png/jpeg/webp/gif under size limit', () => {
@@ -82,8 +82,8 @@ describe('groupMediaBySegment', () => {
 
 describe('media serve hardening', () => {
 	it('rejects validation failures with 400, not 500', async () => {
-		const { saveMediaBytes } = await import('$lib/server/media');
-		const { createTestMedia } = await import('$lib/server/db/test');
+		const { saveMediaBytes } = await import('#lib/server/media.js');
+		const { createTestMedia } = await import('#lib/server/db/test.js');
 		const store = createTestMedia();
 		const err = await saveMediaBytes(store, {
 			bytes: new Uint8Array([1, 2, 3]),
@@ -97,8 +97,8 @@ describe('media serve hardening', () => {
 	});
 
 	it('strict storage keys block traversal and legacy fakes', async () => {
-		const { assertSafeStorageKey, saveMediaBytes } = await import('$lib/server/media');
-		const { createTestMedia } = await import('$lib/server/db/test');
+		const { assertSafeStorageKey, saveMediaBytes } = await import('#lib/server/media.js');
+		const { createTestMedia } = await import('#lib/server/db/test.js');
 		const store = createTestMedia();
 		const saved = await saveMediaBytes(store, {
 			bytes: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]),
@@ -111,8 +111,8 @@ describe('media serve hardening', () => {
 	});
 
 	it('serves byte ranges with 206', async () => {
-		const { serveMediaBytes } = await import('$lib/server/media');
-		const { createTestMedia } = await import('$lib/server/db/test');
+		const { serveMediaBytes } = await import('#lib/server/media.js');
+		const { createTestMedia } = await import('#lib/server/db/test.js');
 		const store = createTestMedia();
 		await store.put('k', new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), 'image/png');
 		const full = await serveMediaBytes(store, 'k', undefined, {

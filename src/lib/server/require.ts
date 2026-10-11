@@ -1,5 +1,5 @@
-import { hasApiScope, type ApiScope } from '$lib/domain/api-scopes';
-import { anySecretMatches, extractBearerToken } from '$lib/domain/bearer';
+import { hasApiScope, type ApiScope } from '#lib/domain/api-scopes.js';
+import { anySecretMatches, extractBearerToken } from '#lib/domain/bearer.js';
 import { isFullyVerified, type SessionUser } from './auth';
 import { unauthorized } from './http';
 import { verifyTickToken } from './tick-token';

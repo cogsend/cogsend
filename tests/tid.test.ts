@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { encodeTid, targetRecordKey, TID_RE } from '$lib/domain/tid';
+import { encodeTid, targetRecordKey, TID_RE } from '#lib/domain/tid.js';
 
 describe('encodeTid', () => {
 	it('matches the reference encoding from the AT Protocol spec', () => {

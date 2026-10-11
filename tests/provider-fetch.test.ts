@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { timedFetch } from '$lib/server/providers/timed-fetch';
+import { timedFetch } from '#lib/server/providers/timed-fetch.js';
 
 describe('timedFetch', () => {
 	afterEach(() => {

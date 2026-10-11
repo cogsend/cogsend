@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { envFromPlatform } from '$lib/server/env';
-import { deriveSecrets } from '$lib/server/derived-secrets';
-import { TEST_ENV } from '$lib/server/db/test';
+import { envFromPlatform } from '#lib/server/env.js';
+import { deriveSecrets } from '#lib/server/derived-secrets.js';
+import { TEST_ENV } from '#lib/server/db/test.js';
 
 /**
  * `envFromPlatform` is the only path a real Worker takes to its configuration

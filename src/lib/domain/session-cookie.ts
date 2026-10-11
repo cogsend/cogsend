@@ -20,7 +20,7 @@ export function shouldUseSecureCookie(opts: {
 	} catch {
 		/* fall through */
 	}
-	// One local-host rule for the whole app (see $lib/domain/app-url): this used
+	// One local-host rule for the whole app (see #lib/domain/app-url): this used
 	// to carry its own list of three hostnames, which missed the LAN address a
 	// dev server is reached by from a phone — where a Secure cookie over http is
 	// silently dropped, and the sign-in with it.

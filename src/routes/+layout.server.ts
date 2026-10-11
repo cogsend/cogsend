@@ -1,5 +1,5 @@
 import type { LayoutServerLoad } from './$types';
-import { readStoredAppName } from '$lib/server/app-settings';
+import { readStoredAppName } from '#lib/server/app-settings.js';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
 	// Name and photo ride along on the session read in hooks, so this load

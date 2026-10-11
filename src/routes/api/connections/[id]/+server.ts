@@ -1,12 +1,12 @@
 import { and, eq, inArray, isNull, lte, ne, or } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { STALE_CLAIM_MS } from '$lib/domain/due-jobs';
-import { chunkIds, first } from '$lib/server/db/client';
-import { connections, publishAttempts, publishTargets } from '$lib/server/db/schema';
-import { fail, handleError, ok } from '$lib/server/http';
-import { refreshDraftStatuses } from '$lib/server/publish';
-import { draftHasInFlightPublish } from '$lib/server/publish-plan';
-import { requireSession } from '$lib/server/require';
+import { STALE_CLAIM_MS } from '#lib/domain/due-jobs.js';
+import { chunkIds, first } from '#lib/server/db/client.js';
+import { connections, publishAttempts, publishTargets } from '#lib/server/db/schema.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { refreshDraftStatuses } from '#lib/server/publish.js';
+import { draftHasInFlightPublish } from '#lib/server/publish-plan.js';
+import { requireSession } from '#lib/server/require.js';
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	try {

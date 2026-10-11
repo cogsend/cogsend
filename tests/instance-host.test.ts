@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isBlockedInstanceHost, isPrivateIpv4 } from '$lib/domain/instance-host';
+import { isBlockedInstanceHost, isPrivateIpv4 } from '#lib/domain/instance-host.js';
 
 describe('isPrivateIpv4', () => {
 	it('blocks RFC1918 and link-local', () => {

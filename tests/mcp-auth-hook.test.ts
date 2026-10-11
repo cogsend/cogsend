@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createClient, type Client } from '@libsql/client';
 import { handle } from '../src/hooks.server';
-import { createD1Db, newId } from '$lib/server/db/client';
-import { ensureSchema } from '$lib/server/db/init-sql';
-import { rotateApiKey } from '$lib/server/api-keys';
-import { createSession, SESSION_COOKIE } from '$lib/server/auth';
-import { readAppEnv } from '$lib/server/env';
-import { users } from '$lib/server/db/schema';
+import { createD1Db, newId } from '#lib/server/db/client.js';
+import { ensureSchema } from '#lib/server/db/init-sql.js';
+import { rotateApiKey } from '#lib/server/api-keys.js';
+import { createSession, SESSION_COOKIE } from '#lib/server/auth.js';
+import { readAppEnv } from '#lib/server/env.js';
+import { users } from '#lib/server/db/schema.js';
 
 /** D1-shaped shim over in-memory SQLite; the hook constructs its own Drizzle handle. */
 function d1Shim(client: Client): D1Database {

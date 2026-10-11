@@ -9,10 +9,10 @@ import {
 	publicKeyOf,
 	signManifest
 } from '../scripts/lib/release-bundle.mjs';
-import { SubrequestBudget } from '$lib/server/budget';
-import { createTestDb, TEST_ENV, type TestDb } from '$lib/server/db/test';
-import { cloudflareApi } from '$lib/server/updater/cloudflare-api';
-import { updaterContext } from '$lib/server/updater/context';
+import { SubrequestBudget } from '#lib/server/budget.js';
+import { createTestDb, TEST_ENV, type TestDb } from '#lib/server/db/test.js';
+import { cloudflareApi } from '#lib/server/updater/cloudflare-api.js';
+import { updaterContext } from '#lib/server/updater/context.js';
 import {
 	readJob,
 	readPrevious,
@@ -20,7 +20,7 @@ import {
 	readUnlockedToken,
 	writePrevious,
 	writeUnlockedToken
-} from '$lib/server/updater/state';
+} from '#lib/server/updater/state.js';
 import {
 	MAX_BUCKETS_PER_CALL,
 	MAX_FILES_PER_CALL_SINGLE,
@@ -35,7 +35,7 @@ import {
 	stepVersion,
 	type PackStore,
 	type UpdaterContext
-} from '$lib/server/updater/steps';
+} from '#lib/server/updater/steps.js';
 import { POST as stepPOST } from '../src/routes/api/update/[step]/+server';
 import { GET as statusGET } from '../src/routes/api/update/+server';
 

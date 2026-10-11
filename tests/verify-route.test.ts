@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { connections, users } from '$lib/server/db/schema';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { TEST_ENV, createTestDb } from '$lib/server/db/test';
-import { encryptJson } from '$lib/server/crypto';
+import { connections, users } from '#lib/server/db/schema.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { TEST_ENV, createTestDb } from '#lib/server/db/test.js';
+import { encryptJson } from '#lib/server/crypto.js';
 import { POST as verifyPOST } from '../src/routes/api/connections/[id]/verify/+server';
 
 /**

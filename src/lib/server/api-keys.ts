@@ -4,8 +4,8 @@ import {
 	normalizeApiScopes,
 	parseApiScopes,
 	type ApiScope
-} from '$lib/domain/api-scopes';
-import { bytesToHex, randomHex, utf8Bytes } from '$lib/domain/bytes';
+} from '#lib/domain/api-scopes.js';
+import { bytesToHex, randomHex, utf8Bytes } from '#lib/domain/bytes.js';
 import { first, newId, type AppDb } from './db/client';
 import { apiKeys } from './db/schema';
 

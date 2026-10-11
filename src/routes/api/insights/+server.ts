@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
-import { handleError, ok } from '$lib/server/http';
-import { parseTimeZone } from '$lib/domain/time-zone';
-import { loadInsights } from '$lib/server/insights-report';
-import { requireScope, requireUser } from '$lib/server/require';
+import { handleError, ok } from '#lib/server/http.js';
+import { parseTimeZone } from '#lib/domain/time-zone.js';
+import { loadInsights } from '#lib/server/insights-report.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
 
 export const GET: RequestHandler = async ({ locals, url }) => {
 	try {

@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDb } from '$lib/server/db/client';
-import { users } from '$lib/server/db/schema';
-import { createTestAdmin, createTestDb, TEST_ENV } from '$lib/server/db/test';
-import { SESSION_COOKIE } from '$lib/server/auth';
-import { verifyPassword } from '$lib/server/crypto';
-import { MFA_COOKIE } from '$lib/server/totp';
+import type { AppDb } from '#lib/server/db/client.js';
+import { users } from '#lib/server/db/schema.js';
+import { createTestAdmin, createTestDb, TEST_ENV } from '#lib/server/db/test.js';
+import { SESSION_COOKIE } from '#lib/server/auth.js';
+import { verifyPassword } from '#lib/server/crypto.js';
+import { MFA_COOKIE } from '#lib/server/totp.js';
 import { POST as claimPOST } from '../src/routes/api/auth/claim/+server';
 import { POST as enrollStartPOST } from '../src/routes/api/auth/totp/enroll/start/+server';
 

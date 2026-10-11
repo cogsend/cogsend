@@ -1,9 +1,9 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
-import { batchQueries } from '$lib/server/db/client';
-import { connections, drafts, publishTargets } from '$lib/server/db/schema';
-import { requireUser } from '$lib/server/require';
-import { schedulerHealth } from '$lib/server/scheduler';
+import { batchQueries } from '#lib/server/db/client.js';
+import { connections, drafts, publishTargets } from '#lib/server/db/schema.js';
+import { requireUser } from '#lib/server/require.js';
+import { schedulerHealth } from '#lib/server/scheduler.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals.user);

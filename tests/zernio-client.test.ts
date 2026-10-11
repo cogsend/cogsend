@@ -8,9 +8,9 @@ import {
 	probePublishAccess,
 	zernioApiMessage,
 	zernioHttpError
-} from '$lib/server/zernio';
-import { humanizeError } from '$lib/domain/human-error';
-import { ProviderError, type FetchLike } from '$lib/server/providers/types';
+} from '#lib/server/zernio.js';
+import { humanizeError } from '#lib/domain/human-error.js';
+import { ProviderError, type FetchLike } from '#lib/server/providers/types.js';
 
 function mockFetch(
 	handlers: Record<string, (req: Request) => Response | Promise<Response>>,

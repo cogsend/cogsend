@@ -7,7 +7,7 @@ import {
 	needsReconnect,
 	rescheduleTargetIds,
 	retryTargetIds
-} from '$lib/domain/post-actions';
+} from '#lib/domain/post-actions.js';
 
 const platforms = [
 	{ status: 'scheduled', targetId: 's1' },

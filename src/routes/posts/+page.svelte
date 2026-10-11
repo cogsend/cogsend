@@ -14,23 +14,23 @@
 		Check,
 		Users
 	} from '@lucide/svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import { platformColorClass } from '$lib/components/platform-color';
-	import SocialIcon from '$lib/components/SocialIcon.svelte';
-	import { displayHandle, platformName, platformRank } from '$lib/domain/platforms';
-	import { draftExcerpt } from '$lib/domain/excerpt';
-	import { safeHttpUrl } from '$lib/domain/links';
-	import { parseXPostUrl } from '$lib/domain/x-quote';
-	import { humanizeError } from '$lib/domain/human-error';
-	import { sessionExpiredIfUnauthorized } from '$lib/components/session-expired';
-	import { menuNav } from '$lib/components/menu-nav';
+	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
+	import { platformColorClass } from '#lib/components/platform-color.js';
+	import SocialIcon from '#lib/components/SocialIcon.svelte';
+	import { displayHandle, platformName, platformRank } from '#lib/domain/platforms.js';
+	import { draftExcerpt } from '#lib/domain/excerpt.js';
+	import { safeHttpUrl } from '#lib/domain/links.js';
+	import { parseXPostUrl } from '#lib/domain/x-quote.js';
+	import { humanizeError } from '#lib/domain/human-error.js';
+	import { sessionExpiredIfUnauthorized } from '#lib/components/session-expired.js';
+	import { menuNav } from '#lib/components/menu-nav.js';
 	import {
 		formatDayTime,
 		formatFullLocalWithZone,
 		formatLocalDateTimeWithZone,
 		formatRelativeTime,
 		localTimezoneShort
-	} from '$lib/domain/relative-time';
+	} from '#lib/domain/relative-time.js';
 	import {
 		cancelTargetIds,
 		emptyPostsBody,
@@ -39,7 +39,7 @@
 		rescheduleTargetIds,
 		retryTargetIds,
 		type PostsTab
-	} from '$lib/domain/post-actions';
+	} from '#lib/domain/post-actions.js';
 	import {
 		DEFAULT_SCHEDULE_OFFSET,
 		isFutureScheduleValue,
@@ -47,8 +47,8 @@
 		offsetToDHM,
 		scheduleFromDHM,
 		scheduleValueToIso
-	} from '$lib/domain/schedule-helpers';
-	import { splitThreadSegments } from '$lib/domain/thread-segments';
+	} from '#lib/domain/schedule-helpers.js';
+	import { splitThreadSegments } from '#lib/domain/thread-segments.js';
 	import type { Snapshot } from './$types';
 
 	type PostMedia = {

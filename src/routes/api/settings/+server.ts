@@ -4,15 +4,15 @@ import {
 	DEFAULT_PROFILE_SETTINGS,
 	normalizeProfileSettings,
 	parseProfileSettings
-} from '$lib/domain/profile-settings';
-import { parseInstanceName } from '$lib/domain/instance-name';
-import { parseTimeZone } from '$lib/domain/time-zone';
-import { first } from '$lib/server/db/client';
-import { users } from '$lib/server/db/schema';
-import { fail, handleError, ok } from '$lib/server/http';
-import { requireScope, requireUser } from '$lib/server/require';
-import { readStoredAppName, rememberAppName } from '$lib/server/app-settings';
-import { readOfferPrereleases, setOfferPrereleases } from '$lib/server/release';
+} from '#lib/domain/profile-settings.js';
+import { parseInstanceName } from '#lib/domain/instance-name.js';
+import { parseTimeZone } from '#lib/domain/time-zone.js';
+import { first } from '#lib/server/db/client.js';
+import { users } from '#lib/server/db/schema.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { requireScope, requireUser } from '#lib/server/require.js';
+import { readStoredAppName, rememberAppName } from '#lib/server/app-settings.js';
+import { readOfferPrereleases, setOfferPrereleases } from '#lib/server/release.js';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	try {

@@ -12,7 +12,7 @@
  * update can land on different isolates.
  */
 import { eq } from 'drizzle-orm';
-import type { ApiBinding } from '$lib/domain/update-manifest';
+import type { ApiBinding } from '#lib/domain/update-manifest.js';
 import { first, type AppDb } from '../db/client';
 import { appSettings } from '../db/schema';
 

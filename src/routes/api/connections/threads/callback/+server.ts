@@ -1,6 +1,6 @@
-import { createOAuthCallback } from '$lib/server/oauth-callback';
-import { decryptSecret } from '$lib/server/crypto';
-import { threadsExchangeCode } from '$lib/server/providers';
+import { createOAuthCallback } from '#lib/server/oauth-callback.js';
+import { decryptSecret } from '#lib/server/crypto.js';
+import { threadsExchangeCode } from '#lib/server/providers/index.js';
 
 export const GET = createOAuthCallback({
 	platform: 'threads',

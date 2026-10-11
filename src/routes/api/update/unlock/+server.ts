@@ -1,15 +1,15 @@
 import type { RequestHandler } from './$types';
-import { checkAccountPassword } from '$lib/server/auth-gate';
-import { getAdminUser } from '$lib/server/auth';
-import { fail, handleError, ok } from '$lib/server/http';
-import { rateLimitKey } from '$lib/server/rate-limit';
-import { requireSession } from '$lib/server/require';
-import { SavedTokenError, unlockToken } from '$lib/server/updater/saved-token';
+import { checkAccountPassword } from '#lib/server/auth-gate.js';
+import { getAdminUser } from '#lib/server/auth.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { rateLimitKey } from '#lib/server/rate-limit.js';
+import { requireSession } from '#lib/server/require.js';
+import { SavedTokenError, unlockToken } from '#lib/server/updater/saved-token.js';
 
 /**
  * Open the saved Cloudflare token with the account password, for one update.
  * Answers with a key the browser sends with each step instead of the token,
- * which never leaves the server (see $lib/server/updater/saved-token).
+ * which never leaves the server (see #lib/server/updater/saved-token).
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {

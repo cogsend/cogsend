@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { dialogFocus } from '$lib/components/dialog-focus';
+	import { dialogFocus } from '#lib/components/dialog-focus.js';
 
 	let {
 		open = false,

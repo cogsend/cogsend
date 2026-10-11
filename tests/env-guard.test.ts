@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { TEST_ENV } from '$lib/server/db/test';
-import { readAppEnv } from '$lib/server/env';
+import { TEST_ENV } from '#lib/server/db/test.js';
+import { readAppEnv } from '#lib/server/env.js';
 
 /**
  * The placeholder guard is what stops a deploy from running with the example

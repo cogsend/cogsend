@@ -5,11 +5,11 @@ import {
 	CLIENT_CAPABILITIES_META_KEY,
 	PROTOCOL_VERSION_META_KEY
 } from '@modelcontextprotocol/server';
-import { createTestAdmin, createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
-import { newId } from '$lib/server/db/client';
-import { connections, drafts, publishTargets } from '$lib/server/db/schema';
-import * as publish from '$lib/server/publish';
-import { rotateApiKey, verifyApiKey } from '$lib/server/api-keys';
+import { createTestAdmin, createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
+import { newId } from '#lib/server/db/client.js';
+import { connections, drafts, publishTargets } from '#lib/server/db/schema.js';
+import * as publish from '#lib/server/publish.js';
+import { rotateApiKey, verifyApiKey } from '#lib/server/api-keys.js';
 import { POST } from '../src/routes/api/mcp/+server';
 
 const expectedTools = [

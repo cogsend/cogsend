@@ -1,15 +1,15 @@
 import type { RequestHandler } from './$types';
-import { createSession, getAdminUser } from '$lib/server/auth';
-import { verifyPassword } from '$lib/server/crypto';
+import { createSession, getAdminUser } from '#lib/server/auth.js';
+import { verifyPassword } from '#lib/server/crypto.js';
 import {
 	assertPasswordGateOpen,
 	clearPasswordGate,
 	recordPasswordFailure
-} from '$lib/server/auth-gate';
-import { rateLimitKey } from '$lib/server/rate-limit';
-import { setMfaCookie, setSessionCookie } from '$lib/server/cookies';
-import { fail, handleError, ok } from '$lib/server/http';
-import { startEnrollChallenge, startLoginChallenge } from '$lib/server/totp';
+} from '#lib/server/auth-gate.js';
+import { rateLimitKey } from '#lib/server/rate-limit.js';
+import { setMfaCookie, setSessionCookie } from '#lib/server/cookies.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
+import { startEnrollChallenge, startLoginChallenge } from '#lib/server/totp.js';
 
 export const POST: RequestHandler = async ({ request, locals, cookies, url }) => {
 	try {

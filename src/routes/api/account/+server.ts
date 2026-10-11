@@ -1,18 +1,18 @@
 import { eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { hashPassword, verifyPassword } from '$lib/server/crypto';
-import { users } from '$lib/server/db/schema';
-import { fail, handleError, ok } from '$lib/server/http';
+import { hashPassword, verifyPassword } from '#lib/server/crypto.js';
+import { users } from '#lib/server/db/schema.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
 import {
 	assertPasswordGateOpen,
 	clearPasswordGate,
 	recordPasswordFailure
-} from '$lib/server/auth-gate';
-import { rateLimitKey } from '$lib/server/rate-limit';
-import { getAdminUser, revokeOtherSessions } from '$lib/server/auth';
-import { requireSession } from '$lib/server/require';
-import { forgetToken } from '$lib/server/updater/saved-token';
-import { emailProblem, normalizeEmail, passwordProblem } from '$lib/domain/credentials';
+} from '#lib/server/auth-gate.js';
+import { rateLimitKey } from '#lib/server/rate-limit.js';
+import { getAdminUser, revokeOtherSessions } from '#lib/server/auth.js';
+import { requireSession } from '#lib/server/require.js';
+import { forgetToken } from '#lib/server/updater/saved-token.js';
+import { emailProblem, normalizeEmail, passwordProblem } from '#lib/domain/credentials.js';
 
 /**
  * The login itself: email and password.

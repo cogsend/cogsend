@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { appSettings, users } from '$lib/server/db/schema';
-import { newId, type AppDb } from '$lib/server/db/client';
-import { createTestDb, TEST_ENV } from '$lib/server/db/test';
-import { decryptSecret, hashPassword } from '$lib/server/crypto';
-import { clearAuthGate } from '$lib/server/auth-gate';
-import { tokenFromUnlockKey } from '$lib/server/updater/saved-token';
-import { readSavedToken, readUnlockedToken } from '$lib/server/updater/state';
+import { appSettings, users } from '#lib/server/db/schema.js';
+import { newId, type AppDb } from '#lib/server/db/client.js';
+import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
+import { decryptSecret, hashPassword } from '#lib/server/crypto.js';
+import { clearAuthGate } from '#lib/server/auth-gate.js';
+import { tokenFromUnlockKey } from '#lib/server/updater/saved-token.js';
+import { readSavedToken, readUnlockedToken } from '#lib/server/updater/state.js';
 import {
 	DELETE as forgetDELETE,
 	POST as rememberPOST

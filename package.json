@@ -93,5 +93,9 @@
 	},
 	"overrides": {
 		"sharp": "^0.35.5"
+	},
+	"imports": {
+		"#lib": "./src/lib/index.js",
+		"#lib/*": "./src/lib/*"
 	}
 }

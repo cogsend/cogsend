@@ -1,14 +1,14 @@
 import type { RequestHandler } from './$types';
-import { isOAuthPlatform, type OAuthPlatformId } from '$lib/domain/platform-setup';
-import { platformName } from '$lib/domain/platforms';
-import { fail, handleError, ok } from '$lib/server/http';
+import { isOAuthPlatform, type OAuthPlatformId } from '#lib/domain/platform-setup.js';
+import { platformName } from '#lib/domain/platforms.js';
+import { fail, handleError, ok } from '#lib/server/http.js';
 import {
 	configuredByEnv,
 	deletePlatformCredentials,
 	platformCredentialStatus,
 	savePlatformCredentials
-} from '$lib/server/platform-credentials';
-import { requireSession } from '$lib/server/require';
+} from '#lib/server/platform-credentials.js';
+import { requireSession } from '#lib/server/require.js';
 
 /**
  * The accounts dialog's form for an OAuth app's credentials.

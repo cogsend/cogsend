@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, lte, or } from 'drizzle-orm';
 import type { InferSelectModel } from 'drizzle-orm';
-import { STALE_CLAIM_MS, isFreshPublishing } from '$lib/domain/due-jobs';
+import { STALE_CLAIM_MS, isFreshPublishing } from '#lib/domain/due-jobs.js';
 import { newId, type AppDb } from './db/client';
 import { draftVariants, publishTargets } from './db/schema';
 

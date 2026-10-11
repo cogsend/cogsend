@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { decryptJson, encryptJson } from '$lib/server/crypto';
-import { newId } from '$lib/server/db/client';
+import { decryptJson, encryptJson } from '#lib/server/crypto.js';
+import { newId } from '#lib/server/db/client.js';
 import {
 	connections,
 	draftMedia,
@@ -9,9 +9,9 @@ import {
 	publishAttempts,
 	publishTargets,
 	users
-} from '$lib/server/db/schema';
-import { LEASE_REFRESH_MS } from '$lib/domain/due-jobs';
-import { createTestDb, createTestMedia, TEST_ENV } from '$lib/server/db/test';
+} from '#lib/server/db/schema.js';
+import { LEASE_REFRESH_MS } from '#lib/domain/due-jobs.js';
+import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
 import {
 	MAX_PUBLISH_ATTEMPTS,
 	buildNormalizedPost,
@@ -19,10 +19,10 @@ import {
 	publishTarget,
 	refreshDraftStatus,
 	statusAfterFailedPublish
-} from '$lib/server/publish';
-import type { AppDb } from '$lib/server/db/client';
+} from '#lib/server/publish.js';
+import type { AppDb } from '#lib/server/db/client.js';
 import { captureConsole, loggedLines } from './console-spy';
-import type { FetchLike } from '$lib/server/providers/types';
+import type { FetchLike } from '#lib/server/providers/types.js';
 
 function mockFetch(
 	handlers: Record<string, (req: Request) => Response | Promise<Response>>

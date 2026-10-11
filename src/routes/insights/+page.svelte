@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { ChartColumn, X } from '@lucide/svelte';
-	import AccountAvatar from '$lib/components/AccountAvatar.svelte';
-	import { humanizeError } from '$lib/domain/human-error';
-	import { sessionExpiredIfUnauthorized } from '$lib/components/session-expired';
-	import { displayHandle, platformName } from '$lib/domain/platforms';
-	import { formatRelativeTime } from '$lib/domain/relative-time';
-	import { browserTimeZone } from '$lib/domain/time-zone';
+	import AccountAvatar from '#lib/components/AccountAvatar.svelte';
+	import { humanizeError } from '#lib/domain/human-error.js';
+	import { sessionExpiredIfUnauthorized } from '#lib/components/session-expired.js';
+	import { displayHandle, platformName } from '#lib/domain/platforms.js';
+	import { formatRelativeTime } from '#lib/domain/relative-time.js';
+	import { browserTimeZone } from '#lib/domain/time-zone.js';
 
 	type Range = 7 | 30 | 90;
 

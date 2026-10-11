@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
-import { hmacHex } from '$lib/server/crypto';
+import { hmacHex } from '#lib/server/crypto.js';
 import {
 	AUTH_SECRET_LABEL,
 	SCHEDULER_SECRET_LABEL,
 	deriveSecrets
-} from '$lib/server/derived-secrets';
+} from '#lib/server/derived-secrets.js';
 
 /**
  * AUTH_SECRET and SCHEDULER_SECRET are derived from APP_ENCRYPTION_KEY, so a
