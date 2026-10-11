@@ -62,3 +62,27 @@ test('the connect dialog traps Tab and restores focus on close', async ({ page }
 	await expect(dialog).toBeHidden();
 	await expect.poll(() => activeLabel(page)).toBe('Connect new');
 });
+
+test('a posts tab keeps focus on itself when it switches the list', async ({ page }) => {
+	await page.goto('/posts');
+	// Opening the menu proves the app is hydrated: before that, a tab click is
+	// a full page load, which resets focus by design.
+	const trigger = page.getByRole('button', { name: 'Workspace menu' });
+	await clickUntilVisible(page, trigger, page.getByRole('menu').first());
+	await page.keyboard.press('Escape');
+
+	// Focus is read once the switch has rendered and SvelteKit has finished
+	// with it, so a reset to <body> (data-sveltekit-reset unset) cannot slip by.
+	const switchTo = async (tab: string) => {
+		const link = page.locator(`a[data-tab="${tab}"]`);
+		await link.click();
+		await expect(page).toHaveURL(new RegExp(`[?&]tab=${tab}`));
+		await expect(link).toHaveAttribute('aria-current', 'page');
+		await page.evaluate(
+			() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
+		);
+		return page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.tab ?? null);
+	};
+	expect(await switchTo('scheduled')).toBe('scheduled');
+	expect(await switchTo('drafts')).toBe('drafts');
+});
