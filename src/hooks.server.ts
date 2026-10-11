@@ -35,6 +35,7 @@ import { runSchedulerTick } from '#lib/server/scheduler.js';
 import { securityHeadersFor } from '#lib/server/security-headers.js';
 import { isPinnedAppUrl } from '#lib/domain/app-url.js';
 import { readStoredAppUrl, rememberAppUrl } from '#lib/server/app-settings.js';
+import { carriesCredential, isCrossSiteForgery } from '#lib/server/csrf.js';
 import { verifyTickToken } from '#lib/server/tick-token.js';
 import { authorizeMcpRequest } from '#lib/server/mcp-auth.js';
 import {
@@ -98,6 +99,18 @@ export const handle: Handle = async ({ event, resolve }) => {
 		// Same-origin app: no CORS preflight needed. Bare 204 (no
 		// Access-Control-* headers) so browsers default-deny cross-origin reads.
 		return new Response(null, { status: 204 });
+	}
+	// SvelteKit's own check is off in favour of this one (see #lib/server/csrf);
+	// like SvelteKit's, it only runs in a build.
+	if (!import.meta.env.DEV && isCrossSiteForgery(event.request, event.url.origin)) {
+		const message = `Cross-site ${event.request.method} form submissions are forbidden`;
+		return withPageSecurity(
+			path,
+			event.request.headers.get('accept') === 'application/json'
+				? json({ message }, { status: 403 })
+				: new Response(message, { status: 403 }),
+			secureRequest
+		);
 	}
 
 	const platformEnv = workerEnv;
@@ -194,8 +207,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// — health probes, bots probing /login — from doing D1 work on every hit.
 	// A bearer caller needs the account row to act as; without one (before
 	// `npm run setup` created it) there is nothing to act as.
-	const hasCredential =
-		bearer !== null || (event.request.headers.get('x-api-key')?.trim() ?? '') !== '';
+	const hasCredential = carriesCredential(event.request.headers);
 	const admin = hasCredential ? await getAdminUser(db) : null;
 
 	const session = await getSessionUser(db, appEnv, raw);

@@ -100,6 +100,11 @@ async function deleteConnection(id: string): Promise<void> {
 test.describe.configure({ mode: 'serial' });
 let page: Page;
 
+// What a browser sends with every POST and DELETE. Without it, a request with
+// no body and only the session cookie is refused as cross-site (see
+// src/lib/server/csrf.ts), as SvelteKit refuses it.
+const sameOrigin = () => ({ origin: new URL(page.url()).origin });
+
 test.beforeAll(async ({ browser }) => {
 	page = await browser.newPage();
 });
@@ -761,6 +766,20 @@ test('api key works logged out, stays out of key management', async () => {
 	const writeAllowed = await mcpCall(currentKey).then((response) => response.json());
 	expect(writeAllowed.result.isError).not.toBe(true);
 	expect(writeAllowed.result.structuredContent.draft.title).toBe('Read-only scope check');
+	// A script's bodiless write (curl -X POST, no Content-Type, no Origin)
+	// passes on its own credential; the same request carried by the session
+	// cookie alone is refused as cross-site (src/lib/server/csrf.ts).
+	const scripted = writeAllowed.result.structuredContent.draft.id;
+	const copy = await fetch(`${origin}/api/drafts/${scripted}/duplicate`, {
+		method: 'POST',
+		headers: keyed
+	});
+	expect(copy.status).toBe(201);
+	const copyId = (await copy.json()).draft.id;
+	expect((await page.request.post(`/api/drafts/${scripted}/duplicate`)).status()).toBe(403);
+	expect(
+		(await fetch(`${origin}/api/drafts/${copyId}`, { method: 'DELETE', headers: keyed })).ok
+	).toBe(true);
 	// …but cannot touch key management or credentials.
 	expect((await fetch(`${origin}/api/key`, { headers: keyed })).status).toBe(401);
 	expect(
@@ -1074,7 +1093,9 @@ test('duplicate API, insights page, and failed-tab deep link', async () => {
 	expect(created.status()).toBe(201);
 	const source = (await created.json()).draft;
 
-	const dup = await page.request.post(`/api/drafts/${source.id}/duplicate`);
+	const dup = await page.request.post(`/api/drafts/${source.id}/duplicate`, {
+		headers: sameOrigin()
+	});
 	expect(dup.status()).toBe(201);
 	const clone = (await dup.json()).draft;
 	expect(clone.id).not.toBe(source.id);
@@ -1358,7 +1379,9 @@ test('deleting an already-deleted draft keeps the card hidden', async () => {
 	await expect(page.getByText(label)).toBeVisible();
 	// Deleted behind the page's back (another tab) while the stale card is
 	// still on screen: a 404 means gone for good, not "restore and complain".
-	expect((await page.request.delete(`/api/drafts/${id}`)).ok()).toBe(true);
+	expect((await page.request.delete(`/api/drafts/${id}`, { headers: sameOrigin() })).ok()).toBe(
+		true
+	);
 	// Retried until the dialog is up: a click before hydration opens nothing,
 	// and the confirm would then land on another card's Remove.
 	await clickUntilVisible(

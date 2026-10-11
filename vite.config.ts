@@ -18,6 +18,10 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 			adapter: adapter(),
+			// The hook runs SvelteKit's cross-site check itself, so that a request
+			// with its own credential and no Content-Type (an API script, a tick
+			// pinger) is not refused; see src/lib/server/csrf.ts.
+			csrf: { trustedOrigins: ['*'] },
 			csp: {
 				// 'auto' nonces the inline scripts SvelteKit emits for hydration,
 				// which is why script-src needs no 'unsafe-inline' here.
