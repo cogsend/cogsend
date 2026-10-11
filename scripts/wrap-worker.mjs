@@ -80,10 +80,14 @@ export default {
 };
 `;
 
-const replaced = src.replace(/export\s*\{\s*worker_default as default\s*\};?/, handlers);
-if (replaced === src) {
+// adapter-cloudflare writes its entry as one `export default { fetch }` object.
+// It becomes `worker_default`, which the handlers above wrap; anything else
+// means the adapter changed shape, and a Worker without its cron trigger must
+// not ship.
+const entry = /^export default \{$/gm;
+if ((src.match(entry) ?? []).length !== 1) {
 	console.error('wrap-worker: could not find default export to wrap');
 	process.exit(1);
 }
-writeFileSync(dest, replaced);
+writeFileSync(dest, src.replace(entry, 'const worker_default = {') + handlers);
 console.log('wrap-worker: attached scheduled + queue handlers');
