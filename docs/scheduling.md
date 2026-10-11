@@ -43,13 +43,7 @@ curl -X POST "$APP_URL/api/internal/tick" \
   -H "Content-Type: application/json"
 ```
 
-The endpoint takes `SCHEDULER_SECRET` (`API_TOKEN` still works as a fallback;
-`AUTH_SECRET` never does — it signs sessions and is rejected on the wire). Keep
-`Content-Type: application/json` too: SvelteKit's built-in CSRF guard answers 403,
-before app code ever runs, to a POST that arrives with a form content type
-(`application/x-www-form-urlencoded`, `multipart/form-data`, `text/plain`) and no
-matching `Origin`. A bare `curl -X POST` sends no content type and gets through,
-but many cron services default to a form type, so set the header explicitly.
+The endpoint takes `SCHEDULER_SECRET` (`API_TOKEN` still works as a fallback; `AUTH_SECRET` never does — it signs sessions and is rejected on the wire). Any `Content-Type`, or none, is fine: the cross-site check refuses a body-less or form-type POST only when it carries no credential of its own, and a tick always carries its bearer token.
 
 An external caller needs a bearer it can read. Easiest is the token from
 **Settings → Scheduled publishing**, which needs no redeploy and cannot reach

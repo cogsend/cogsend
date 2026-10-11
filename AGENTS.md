@@ -1,6 +1,6 @@
 # CogSend
 
-> Self-hosted social scheduler for Mastodon, Bluesky, LinkedIn, Threads and X. SvelteKit 2 and Svelte 5 on Cloudflare Workers, D1 via Drizzle, R2 for media.
+> Self-hosted social scheduler for Mastodon, Bluesky, LinkedIn, Threads and X. SvelteKit 3 and Svelte 5 on Cloudflare Workers, D1 via Drizzle, R2 for media.
 
 CogSend is single-tenant: one admin account on the operator's own Cloudflare account, with their own provider credentials. Every instance is somebody's personal deployment, so nothing may assume the maintainer's account, domain or data.
 
@@ -24,6 +24,7 @@ Local setup, the seeded account and `SKIP_TOTP` live in [docs/development.md](do
 
 - Comment the why, never the what. A comment earns its place only by explaining what the code cannot show: a protocol quirk, a retry rule, a failure mode. Never add a restatement of the line below, a section banner (`// --- Helpers ---`), historical narration or commented-out code. A stale comment is worse than none: when you change code a comment describes, fix or delete it in the same change.
 - `src/lib/domain/` is pure logic shared by client and server; `src/lib/server/` and every `+server.ts` are Worker-only, with no DOM. Take what you need from `event.locals`.
+- `event.platform` is always undefined (adapter-cloudflare 8). Only `src/hooks.server.ts` imports `cloudflare:workers`; it hands the raw bindings and `waitUntil` to routes as `locals.bindings` and `locals.waitUntil`, and unit tests replace the module with `tests/cloudflare-workers.ts`. App imports go through `#lib/…`, with a `.js` extension for `.ts` files.
 - No new runtime dependencies without a reason.
 - Tests assert what the app does, not that a spy was called.
 - Operator scripts print one line per step through `scripts/lib/cli.mjs`, with detail only on `--verbose` or a failure.
