@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { beforeNavigate, replaceState } from '$app/navigation';
+	import { beforeNavigate, goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount, tick } from 'svelte';
 	import {
@@ -167,12 +167,13 @@
 		initialDraft = null,
 		displayName = null,
 		videoEnabled = false
+
+		/** In-progress LinkedIn video uploads; the server decides, this is the affordance. */
 	}: {
 		initialConnections?: Connection[];
 		initialSettings?: ProfileSettings | null;
 		initialDraft?: EditorDraft | null;
 		displayName?: string | null;
-		/** In-progress LinkedIn video uploads; the server decides, this is the affordance. */
 		videoEnabled?: boolean;
 	} = $props();
 
@@ -487,6 +488,7 @@
 				selectedPlatforms.has('x') &&
 				!isPlatformCustomized(overrides, 'x'))
 	);
+
 	// On Global the other selected platforms get the same text, link and all.
 	const quoteLinkPlatforms = $derived(
 		activeTab === 'global'
@@ -849,9 +851,11 @@
 			const targetIds = ((d.targets || []) as Array<{ connectionId?: string }>).map(
 				(t) => t.connectionId
 			);
+
 			const savedRaw = Array.isArray(d.selectedConnectionIds)
 				? (d.selectedConnectionIds as string[])
 				: null;
+
 			// A user toggle during the load wins over the stored selection.
 			const keepSelection = before !== null && selectionTouched;
 			if (!keepSelection) {
@@ -950,7 +954,7 @@
 			// Shallow URL update only: goto() re-runs load and steals textarea
 			// focus on first autosave; replaceState() keeps focus and state.
 			try {
-				replaceState(`/compose?id=${data.draft.id}`, page.state);
+				goto(`/compose?id=${data.draft.id}`, { shallow: true, replace: true, state: page.state });
 			} catch {
 				// URL update is cosmetic; the draft is already saved.
 			}
@@ -1554,6 +1558,7 @@
 		const picked = files.filter(
 			(f) => f.type.startsWith('image/') || (videoEnabled && f.type === 'video/mp4')
 		);
+
 		if (!picked.length) {
 			showToast(
 				videoEnabled
@@ -1742,7 +1747,7 @@
 			pendingMediaRemove = null;
 			resetEditorForNewDraft();
 			try {
-				replaceState('/compose', page.state);
+				goto('/compose', { shallow: true, replace: true, state: page.state });
 			} catch {
 				// URL update is cosmetic; the editor is already cleared.
 			}
@@ -1763,7 +1768,7 @@
 			resetEditorForNewDraft();
 			loadedDraftContentFor = null;
 			try {
-				replaceState('/compose', page.state);
+				goto('/compose', { shallow: true, replace: true, state: page.state });
 			} catch {
 				// URL update is cosmetic; the editor is already cleared.
 			}
@@ -2004,7 +2009,9 @@
 		opts: { saveBodyFirst?: boolean } = {}
 	) {
 		const id = draftId;
+
 		if (!id || (!moves.length && !removals.length)) return mediaSync;
+
 		mediaSync = mediaSync
 			.catch(() => {})
 			.then(async () => {
@@ -2372,7 +2379,8 @@
 		return () => clearTimeout(timer);
 	});
 
-	beforeNavigate(() => {
+	beforeNavigate(({ shallow, type }) => {
+		if (shallow && type === 'goto') return;
 		if (!dirty && Object.keys(altPending).length === 0) return;
 		void persistAll(false, { navigate: false });
 		void flushAltPending();
@@ -2486,10 +2494,8 @@
 			'global'
 				? 'bg-stone-900 text-white shadow-md'
 				: 'border border-stone-200/80 bg-white text-stone-500 hover:border-stone-300 hover:text-stone-900 hover:shadow-sm'}"
-			onclick={() => (activeTab = 'global')}
+			onclick={() => (activeTab = 'global')}>Global</button
 		>
-			Global
-		</button>
 
 		<!-- Active Overrides -->
 		{#each tabs.filter((t) => t !== 'global') as platform (platform)}
@@ -2804,7 +2810,7 @@
 													stroke="currentColor"
 													stroke-width="1.6"
 													stroke-linecap="round"
-												/>
+												></path>
 											</svg>
 										</button>
 									</div>
