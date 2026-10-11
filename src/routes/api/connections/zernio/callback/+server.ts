@@ -5,6 +5,7 @@ import { ZERNIO_PENDING_MARKER, fromZernioPlatform } from '#lib/domain/zernio.js
 import { SESSION_COOKIE } from '#lib/server/auth.js';
 import { decryptSecret } from '#lib/server/crypto.js';
 import { first } from '#lib/server/db/client.js';
+import { toAppOrigin } from '#lib/server/oauth-callback.js';
 import { oauthPending } from '#lib/server/db/schema.js';
 import { splitOAuthState, verifyOAuthState } from '#lib/server/oauth-state.js';
 import { listAccounts, zernioApiMessage } from '#lib/server/zernio.js';
@@ -33,14 +34,14 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 		pending.instanceUrl !== ZERNIO_PENDING_MARKER
 	) {
 		if (pending) await locals.db.delete(oauthPending).where(eq(oauthPending.id, pending.id));
-		redirect(302, `${appUrl}/accounts?error=oauth_expired`);
+		redirect(302, `${appUrl}/accounts?error=oauth_expired`, toAppOrigin(appUrl));
 	}
 	await locals.db.delete(oauthPending).where(eq(oauthPending.id, pending.id));
 
 	const failure = url.searchParams.get('error');
 	if (failure) {
 		const message = url.searchParams.get('error_message') || failure;
-		redirect(302, `${appUrl}/accounts?error=${encodeURIComponent(message)}`);
+		redirect(302, `${appUrl}/accounts?error=${encodeURIComponent(message)}`, toAppOrigin(appUrl));
 	}
 	try {
 		const apiKey = await decryptSecret(pending.clientSecretEnc, locals.env.APP_ENCRYPTION_KEY);
@@ -58,9 +59,13 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 			apiKey,
 			account
 		});
-		redirect(302, `${appUrl}/accounts?connected=${platform}`);
+		redirect(302, `${appUrl}/accounts?connected=${platform}`, toAppOrigin(appUrl));
 	} catch (e) {
 		if (isRedirect(e)) throw e;
-		redirect(302, `${appUrl}/accounts?error=${encodeURIComponent(zernioApiMessage(e))}`);
+		redirect(
+			302,
+			`${appUrl}/accounts?error=${encodeURIComponent(zernioApiMessage(e))}`,
+			toAppOrigin(appUrl)
+		);
 	}
 };

@@ -14,7 +14,7 @@ import {
 } from '#lib/server/media.js';
 import { requireScope, requireUser } from '#lib/server/require.js';
 
-export const GET: RequestHandler = async ({ params, locals, request, url, platform }) => {
+export const GET: RequestHandler = async ({ params, locals, request, url }) => {
 	try {
 		const user = requireUser(locals.user);
 		requireScope(locals, 'read');
@@ -34,7 +34,7 @@ export const GET: RequestHandler = async ({ params, locals, request, url, platfo
 		// smaller file; everyone else, and any encode that fails, gets the
 		// original. Skipping the attempt when the binding is absent avoids an
 		// extra storage read on every thumbnail.
-		const images = (platform?.env as { IMAGES?: ImageResizer } | undefined)?.IMAGES ?? null;
+		const images = (locals.bindings as { IMAGES?: ImageResizer }).IMAGES ?? null;
 		if (
 			images &&
 			url.searchParams.get('thumb') === '1' &&

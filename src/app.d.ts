@@ -10,13 +10,6 @@ declare global {
 	const __APP_VERSION__: string;
 
 	namespace App {
-		interface Platform {
-			env: Env;
-			ctx: ExecutionContext;
-			caches: CacheStorage;
-			cf?: IncomingRequestCfProperties;
-		}
-
 		interface Locals {
 			db: AppDb;
 			env: AppEnv;
@@ -33,6 +26,11 @@ declare global {
 			apiKeyScopes: string[] | null;
 			// This request's subrequest count (D1, R2, queue, provider fetches).
 			budget: SubrequestBudget;
+			// The Worker's bindings as Cloudflare passes them; `env` above is the
+			// validated configuration read from them.
+			bindings: Env;
+			// Keeps the Worker running for work that outlives the response.
+			waitUntil: (promise: Promise<unknown>) => void;
 		}
 	}
 }

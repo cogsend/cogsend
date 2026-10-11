@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createClient, type Client } from '@libsql/client';
 import { handle } from '../src/hooks.server';
+import { useWorkerEnv } from './cloudflare-workers';
 import { createD1Db, newId } from '#lib/server/db/client.js';
 import { ensureSchema } from '#lib/server/db/init-sql.js';
 import { rotateApiKey } from '#lib/server/api-keys.js';
@@ -77,6 +78,10 @@ describe('MCP authentication through the request hook', () => {
 		);
 		let routed = false;
 		const pending: Promise<unknown>[] = [];
+		useWorkerEnv(
+			{ DB: binding, APP_URL: ORIGIN, APP_ENCRYPTION_KEY, AUTH_SECRET, MEDIA: {} },
+			(promise) => pending.push(promise)
+		);
 		const response = await handle({
 			event: {
 				url,
@@ -89,13 +94,6 @@ describe('MCP authentication through the request hook', () => {
 					serialize: () => ''
 				},
 				locals: {},
-				platform: {
-					env: { DB: binding, APP_URL: ORIGIN, APP_ENCRYPTION_KEY, AUTH_SECRET, MEDIA: {} },
-					ctx: {
-						waitUntil: (promise: Promise<unknown>) => pending.push(promise),
-						passThroughOnException: () => {}
-					}
-				},
 				fetch: async () => new Response('ok'),
 				params: {},
 				route: { id: '/api/mcp' },

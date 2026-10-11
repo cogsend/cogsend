@@ -23,11 +23,11 @@ export function r2PackStore(bucket: R2Bucket): PackStore {
 
 /** Everything a step needs, from the request. The token comes from the body. */
 export function updaterContext(
-	event: Pick<RequestEvent, 'locals' | 'platform' | 'url'>,
+	event: Pick<RequestEvent, 'locals' | 'url'>,
 	token: string,
 	overrides: Partial<Pick<UpdaterContext, 'fetchImpl' | 'store'>> = {}
 ): UpdaterContext {
-	const env = event.platform?.env;
+	const env = event.locals.bindings;
 	const store = overrides.store ?? (env?.MEDIA ? r2PackStore(env.MEDIA) : null);
 	if (!store) throw new Error('The R2 MEDIA binding is missing');
 	// Wrapped because steps call it as `ctx.fetchImpl(…)`, and workerd's fetch

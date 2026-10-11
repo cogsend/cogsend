@@ -556,7 +556,7 @@
 		// reload — an old failure sitting above a connection that has since
 		// succeeded, which reads as "still broken" and cannot be dismissed.
 		if (connected || failure) {
-			const url = new URL(page.url);
+			const url = new URL(page.url.href);
 			url.search = '';
 			history.replaceState(history.state, '', url);
 		}

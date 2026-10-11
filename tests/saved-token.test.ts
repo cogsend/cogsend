@@ -60,7 +60,7 @@ describe('the saved update token', () => {
 		} as never) as Promise<Response>;
 	const status = async () =>
 		(await (
-			(await statusGET({ locals: locals(), platform: { env: {} } } as never)) as Response
+			(await statusGET({ locals: { ...locals(), bindings: {} } } as never)) as Response
 		).json()) as { savedToken: { hint: string; savedAt: number } | null };
 
 	beforeAll(async () => {
@@ -137,8 +137,7 @@ describe('the saved update token', () => {
 			const step = (body: unknown) =>
 				stepPOST({
 					params: { step: 'target' },
-					locals: locals(),
-					platform: { env: { MEDIA: {} } },
+					locals: { ...locals(), bindings: { MEDIA: {} } },
 					url: new URL('http://localhost/settings'),
 					request: json('/api/update/target', 'POST', body)
 				} as never) as Promise<Response>;

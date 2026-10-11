@@ -1,5 +1,6 @@
 import type { Handle } from '@sveltejs/kit/hooks';
 import { json } from '@sveltejs/kit';
+import { env as workerEnv, waitUntil } from 'cloudflare:workers';
 import { eq } from 'drizzle-orm';
 import {
 	anySecretMatches,
@@ -99,10 +100,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 		return new Response(null, { status: 204 });
 	}
 
-	const platformEnv = event.platform?.env as Env | undefined;
+	const platformEnv = workerEnv;
 	if (!platformEnv?.DB) {
 		throw new Error('D1 binding DB is missing. Run via vite (adapter-cloudflare) or wrangler.');
 	}
+	event.locals.bindings = platformEnv;
+	event.locals.waitUntil = waitUntil;
 
 	// Every D1, R2 and queue call below is counted against this request's
 	// subrequest limit; see #lib/server/budget.
@@ -248,13 +251,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 				event.locals.authMethod = 'bearer';
 				event.locals.authCredential = 'personal_api_key';
 				event.locals.apiKeyScopes = verified.scopes;
-				const touch = touchApiKey(db, verified.keyId);
-				try {
-					event.platform?.ctx?.waitUntil(touch);
-				} catch {
-					// waitUntil unavailable (tests, preview): the touch still
-					// runs; last_used_at is best-effort metadata either way.
-				}
+				// last_used_at is best-effort metadata: it is not worth delaying
+				// the response for.
+				waitUntil(touchApiKey(db, verified.keyId));
 			}
 		}
 	}
@@ -265,11 +264,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// Cookies only: a browser visit is the authority on the human-facing URL, and
 	// it keeps API clients (which may use a different host) from rewriting it.
 	if (appEnv.appUrlSource === 'request' && event.locals.authMethod === 'session') {
-		try {
-			event.platform?.ctx?.waitUntil(rememberAppUrl(db, appEnv.APP_URL));
-		} catch {
-			// No execution context (tests): the next request derives it again.
-		}
+		waitUntil(rememberAppUrl(db, appEnv.APP_URL));
 	}
 
 	if (import.meta.env.DEV) {

@@ -92,8 +92,7 @@ describe('scheduler routes', () => {
 				method: 'POST',
 				headers: authorization ? { Authorization: authorization } : {}
 			}),
-			locals: { db, env, media: createTestMedia(), queue: null },
-			platform: undefined
+			locals: { db, env, media: createTestMedia(), queue: null, waitUntil: () => {} }
 		} as never) as Promise<Response>;
 
 	it('refuses a tick without the scheduler secret', async () => {

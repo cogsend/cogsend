@@ -37,15 +37,6 @@ interface R2Bucket {
 	delete(key: string | string[]): Promise<void>;
 }
 
-interface ExecutionContext {
-	waitUntil(promise: Promise<unknown>): void;
-	passThroughOnException(): void;
-}
-
-interface IncomingRequestCfProperties {
-	[key: string]: unknown;
-}
-
 interface Env {
 	DB: D1Database;
 	MEDIA: R2Bucket;
@@ -120,4 +111,12 @@ interface Message<Body = unknown> {
 interface MessageBatch<Body = unknown> {
 	messages: Message<Body>[];
 	queue: string;
+}
+
+/** The part of workerd's runtime module this app uses. adapter-cloudflare 8
+ *  hands SvelteKit no `platform`, so the hook reads the bindings and
+ *  `waitUntil` here (tests alias the module to tests/support/cloudflare-workers.ts). */
+declare module 'cloudflare:workers' {
+	export const env: Env;
+	export function waitUntil(promise: Promise<unknown>): void;
 }

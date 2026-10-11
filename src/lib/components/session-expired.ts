@@ -10,6 +10,6 @@ import { goto } from '$app/navigation';
  */
 export function sessionExpiredIfUnauthorized(res: Response): boolean {
 	if (res.status !== 401) return false;
-	void goto('/login', { invalidateAll: true });
+	void goto('/login', { refreshAll: true });
 	return true;
 }

@@ -572,8 +572,13 @@ describe('in-app updater', () => {
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify(body)
 				}),
-				locals: { db: test.db, env: TEST_ENV, budget: new SubrequestBudget(), ...locals },
-				platform: { env: {} },
+				locals: {
+					db: test.db,
+					env: TEST_ENV,
+					budget: new SubrequestBudget(),
+					bindings: {},
+					...locals
+				},
 				url: new URL('http://localhost/api/update/target')
 			} as never) as Promise<Response>;
 		const user = { id: 'u', email: 'a@b', timezone: 'UTC', totpEnabled: true, mfaVerified: true };
@@ -601,8 +606,13 @@ describe('update status', () => {
 		const user = { id: 'u', email: 'a@b', timezone: 'UTC', totpEnabled: true, mfaVerified: true };
 		const status = async (running: string | null) => {
 			const res = (await statusGET({
-				locals: { db: test.db, env: TEST_ENV, user, authMethod: 'session' },
-				platform: { env: running ? { CF_VERSION_METADATA: { id: running } } : {} }
+				locals: {
+					db: test.db,
+					env: TEST_ENV,
+					user,
+					authMethod: 'session',
+					bindings: running ? { CF_VERSION_METADATA: { id: running } } : {}
+				}
 			} as never)) as Response;
 			return (await res.json()).previous;
 		};
@@ -632,8 +642,7 @@ describe('update status for a Deploy-button install', () => {
 		const user = { id: 'u', email: 'a@b', timezone: 'UTC', totpEnabled: true, mfaVerified: true };
 		const github = async (env: Record<string, string>) => {
 			const res = (await statusGET({
-				locals: { db: test.db, env: TEST_ENV, user, authMethod: 'session' },
-				platform: { env }
+				locals: { db: test.db, env: TEST_ENV, user, authMethod: 'session', bindings: env }
 			} as never)) as Response;
 			return (await res.json()).github;
 		};
@@ -661,8 +670,7 @@ describe('updater context', () => {
 		try {
 			const ctx = updaterContext(
 				{
-					locals: { db: null, budget: new SubrequestBudget() } as never,
-					platform: { env: { MEDIA: {} } } as never,
+					locals: { db: null, budget: new SubrequestBudget(), bindings: { MEDIA: {} } } as never,
 					url: new URL('https://cogsend.example')
 				},
 				TOKEN

@@ -151,7 +151,7 @@ describe('tick token routes', () => {
 		// path (Settings token) 401s after passing the hook.
 		const { POST: internalTickPOST } = await import('../src/routes/api/internal/tick/+server');
 		const { token } = await rotateTickToken(db);
-		const locals = session();
+		const locals = { ...session(), waitUntil: () => {} };
 		const res = (await internalTickPOST({
 			request: new Request('https://x.test/api/internal/tick', {
 				method: 'POST',

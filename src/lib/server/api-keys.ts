@@ -104,7 +104,7 @@ export async function verifyApiKey(
 }
 
 /** Best-effort `last_used_at` touch. Never throws — key metadata must not
- *  break request handling. Callers should prefer platform `waitUntil`. */
+ *  break request handling. Callers should prefer `locals.waitUntil`. */
 export function touchApiKey(db: AppDb, keyId: string): Promise<void> {
 	return (async () => {
 		try {

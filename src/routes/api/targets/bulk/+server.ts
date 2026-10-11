@@ -24,7 +24,7 @@ export type BulkItemResult = { id: string; ok: boolean; status?: string; error?:
  * because that is what the providers require. The single-id routes stay for API
  * compatibility, and mirror these semantics exactly.
  */
-export const POST: RequestHandler = async ({ request, locals, platform }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		const user = requireUser(locals.user);
 		requireScope(locals, 'write');
@@ -256,7 +256,7 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 					budget: locals.budget,
 					mustTry: retriesStarted === 0
 				});
-				platform?.ctx?.waitUntil(task.then(() => undefined).catch(() => undefined));
+				locals.waitUntil(task.then(() => undefined).catch(() => undefined));
 				const outcome = await task;
 				if (outcome.deferred) {
 					deferring = true;

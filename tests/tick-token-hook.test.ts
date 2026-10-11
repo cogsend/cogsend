@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createClient, type Client } from '@libsql/client';
 import { handle } from '../src/hooks.server';
+import { useWorkerEnv } from './cloudflare-workers';
 import { createD1Db } from '#lib/server/db/client.js';
 import { rotateTickToken } from '#lib/server/tick-token.js';
 import { ensureSchema } from '#lib/server/db/init-sql.js';
@@ -67,6 +68,16 @@ describe('internal api authorization', () => {
 	): Promise<{ bypassed: boolean; status: number; body: string }> {
 		let bypassed = false;
 		const url = new URL(`https://cogsend.example.com${path}`);
+		useWorkerEnv({
+			DB: binding,
+			APP_URL: 'https://cogsend.example.com',
+			APP_ENCRYPTION_KEY: 'feedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedface',
+			SCHEDULER_SECRET,
+			API_TOKEN,
+			// See tests/rate-limit.test.ts: the binding keeps the hook off its
+			// dev-only memory fallback warning.
+			MEDIA: {}
+		});
 		const response = await handle({
 			event: {
 				url,
@@ -82,19 +93,6 @@ describe('internal api authorization', () => {
 					serialize: () => ''
 				},
 				locals: {},
-				platform: {
-					env: {
-						DB: binding,
-						APP_URL: 'https://cogsend.example.com',
-						APP_ENCRYPTION_KEY: 'feedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedface',
-						SCHEDULER_SECRET,
-						API_TOKEN,
-						// See tests/rate-limit.test.ts: the binding keeps the hook off its
-						// dev-only memory fallback warning.
-						MEDIA: {}
-					},
-					ctx: { waitUntil: () => {}, passThroughOnException: () => {} }
-				},
 				fetch: async () => new Response('ok'),
 				params: {},
 				route: { id: path },

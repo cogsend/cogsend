@@ -150,7 +150,7 @@
 	const accountFilter = $derived(page.url.searchParams.get('account'));
 
 	function postsHref(changes: { tab?: PostsTab; account?: string | null }): string {
-		const url = new URL(page.url);
+		const url = new URL(page.url.href);
 		if (changes.tab === 'all') url.searchParams.delete('tab');
 		else if (changes.tab) url.searchParams.set('tab', changes.tab);
 		if (changes.account === null) url.searchParams.delete('account');
@@ -160,7 +160,7 @@
 
 	// Replacing the entry keeps Back leaving Posts rather than stepping through filters.
 	function setAccountFilter(id: string | null) {
-		void goto(postsHref({ account: id }), { replaceState: true, noScroll: true, keepFocus: true });
+		void goto(postsHref({ account: id }), { replace: true, reset: false });
 	}
 
 	let tabStrip = $state<HTMLDivElement | null>(null);
@@ -1045,8 +1045,7 @@
 						href={postsHref({ tab })}
 						data-tab={tab}
 						data-sveltekit-replacestate
-						data-sveltekit-noscroll
-						data-sveltekit-keepfocus
+						data-sveltekit-reset="false"
 						aria-current={activeTab === tab ? 'page' : undefined}
 						class="rounded-lg px-4 py-1.5 text-[13px] font-bold capitalize transition-all {activeTab ===
 						tab

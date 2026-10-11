@@ -1,5 +1,6 @@
 import adapter from '@sveltejs/adapter-cloudflare';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
 import { sveltekit } from '@sveltejs/kit/vite';
@@ -60,6 +61,14 @@ export default defineConfig({
 		projects: [
 			{
 				extends: './vite.config.ts',
+				// workerd's runtime module does not exist in Node.
+				resolve: {
+					alias: {
+						'cloudflare:workers': fileURLToPath(
+							new URL('./tests/cloudflare-workers.ts', import.meta.url)
+						)
+					}
+				},
 				test: {
 					name: 'server',
 					environment: 'node',

@@ -3,7 +3,7 @@ import { handleError, ok } from '#lib/server/http.js';
 import { assertSchedulerOrTickToken } from '#lib/server/require.js';
 import { runSchedulerTick } from '#lib/server/scheduler.js';
 
-export const POST: RequestHandler = async ({ request, locals, platform }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		// The hook admits three credentials for this path: SCHEDULER_SECRET and
 		// API_TOKEN (every internal route) plus the Settings tick token (this
@@ -19,7 +19,7 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 			queue: locals.queue,
 			budget: locals.budget
 		});
-		platform?.ctx?.waitUntil(task.then(() => undefined).catch(() => undefined));
+		locals.waitUntil(task.then(() => undefined).catch(() => undefined));
 		const result = await task;
 		return ok(result);
 	} catch (err) {
