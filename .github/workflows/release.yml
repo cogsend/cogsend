@@ -16,8 +16,8 @@ name: Release bundle
 #                        deploy repository is just not refreshed.
 #
 # A pre-release gets its bundle (so it can be installed from Settings →
-# Instance → More options to test it) but never reaches the deploy repository,
-# which tracks stable releases only.
+# Instance → More options to test it) and goes to the deploy repository's
+# `next` branch; only stable releases reach `main`, which the button copies.
 
 on:
   release:

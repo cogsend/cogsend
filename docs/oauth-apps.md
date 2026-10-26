@@ -76,15 +76,20 @@ shows as expired, and **Reconnect** on the Accounts page starts a new 60 days.
 Instagram only lets Business and Creator accounts post through its API. A personal account can switch for free in the Instagram app's settings, and no Facebook Page is needed.
 
 1. Create an app in the [Meta for Developers](https://developers.facebook.com/apps/)
-   dashboard with the type **Business**, and add the **Instagram** product.
-2. Open **API setup with Instagram business login**. Under **Set up Instagram
-   business login**, add the redirect URI to **OAuth redirect URIs**.
-3. Copy the **Instagram app ID** and **Instagram app secret** shown there. They are
-   not the Meta app's own id and secret at the top of the dashboard.
-4. While the app is still in development, add the Instagram account you want to
-   connect under **App roles → Roles** as an **Instagram tester**, and accept the
-   invite in Instagram (Settings → Website permissions → Apps and websites).
-5. Set the secrets:
+   dashboard with the **Manage messaging & content on Instagram** use case. An
+   app you already use for Threads works too: **Use cases → Add use cases**.
+2. Under that use case, open **Permissions and features** and add
+   `instagram_business_basic` and `instagram_business_content_publish`. The
+   messaging and comment permissions it suggests are not needed.
+3. Open **API setup with Instagram login**. Under **Set up Instagram business
+   login**, press **Set up** and enter the redirect URI as the **Redirect URL**.
+4. Copy the **Instagram app ID** and **Instagram app secret** shown on the same
+   page. They are not the Meta app's own id and secret under App settings.
+5. While the app is still in development, add the Instagram account you want to
+   connect under **App roles → Roles → Add People** as an **Instagram Tester**,
+   and accept the invite in Instagram (Settings → Website permissions → Apps and
+   websites → Tester invites).
+6. Give CogSend the credentials in the accounts dialog, or set the secrets:
 
    ```sh
    npm run secrets:put INSTAGRAM_APP_ID INSTAGRAM_APP_SECRET

@@ -65,9 +65,9 @@ export const PLATFORM_SETUP: Record<OAuthPlatformId, PlatformSetup> = {
 		consoleUrl: 'https://developers.facebook.com/apps/',
 		consoleName: 'Meta for Developers',
 		consoleRequirement:
-			'Create a Business app, add the Instagram product, and open API setup with Instagram business login. Its Instagram app ID and secret are the ones to use, not the Meta app’s own.',
+			'Create the app with the Manage messaging & content on Instagram use case (or add it to an existing app), add the instagram_business_basic and instagram_business_content_publish permissions, and while it is still in development add the account you connect as an Instagram tester and accept the invite. The Instagram app ID and secret under API setup with Instagram login are the ones to use, not the Meta app’s own.',
 		redirectField:
-			'API setup with Instagram business login → Set up Instagram business login → OAuth redirect URIs',
+			'the Instagram use case → API setup with Instagram login → Set up Instagram business login → Redirect URL',
 		docsAnchor: 'instagram',
 		note: 'Only Business and Creator accounts can post through the API.'
 	},

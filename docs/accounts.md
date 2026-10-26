@@ -18,11 +18,14 @@ These two connect with what you already have:
 These four need a developer app of your own before they can connect, because the
 platform issues the client id and secret the Worker uses. Until one is set up, the
 picker shows the platform with a **Needs setup** badge, and choosing it shows that
-platform's steps — the redirect URI to register and the Worker secrets to set —
-instead of a connect attempt that cannot succeed. The full steps are in
-[OAuth apps](oauth-apps.md).
+platform's steps — the redirect URI to register and a form for the app's
+credentials — instead of a connect attempt that cannot succeed. The full steps
+are in [OAuth apps](oauth-apps.md).
 
-Once the secrets are on the Worker, reload the page and connect as usual.
+Paste the credentials into that form and press **Save and connect**: nothing to
+deploy and no checkout needed, which suits an instance installed with the
+Deploy button. Worker secrets work too, set from a checkout or in the Cloudflare
+dashboard; reload the page once they are on the Worker.
 
 Instagram connects only a Business or Creator account; a personal account is refused with a note on switching its type in Instagram's settings.
 
