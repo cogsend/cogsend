@@ -23,5 +23,10 @@ export function securityHeadersFor(path: string, secure: boolean): Record<string
 	if (!path.startsWith('/api/')) {
 		headers['X-Frame-Options'] = 'DENY';
 	}
+	if (path.startsWith('/p/')) {
+		// Preview links are unlisted, not secret from the people they are sent
+		// to; a crawler that finds one in a chat log must still leave it out.
+		headers['X-Robots-Tag'] = 'noindex, nofollow';
+	}
 	return headers;
 }

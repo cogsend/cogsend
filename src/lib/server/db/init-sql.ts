@@ -1,7 +1,7 @@
 import { fnv1a } from '#lib/domain/hash.js';
 import { rawBinding } from '../budget';
 
-/** Bootstrap DDL for first request. Squashed to latest: 0001 + 0002 + 0004-final + 0005 + 0007 + 0008 + 0009 + 0010 + 0012 + 0014 + 0015 + 0016 + 0017 (+ 0003 transient). Keep in lockstep with drizzle/*.sql; `tests/schema-bootstrap.test.ts` fails when an index a migration creates is missing here. */
+/** Bootstrap DDL for first request. Squashed to latest: 0001 + 0002 + 0004-final + 0005 + 0007 + 0008 + 0009 + 0010 + 0012 + 0014 + 0015 + 0016 + 0017 + 0018 + 0019 (+ 0003 transient). Keep in lockstep with drizzle/*.sql; `tests/schema-bootstrap.test.ts` fails when an index a migration creates is missing here. */
 export const INIT_SQL = `
 CREATE TABLE IF NOT EXISTS \`users\` (
 	\`id\` text PRIMARY KEY NOT NULL,
@@ -110,6 +110,17 @@ CREATE TABLE IF NOT EXISTS \`draft_media\` (
 CREATE INDEX IF NOT EXISTS \`draft_media_draft_idx\` ON \`draft_media\` (\`draft_id\`);
 CREATE INDEX IF NOT EXISTS \`draft_media_draft_segment_idx\` ON \`draft_media\` (\`draft_id\`, \`segment_index\`);
 CREATE INDEX IF NOT EXISTS \`draft_media_storage_key_idx\` ON \`draft_media\` (\`storage_key\`);
+
+CREATE TABLE IF NOT EXISTS \`draft_shares\` (
+	\`id\` text PRIMARY KEY NOT NULL,
+	\`draft_id\` text NOT NULL,
+	\`token_hash\` text NOT NULL,
+	\`expires_at\` integer NOT NULL,
+	\`created_at\` integer NOT NULL,
+	FOREIGN KEY (\`draft_id\`) REFERENCES \`drafts\`(\`id\`) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`draft_shares_token_uq\` ON \`draft_shares\` (\`token_hash\`);
+CREATE UNIQUE INDEX IF NOT EXISTS \`draft_shares_draft_uq\` ON \`draft_shares\` (\`draft_id\`);
 
 CREATE TABLE IF NOT EXISTS \`publish_targets\` (
 	\`id\` text PRIMARY KEY NOT NULL,
@@ -350,6 +361,16 @@ CREATE TABLE IF NOT EXISTS api_keys (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS api_keys_hash_uq ON api_keys (key_hash);
 CREATE INDEX IF NOT EXISTS api_keys_user_idx ON api_keys (user_id);
+CREATE TABLE IF NOT EXISTS draft_shares (
+	id text PRIMARY KEY NOT NULL,
+	draft_id text NOT NULL,
+	token_hash text NOT NULL,
+	expires_at integer NOT NULL,
+	created_at integer NOT NULL,
+	FOREIGN KEY (draft_id) REFERENCES drafts(id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS draft_shares_token_uq ON draft_shares (token_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS draft_shares_draft_uq ON draft_shares (draft_id);
 `;
 
 /**

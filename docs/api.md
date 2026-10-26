@@ -85,6 +85,10 @@ A larger video goes up in parts, up to 300 MB:
 
 A video's `meta` holds what the server read from it (`durationMs`, `videoCodec`, `audioCodec`, `fps`, and `faststart`, whether its index comes first) and its `cover` once one is set. `PUT /api/drafts/:id/media/cover?mediaId=…` with a JPEG body of at most 8 MB sets the cover, and `DELETE` with the same query removes it.
 
+## Preview links
+
+`POST /api/drafts/:id/share` makes a read-only link to the draft that works without signing in, answering `201` with `{"share": {"url", "expiresAt"}}`. An optional `{"expiresInDays": n}` sets how long it lasts, from 1 to 30 days, 14 by default. A draft has one link, so a second `POST` replaces the first. `GET` answers the current link, or `{"share": null}` when there is none or it has expired, and `DELETE` turns it off. A draft that has published to any account answers **409**, and its link stops working. Reading needs the `read` scope; making or turning off a link needs `write`. [Preview links](posts.md#preview-links) covers what the page shows.
+
 ## Limits
 
 - A body is capped at 100,000 characters, and a variant may carry at most 100 explicit `threadSegments`.

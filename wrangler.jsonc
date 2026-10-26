@@ -47,7 +47,8 @@
 	// Rate limiting for the endpoints that take a secret: sign-in, the
 	// authenticator check, claiming an instance that has no account yet (which
 	// takes APP_ENCRYPTION_KEY, see src/routes/api/auth/claim), and the password
-	// that locks the saved update token (src/routes/api/update/unlock).
+	// that locks the saved update token (src/routes/api/update/unlock). Draft
+	// preview links (/p/) count against it too, in buckets of their own.
 	// Enforced by Cloudflare at the edge (the same
 	// infrastructure as WAF rate-limiting rules), per location, so nothing in
 	// the Worker counts requests. Deliberately generous: twenty a minute is far

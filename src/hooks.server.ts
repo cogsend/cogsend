@@ -39,7 +39,7 @@ import { carriesCredential, isCrossSiteForgery } from '#lib/server/csrf.js';
 import { verifyTickToken } from '#lib/server/tick-token.js';
 import { authorizeMcpRequest } from '#lib/server/mcp-auth.js';
 import {
-	isRateLimitedPath,
+	rateLimitBucket,
 	rateLimitKey,
 	rateLimitProblem,
 	type RateLimiter
@@ -50,6 +50,7 @@ export function isPublicPath(path: string): boolean {
 	if (
 		path === '/api/health' ||
 		path.startsWith('/api/media/public/') ||
+		path.startsWith('/p/') ||
 		path.startsWith('/api/connections/mastodon/callback') ||
 		path.startsWith('/api/connections/linkedin/callback') ||
 		path.startsWith('/api/connections/threads/callback') ||
@@ -293,12 +294,14 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// Rate limiting for the endpoints anybody can call. Checked before the
 	// route runs, because the point is to keep a burst from reaching PBKDF2 at
 	// all. The in-app lockout is still what stops a determined attacker.
-	if (isRateLimitedPath(path)) {
+	const bucket = rateLimitBucket(path);
+	if (bucket !== null) {
+		const address = rateLimitKey(event.request.headers);
 		// SAFETY: AUTH_RATE_LIMITER is an optional Worker binding, read by the rate-limit adapter.
 		const problem = await rateLimitProblem(
 			(platformEnv as unknown as Record<string, unknown>).AUTH_RATE_LIMITER as
 				RateLimiter | undefined,
-			rateLimitKey(event.request.headers)
+			address && `${bucket}${address}`
 		);
 		if (problem) return deny(path, 429, { error: problem }, secureRequest);
 	}

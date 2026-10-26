@@ -11,4 +11,11 @@ describe('isPublicPath', () => {
 		expect(isPublicPath('/api/media/key-1')).toBe(false);
 		expect(isPublicPath('/')).toBe(false);
 	});
+
+	it('opens draft preview links and their media, nothing else under the prefix', () => {
+		expect(isPublicPath(`/p/${'a'.repeat(64)}`)).toBe(true);
+		expect(isPublicPath(`/p/${'a'.repeat(64)}/media/1-aaaaaaaaaaaaaaaa.png`)).toBe(true);
+		expect(isPublicPath('/posts')).toBe(false);
+		expect(isPublicPath('/api/drafts/x/share')).toBe(false);
+	});
 });

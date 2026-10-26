@@ -96,7 +96,8 @@ describe('ensureSchema', () => {
 			'api_keys',
 			'mfa_challenges',
 			'totp_backup_codes',
-			'notification_state'
+			'notification_state',
+			'draft_shares'
 		]) {
 			expect(names).toContain(table);
 		}
@@ -211,6 +212,24 @@ describe('ensureSchema', () => {
 		const healed = await indexNames(older.client);
 		expect([...fromMigrations].filter((name) => !healed.has(name))).toEqual([]);
 		older.client.close();
+	});
+
+	it('adds preview links to a database bootstrapped before they existed', async () => {
+		// An in-app update runs no migrations, so the incremental path is the
+		// only way an existing instance ever gets the table.
+		const { client, binding } = await freshDb();
+		await ensureSchema(binding);
+		await client.execute('DROP TABLE draft_shares');
+		await forgetBootstrap(client);
+		await ensureSchema(binding);
+		expect(await tableNames(client)).toContain('draft_shares');
+		const indexes = await client.execute(
+			"SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='draft_shares' AND sql IS NOT NULL"
+		);
+		expect(indexes.rows.map((r) => String((r as unknown as { name: string }).name)).sort()).toEqual(
+			['draft_shares_draft_uq', 'draft_shares_token_uq']
+		);
+		client.close();
 	});
 
 	it('checks an up-to-date database with a single query', async () => {

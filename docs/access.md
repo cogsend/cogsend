@@ -10,9 +10,10 @@ Access requires Zero Trust to be enabled, which asks for payment details even on
 
 ## The paths it has to let through
 
-Four things need exemptions or they break:
+Five things need exemptions or they break:
 
 - **Media for Meta's crawler.** `/api/media/public/*` must stay reachable without a login, or Threads and Mastodon cannot fetch images. Add a separate Access application for that path with a **Bypass / Include Everyone** policy.
+- **Draft preview links.** `/p/*` is what you send to people who have no login, so Access must not stop them either. Add a **Bypass / Include Everyone** application for that path too, or a reviewer meets the Access login before the preview ([Preview links](posts.md#preview-links)).
 - **Scripts and pingers.** Anything calling the API with a bearer key, or the tick endpoint, needs a **Service Auth** policy and a service token (`CF-Access-Client-Id` / `CF-Access-Client-Secret`) alongside the app's own key. A bypass policy would also work, but it is neither authenticated nor logged.
 - **MCP clients.** `/api/mcp` needs the same Service Auth headers as scripts, alongside the CogSend key. Claude Code and Codex can send extra headers from environment variables; a client that cannot send them needs a bypass for `/api/mcp` alone, which leaves the personal key as the only check.
 - **OAuth callbacks.** If a provider redirects back while your Access session has expired, Access intercepts it before the app sees the code. Bypass `/api/connections/*/callback` if that happens.

@@ -44,6 +44,7 @@ Hosted schedulers usually charge per channel and keep your posts and tokens on t
 - **Thread editor**: one card per post, images with alt text, and a tab per platform for tailored versions
 - **Video**: one per post on every platform, converted in your browser when a platform needs it, with a cover you pick
 - **Auto-split**: paste a long draft and it becomes a thread that fits every platform you picked
+- **Preview links**: share a read-only link to a draft for feedback, no login needed, revocable and expiring
 - **Publish or schedule**: see results per account, then cancel, reschedule or retry from Posts
 - **Automatic retries**: temporary failures retry on their own, up to five attempts
 - **Insights**: published against failed over 7, 30 or 90 days, and why posts failed

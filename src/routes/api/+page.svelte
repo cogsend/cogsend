@@ -193,6 +193,14 @@ curl ${origin}/api/drafts/$DRAFT/publish \\
 				</div>
 				<div class="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-4">
 					<dt class="shrink-0 font-semibold text-stone-900 sm:w-[280px]">
+						GET|POST|DELETE /api/drafts/:id/share
+					</dt>
+					<dd>
+						{'read-only preview link: POST {"expiresInDays?"} (default 14, max 30) → 201 {share:{url, expiresAt}}; a new one replaces the old'}
+					</dd>
+				</div>
+				<div class="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-4">
+					<dt class="shrink-0 font-semibold text-stone-900 sm:w-[280px]">
 						POST /api/drafts/:id/publish
 					</dt>
 					<dd>{'{"connectionIds":[]} → {results[], draft}'}</dd>

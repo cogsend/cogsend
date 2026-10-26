@@ -151,6 +151,23 @@ export const draftMedia = sqliteTable(
 	]
 );
 
+export const draftShares = sqliteTable(
+	'draft_shares',
+	{
+		id: text('id').primaryKey(),
+		draftId: text('draft_id')
+			.notNull()
+			.references(() => drafts.id, { onDelete: 'cascade' }),
+		tokenHash: text('token_hash').notNull(),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
+	},
+	(t) => [
+		uniqueIndex('draft_shares_token_uq').on(t.tokenHash),
+		uniqueIndex('draft_shares_draft_uq').on(t.draftId)
+	]
+);
+
 export const publishTargets = sqliteTable(
 	'publish_targets',
 	{

@@ -35,4 +35,12 @@ describe('securityHeadersFor', () => {
 		// The API-key copy button needs the clipboard, which defaults to 'self'.
 		expect(policy).not.toContain('clipboard');
 	});
+
+	it('keeps preview links out of search engines, and only those', () => {
+		expect(securityHeadersFor('/p/abc', true)['X-Robots-Tag']).toBe('noindex, nofollow');
+		expect(securityHeadersFor('/p/abc/media/k.png', true)['X-Robots-Tag']).toBe(
+			'noindex, nofollow'
+		);
+		expect(securityHeadersFor('/posts', true)['X-Robots-Tag']).toBeUndefined();
+	});
 });

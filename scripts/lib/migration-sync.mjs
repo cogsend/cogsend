@@ -168,7 +168,8 @@ export function satisfiedMigrations(state) {
 		['0015_draft_selected_connections.sql', col('drafts', 'selected_connection_ids')],
 		['0016_mfa_challenges_expires_idx.sql', idx('mfa_challenges', 'mfa_challenges_expires_idx')],
 		['0017_app_settings.sql', tables.has('app_settings')],
-		['0018_draft_media_meta.sql', col('draft_media', 'meta_json')]
+		['0018_draft_media_meta.sql', col('draft_media', 'meta_json')],
+		['0019_draft_shares.sql', tables.has('draft_shares')]
 	]
 		.filter(([, ok]) => ok)
 		.map(([name]) => String(name));

@@ -83,18 +83,21 @@ export function gridFor(count: number): { rows: number; cells: GridCell[] } {
 	};
 }
 
-export function mediaUrl(m: { storageKey: string }): string {
-	return `/api/media/${encodeURIComponent(m.storageKey)}`;
+/** The signed-in media route; a preview link serves the same files from its own. */
+export const MEDIA_BASE = '/api/media';
+
+export function mediaUrl(m: { storageKey: string }, base = MEDIA_BASE): string {
+	return `${base}/${encodeURIComponent(m.storageKey)}`;
 }
 
 /** What to show for an image: its smaller copy when the composer made one, else the original. */
-export function imageUrl(m: MediaShape): string {
+export function imageUrl(m: MediaShape, base = MEDIA_BASE): string {
 	const v = m.meta?.preview?.v;
-	return v ? `${mediaUrl(m)}?preview=${v}` : mediaUrl(m);
+	return v ? `${mediaUrl(m, base)}?preview=${v}` : mediaUrl(m, base);
 }
 
 /** A video's chosen cover, versioned so a new one is not served from cache. */
-export function coverUrl(m: MediaShape): string | null {
+export function coverUrl(m: MediaShape, base = MEDIA_BASE): string | null {
 	const v = m.meta?.cover?.v;
-	return v ? `${mediaUrl(m)}?cover=${v}` : null;
+	return v ? `${mediaUrl(m, base)}?cover=${v}` : null;
 }
