@@ -1,9 +1,21 @@
-import { and, eq, gt, type InferSelectModel } from 'drizzle-orm';
+import { and, eq, gt, inArray, ne, type InferSelectModel } from 'drizzle-orm';
 import { bytesToHex, utf8Bytes } from '#lib/domain/bytes.js';
 import { hasGoneOut, isShareTokenFormat } from '#lib/domain/draft-share.js';
+import {
+	resolveRestoredSelection,
+	resolveSavedSelection,
+	restorableTargetIds
+} from '#lib/domain/platform-sync.js';
 import { hmacHex } from './crypto';
-import { batchQueries, first, newId, type AppDb } from './db/client';
-import { draftMedia, draftShares, drafts, draftVariants, publishTargets } from './db/schema';
+import { batchQueries, first, newId, parseJson, type AppDb } from './db/client';
+import {
+	connections,
+	draftMedia,
+	draftShares,
+	drafts,
+	draftVariants,
+	publishTargets
+} from './db/schema';
 
 /**
  * The token is derived rather than random so the owner can be shown the same
@@ -27,7 +39,12 @@ export async function hashShareToken(token: string): Promise<string> {
 
 export type ShareLink = { token: string; expiresAt: Date };
 
-/** The draft's link while it still works; an expired row is as good as none. */
+/**
+ * The draft's link while it still works; an expired row is as good as none. So
+ * is one minted under a different APP_ENCRYPTION_KEY: the token rebuilt from
+ * the current key would not match the stored hash, and showing it would hand
+ * the owner a link that 404s.
+ */
 export async function currentShare(
 	db: AppDb,
 	secret: string,
@@ -41,7 +58,9 @@ export async function currentShare(
 			.where(and(eq(draftShares.draftId, draftId), gt(draftShares.expiresAt, now)))
 	);
 	if (!row) return null;
-	return { token: await shareToken(secret, row.id), expiresAt: row.expiresAt };
+	const token = await shareToken(secret, row.id);
+	if ((await hashShareToken(token)) !== row.tokenHash) return null;
+	return { token, expiresAt: row.expiresAt };
 }
 
 /** A new link for the draft. Any earlier one stops working: one link per draft. */
@@ -76,6 +95,8 @@ export type SharedDraft = {
 	draft: InferSelectModel<typeof drafts>;
 	variants: InferSelectModel<typeof draftVariants>[];
 	media: InferSelectModel<typeof draftMedia>[];
+	/** The platforms the post is going to, for picking which variants to show. */
+	platforms: string[];
 	expiresAt: Date;
 };
 
@@ -92,11 +113,15 @@ async function liveShare(db: AppDb, token: string | null | undefined, now: Date)
 	);
 }
 
-type TargetState = { status: string; remotePostId: string | null };
+type TargetState = { connectionId: string; status: string; remotePostId: string | null };
 
 function targetStates(db: AppDb, draftId: string) {
 	return db
-		.select({ status: publishTargets.status, remotePostId: publishTargets.remotePostId })
+		.select({
+			connectionId: publishTargets.connectionId,
+			status: publishTargets.status,
+			remotePostId: publishTargets.remotePostId
+		})
 		.from(publishTargets)
 		.where(eq(publishTargets.draftId, draftId));
 }
@@ -114,21 +139,45 @@ export async function resolveShare(
 ): Promise<SharedDraft | null> {
 	const share = await liveShare(db, token, now);
 	if (!share) return null;
-	const [draftRows, targets, variants, media] = (await batchQueries(db, [
+	const [draftRows, targets, variants, media, accounts] = (await batchQueries(db, [
 		db.select().from(drafts).where(eq(drafts.id, share.draftId)),
 		targetStates(db, share.draftId),
 		db.select().from(draftVariants).where(eq(draftVariants.draftId, share.draftId)),
-		db.select().from(draftMedia).where(eq(draftMedia.draftId, share.draftId))
+		db.select().from(draftMedia).where(eq(draftMedia.draftId, share.draftId)),
+		// The owner's selectable accounts, as the composer lists them: archive
+		// tombstones are never a destination.
+		db
+			.select({ id: connections.id, platform: connections.platform })
+			.from(connections)
+			.where(
+				and(
+					inArray(
+						connections.userId,
+						db.select({ id: drafts.userId }).from(drafts).where(eq(drafts.id, share.draftId))
+					),
+					ne(connections.status, 'disconnected')
+				)
+			)
 	])) as [
 		InferSelectModel<typeof drafts>[],
 		TargetState[],
 		InferSelectModel<typeof draftVariants>[],
-		InferSelectModel<typeof draftMedia>[]
+		InferSelectModel<typeof draftMedia>[],
+		{ id: string; platform: string }[]
 	];
 	const draft = draftRows[0];
 	if (!draft || hasGoneOut(targets)) return null;
 	media.sort((a, b) => a.sortOrder - b.sortOrder);
-	return { draft, variants, media, expiresAt: share.expiresAt };
+	// The same precedence the composer restores a draft with: its own saved
+	// selection, else its publish targets. Neither means nothing is selected.
+	const selected =
+		resolveSavedSelection(parseJson<unknown>(draft.selectedConnectionIds, null), accounts) ??
+		resolveRestoredSelection(restorableTargetIds(targets), accounts) ??
+		[];
+	const platforms = [
+		...new Set(accounts.filter((a) => selected.includes(a.id)).map((a) => a.platform))
+	];
+	return { draft, variants, media, platforms, expiresAt: share.expiresAt };
 }
 
 /** One attachment of a shared draft, under the same rules as the page itself. */

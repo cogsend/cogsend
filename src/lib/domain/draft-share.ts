@@ -71,18 +71,22 @@ function threadCards(body: string, media: ShareMedia[]): ShareCard[] {
 
 /**
  * What the preview page shows: the main text as the post's cards, then one
- * version per platform whose text was customised. A platform without threads
- * gets the single post it would publish, with every attachment.
+ * version per selected platform whose text was customised. Deselecting a
+ * platform keeps its variant, so a stored variant alone does not mean the post
+ * goes there. A platform without threads gets the single post it would
+ * publish, with every attachment.
  */
 export function shareVersions(input: {
 	baseBody: string;
 	variants: ReadonlyArray<{ platform: string; body: string | null }>;
 	media: ShareMedia[];
+	platforms: ReadonlyArray<string>;
 }): ShareVersion[] {
 	const versions: ShareVersion[] = [
 		{ key: 'post', label: 'Post', cards: threadCards(input.baseBody, input.media) }
 	];
 	for (const platform of PLATFORM_ORDER) {
+		if (!input.platforms.includes(platform)) continue;
 		const variant = input.variants.find((v) => v.platform === platform);
 		// A variant with no body only carries options (Mastodon visibility, a
 		// poll) and publishes the main text.

@@ -24,7 +24,8 @@ export const load: PageServerLoad = async ({ params, locals, setHeaders }) => {
 		versions: shareVersions({
 			baseBody: shared.draft.baseBody,
 			variants: shared.variants,
-			media
+			media,
+			platforms: shared.platforms
 		})
 	};
 };

@@ -48,7 +48,8 @@ describe('what a preview link shows', () => {
 		const [post] = shareVersions({
 			baseBody: 'first\n---\nsecond',
 			variants: [],
-			media: [media(1)]
+			media: [media(1)],
+			platforms: []
 		});
 		expect(post!.key).toBe('post');
 		expect(post!.cards).toEqual([
@@ -66,7 +67,8 @@ describe('what a preview link shows', () => {
 				{ platform: 'mastodon', body: null },
 				{ platform: 'x', body: 'for x' }
 			],
-			media: []
+			media: [],
+			platforms: ['bluesky', 'mastodon', 'x']
 		});
 		expect(versions.map((v) => [v.key, v.label])).toEqual([
 			['post', 'Post'],
@@ -81,15 +83,30 @@ describe('what a preview link shows', () => {
 		const linkedin = shareVersions({
 			baseBody: 'main',
 			variants: [{ platform: 'linkedin', body: 'one\n---\ntwo' }],
-			media: all
+			media: all,
+			platforms: ['linkedin']
 		})[1]!;
 		expect(linkedin.cards).toEqual([{ text: 'one\n\ntwo', media: all }]);
 	});
 
 	it('still shows a card for a draft with nothing written', () => {
-		expect(shareVersions({ baseBody: '', variants: [], media: [] })[0]!.cards).toEqual([
-			{ text: '', media: [] }
-		]);
+		expect(
+			shareVersions({ baseBody: '', variants: [], media: [], platforms: [] })[0]!.cards
+		).toEqual([{ text: '', media: [] }]);
+	});
+
+	it('leaves out a variant whose platform the post is not going to', () => {
+		// Deselecting a platform in the composer keeps its stored variant.
+		const versions = shareVersions({
+			baseBody: 'main',
+			variants: [
+				{ platform: 'x', body: 'for x' },
+				{ platform: 'bluesky', body: 'for bluesky' }
+			],
+			media: [],
+			platforms: ['bluesky']
+		});
+		expect(versions.map((v) => v.key)).toEqual(['post', 'bluesky']);
 	});
 });
 
@@ -143,7 +160,7 @@ describe('preview links, end to end', () => {
 	const share = async (
 		method: 'GET' | 'POST' | 'DELETE',
 		draftId: string,
-		opts: { as?: string; body?: unknown } = {}
+		opts: { as?: string; body?: unknown; env?: typeof TEST_ENV } = {}
 	) => {
 		const handler = method === 'GET' ? shareGET : method === 'POST' ? sharePOST : shareDELETE;
 		const request = new Request('http://localhost/api', {
@@ -152,7 +169,7 @@ describe('preview links, end to end', () => {
 		});
 		const res = (await handler({
 			params: { id: draftId },
-			locals: locals(opts.as),
+			locals: { ...locals(opts.as), ...(opts.env ? { env: opts.env } : {}) },
 			request
 		} as never)) as Response;
 		return { status: res.status, body: await res.json() };
@@ -223,19 +240,53 @@ describe('preview links, end to end', () => {
 		return { id, key };
 	}
 
-	async function addTarget(draftId: string, status: string, remotePostId: string | null = null) {
+	async function addAccount(platform = 'mastodon', status = 'active') {
 		const now = new Date();
-		const connectionId = newId();
+		const id = newId();
 		await db.insert(connections).values({
-			id: connectionId,
+			id,
 			userId,
-			platform: 'mastodon',
+			platform,
 			handle: 'secret-handle@example.social',
 			displayName: 'Secret Name',
 			credentialsEncrypted: 'enc',
+			status,
 			createdAt: now,
 			updatedAt: now
 		});
+		return id;
+	}
+
+	async function addVariant(draftId: string, platform: string) {
+		await db.insert(draftVariants).values({
+			id: newId(),
+			draftId,
+			platform,
+			body: `${platform} words`,
+			createdAt: new Date(),
+			updatedAt: new Date()
+		});
+	}
+
+	const selectAccounts = (draftId: string, ids: string[]) =>
+		db
+			.update(drafts)
+			.set({ selectedConnectionIds: JSON.stringify(ids) })
+			.where(eq(drafts.id, draftId));
+
+	const versionKeys = async (draftId: string) => {
+		const token = tokenOf((await share('POST', draftId)).body.share.url);
+		return ((await view(token)).versions as Array<{ key: string }>).map((v) => v.key);
+	};
+
+	async function addTarget(
+		draftId: string,
+		status: string,
+		remotePostId: string | null = null,
+		platform = 'mastodon'
+	) {
+		const now = new Date();
+		const connectionId = await addAccount(platform);
 		await db.insert(publishTargets).values({
 			id: newId(),
 			draftId,
@@ -250,14 +301,8 @@ describe('preview links, end to end', () => {
 	it('makes a link anyone can open, showing the saved draft and no account', async () => {
 		const { id, key } = await seedDraft();
 		await addTarget(id, 'scheduled');
-		await db.insert(draftVariants).values({
-			id: newId(),
-			draftId: id,
-			platform: 'bluesky',
-			body: 'bluesky words',
-			createdAt: new Date(),
-			updatedAt: new Date()
-		});
+		await addVariant(id, 'bluesky');
+		await selectAccounts(id, [await addAccount('bluesky')]);
 		const made = await share('POST', id);
 		expect(made.status).toBe(201);
 		expect(made.body.share.url).toMatch(/^http:\/\/localhost:5173\/p\/[0-9a-f]{64}$/);
@@ -278,6 +323,39 @@ describe('preview links, end to end', () => {
 		const res = await fetchMedia(tokenOf(made.body.share.url), key);
 		expect(res.status).toBe(200);
 		expect(new Uint8Array(await res.arrayBuffer())).toEqual(PNG);
+	});
+
+	it('shows a version only for a platform the draft is going to', async () => {
+		const { id } = await seedDraft();
+		await addVariant(id, 'x');
+		await addVariant(id, 'bluesky');
+		// Deselecting X in the composer keeps its variant row.
+		await selectAccounts(id, [await addAccount('bluesky'), await addAccount('x', 'disconnected')]);
+		expect(await versionKeys(id)).toEqual(['post', 'bluesky']);
+
+		await selectAccounts(id, []);
+		expect(await versionKeys(id)).toEqual(['post']);
+	});
+
+	it('falls back to the publish targets when the draft never saved a selection', async () => {
+		const { id } = await seedDraft();
+		await addVariant(id, 'x');
+		await addVariant(id, 'bluesky');
+		await addTarget(id, 'scheduled', null, 'x');
+		await addTarget(id, 'cancelled', null, 'bluesky');
+		expect(await versionKeys(id)).toEqual(['post', 'x']);
+	});
+
+	it('hides a link made under an earlier encryption key, so the owner can make a new one', async () => {
+		const { id } = await seedDraft();
+		const old = tokenOf((await share('POST', id)).body.share.url);
+		const rotated = { ...TEST_ENV, APP_ENCRYPTION_KEY: 'beef'.repeat(16) };
+		expect((await share('GET', id, { env: rotated })).body).toEqual({ share: null });
+
+		const fresh = await share('POST', id, { env: rotated });
+		expect(tokenOf(fresh.body.share.url)).not.toBe(old);
+		expect((await share('GET', id, { env: rotated })).body.share.url).toBe(fresh.body.share.url);
+		expect(await viewStatus(old)).toBe(404);
 	});
 
 	it('stores only a hash of the token', async () => {
