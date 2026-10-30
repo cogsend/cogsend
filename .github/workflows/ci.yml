@@ -162,10 +162,17 @@ jobs:
       matrix:
         # `main` runs with SKIP_TOTP so specs can sign in with a password.
         # `totp` removes it, because enrolling an authenticator is the flow a new
-        # instance cannot skip; it restores .dev.vars afterwards. They are two
-        # runners, in parallel, because the second is a third of the first's
-        # duration and had been waiting for it.
-        suite: [main, totp]
+        # instance cannot skip; it restores .dev.vars afterwards. All of them run
+        # in parallel, because one at a time had grown past eight minutes. Each
+        # shard has its own runner, so its own database and sign-in. Keep all
+        # three even while the last has nothing to do: Playwright keeps the smoke
+        # journey together, so the tests fit in two for now, but a spec that
+        # lands in a shard nobody runs would silently stop being tested.
+        include:
+          - { suite: main-1, script: 'test:e2e -- --shard=1/3' }
+          - { suite: main-2, script: 'test:e2e -- --shard=2/3' }
+          - { suite: main-3, script: 'test:e2e -- --shard=3/3' }
+          - { suite: totp, script: 'test:e2e:totp' }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -185,7 +192,7 @@ jobs:
       # against a dedicated local D1/R2 state dir (`.wrangler/e2e-state`).
       # `wrangler dev` serves the built Worker locally, so no Cloudflare
       # credentials are involved.
-      - run: npm run test:e2e${{ matrix.suite == 'totp' && ':totp' || '' }}
+      - run: npm run ${{ matrix.script }}
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
