@@ -7,6 +7,7 @@ import { captureConsole, loggedLines } from './console-spy';
 import {
 	RATE_LIMITED_PATHS,
 	isRateLimitedPath,
+	rateLimitBucket,
 	rateLimitKey,
 	rateLimitProblem,
 	type RateLimiter
@@ -54,6 +55,16 @@ describe('which paths are rate limited', () => {
 		expect(isRateLimitedPath('/api/auth/me')).toBe(false);
 		expect(isRateLimitedPath('/api/internal/tick')).toBe(false);
 		expect(isRateLimitedPath('/')).toBe(false);
+	});
+
+	it('limits preview links in buckets apart from sign-in', () => {
+		expect(rateLimitBucket('/api/auth/login')).toBe('');
+		expect(rateLimitBucket(`/p/${'a'.repeat(64)}`)).toBe('share:');
+		expect(rateLimitBucket(`/p/${'a'.repeat(64)}/media/1-aaaaaaaaaaaaaaaa.png`)).toBe(
+			'share-media:'
+		);
+		expect(rateLimitBucket('/posts')).toBeNull();
+		expect(rateLimitBucket('/api/drafts/x/share')).toBeNull();
 	});
 
 	it('keys on the client address Cloudflare reports', () => {
@@ -189,6 +200,20 @@ describe('the hook', () => {
 		const result = await request('/api/auth/login', { limiter, ip: '203.0.113.9' });
 		expect(result.status).toBe(200);
 		expect(result.routed).toBe(true);
+	});
+
+	it('counts a preview link against its own bucket, never the sign-in one', async () => {
+		calls = [];
+		const limiter: RateLimiter = {
+			limit: async ({ key }) => {
+				calls.push(key);
+				return { success: false };
+			}
+		};
+		const result = await request(`/p/${'a'.repeat(64)}`, { limiter, ip: '203.0.113.9' });
+		expect(result.status).toBe(429);
+		expect(result.routed).toBe(false);
+		expect(calls).toEqual(['share:203.0.113.9']);
 	});
 
 	it('does not consult the limiter for other endpoints', async () => {

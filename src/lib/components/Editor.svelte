@@ -52,6 +52,7 @@
 	import { uploadVideo } from '#lib/components/video/upload.js';
 	import MediaFit from './video/MediaFit.svelte';
 	import MediaPreview from './MediaPreview.svelte';
+	import SharePreview from './SharePreview.svelte';
 	import VideoCover from './video/VideoCover.svelte';
 	import { makeJpegCopy, makePreview, shrinkToFit } from '#lib/components/shrink-image.js';
 	import { persistMediaLayout, type MediaMove } from '#lib/domain/media-sync.js';
@@ -2834,6 +2835,12 @@
 						: publishIdleLabel
 			: publishIdleLabel
 	);
+	// A preview link is for what has not gone out yet, and a draft that failed to
+	// load has nothing trustworthy saved to show.
+	const canShare = $derived(
+		!editLocked && !loadFailedId && (draftId !== null || baseBody.trim() !== '')
+	);
+
 	// Autosave is otherwise silent, and a phone has no Cmd+S to fall back on.
 	// A pending autosave already reads as "Saving…"; an empty new draft is never
 	// saved, so it shows nothing.
@@ -3282,10 +3289,17 @@
 			</div>
 		{/if}
 
+		{#if canShare}
+			<div class="ml-auto">
+				<SharePreview {draftId} ensureSaved={persistForAction} />
+			</div>
+		{/if}
 		{#if saveIndicator}
 			<p
 				data-testid="save-status"
-				class="ml-auto flex items-center gap-1 text-[12px] font-bold whitespace-nowrap {saveIndicator ===
+				class="{canShare
+					? ''
+					: 'ml-auto'} flex items-center gap-1 text-[12px] font-bold whitespace-nowrap {saveIndicator ===
 				'failed'
 					? 'text-red-600'
 					: 'text-stone-500'}"

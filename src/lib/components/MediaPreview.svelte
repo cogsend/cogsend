@@ -29,6 +29,7 @@
 		gridFor,
 		imageUrl,
 		isVideoMedia,
+		MEDIA_BASE,
 		mediaUrl
 	} from '#lib/domain/media-layout.js';
 	import { formatDuration } from '#lib/domain/video-rules.js';
@@ -39,7 +40,8 @@
 		progress = null,
 		extra = 0,
 		toolbar,
-		testId
+		testId,
+		mediaBase = MEDIA_BASE
 	}: {
 		items: PreviewItem[];
 		/** The tallest the media may stand, in CSS pixels. */
@@ -50,6 +52,8 @@
 		extra?: number;
 		toolbar?: Snippet<[PreviewItem]>;
 		testId?: string;
+		/** Where the files are served from; a preview link has its own route. */
+		mediaBase?: string;
 	} = $props();
 
 	// Sizes read off the loaded image, for rows stored before sizes were kept
@@ -69,7 +73,7 @@
 	);
 
 	function srcOf(m: PreviewItem): string {
-		return m.previewUrl || mediaUrl(m);
+		return m.previewUrl || mediaUrl(m, mediaBase);
 	}
 
 	function measure(m: PreviewItem, el: HTMLImageElement) {
@@ -89,7 +93,7 @@
 			<!-- svelte-ignore a11y_media_has_caption -->
 			<video
 				src={srcOf(m)}
-				poster={coverUrl(m) ?? undefined}
+				poster={coverUrl(m, mediaBase) ?? undefined}
 				controls
 				autoplay
 				playsinline
@@ -98,7 +102,7 @@
 				class="h-full w-full bg-black object-contain"
 			></video>
 		{:else}
-			{@const cover = coverUrl(m)}
+			{@const cover = coverUrl(m, mediaBase)}
 			<button
 				type="button"
 				class="group/play relative block h-full w-full bg-stone-900"
@@ -134,7 +138,7 @@
 		{/if}
 	{:else}
 		<img
-			src={m.previewUrl || imageUrl(m)}
+			src={m.previewUrl || imageUrl(m, mediaBase)}
 			alt={label(m, i)}
 			loading="lazy"
 			decoding="async"

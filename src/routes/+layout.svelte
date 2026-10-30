@@ -45,6 +45,8 @@
 	// drops the image; the next URL is tried again.
 	let failedAvatarSrc = $state<string | null>(null);
 	const isLoginRoute = $derived(page.url.pathname.startsWith('/login'));
+	// A preview link looks the same to its owner as to whoever it was sent to.
+	const isShareRoute = $derived(page.url.pathname.startsWith('/p/'));
 
 	// Write starts a new post. On the compose page it only shows while a post
 	// is open there, and before the editor has mounted the URL is the guess.
@@ -152,7 +154,7 @@
 	>Skip to content</a
 >
 
-{#if isLoginRoute || !userEmail}
+{#if isLoginRoute || isShareRoute || !userEmail}
 	{@render children()}
 {:else}
 	<div class="min-h-dvh bg-stone-50 font-sans text-stone-900 selection:bg-stone-200">

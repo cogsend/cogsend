@@ -1,6 +1,6 @@
 /**
- * The flood guard for the endpoints anybody can call: sign-in and the
- * authenticator check.
+ * The flood guard for the endpoints anybody can call: sign-in, the
+ * authenticator check, and draft preview links.
  *
  * Cloudflare enforces these limits at the edge — the binding is backed by the
  * same infrastructure as WAF rate-limiting rules — so nothing here counts
@@ -34,6 +34,20 @@ export const RATE_LIMITED_PATHS = [
 export function isRateLimitedPath(path: string): boolean {
 	const trimmed = path.length > 1 ? path.replace(/\/+$/, '') : path;
 	return RATE_LIMITED_PATHS.includes(trimmed);
+}
+
+/**
+ * Which bucket a path counts against, as a key prefix, or null when it is not
+ * limited. Preview links (`/p/<token>` and their media) are public pages, so
+ * they are limited too, but in buckets of their own: a teammate reading a draft
+ * from the operator's office must never spend the operator's sign-in attempts.
+ * Media gets a separate bucket from the page because one view of a thread can
+ * load a dozen images.
+ */
+export function rateLimitBucket(path: string): string | null {
+	if (isRateLimitedPath(path)) return '';
+	if (path.startsWith('/p/')) return path.includes('/media/') ? 'share-media:' : 'share:';
+	return null;
 }
 
 /**
