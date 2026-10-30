@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ params, locals, setHeaders }) => {
 	// Each visit reads the latest save, and a revoked link must stop showing
 	// anything at once, so nothing may keep a copy.
 	setHeaders({ 'cache-control': 'private, no-store' });
-	const shared = await resolveShare(locals.db, params.token);
+	const shared = await resolveShare(locals.db, locals.env.APP_ENCRYPTION_KEY, params.token);
 	if (!shared) error(404, 'This preview link has expired or was turned off.');
 	const media = shared.media.map((m) => {
 		const { id, storageKey, mime, width, height, altText, segmentIndex, meta } = serializeMedia(m);

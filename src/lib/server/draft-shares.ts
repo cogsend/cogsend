@@ -100,17 +100,28 @@ export type SharedDraft = {
 	expiresAt: Date;
 };
 
-/** The live share behind a token: well-formed, known, unexpired. */
-async function liveShare(db: AppDb, token: string | null | undefined, now: Date) {
+/**
+ * The live share behind a token: well-formed, known, unexpired, and made under
+ * the current key. The hash alone would match forever, so without rebuilding
+ * the token a rotated APP_ENCRYPTION_KEY would leave old links working while
+ * the composer no longer shows them.
+ */
+async function liveShare(db: AppDb, secret: string, token: string | null | undefined, now: Date) {
 	if (!isShareTokenFormat(token)) return null;
-	return first(
+	const share = await first(
 		db
-			.select({ draftId: draftShares.draftId, expiresAt: draftShares.expiresAt })
+			.select({
+				id: draftShares.id,
+				draftId: draftShares.draftId,
+				expiresAt: draftShares.expiresAt
+			})
 			.from(draftShares)
 			.where(
 				and(eq(draftShares.tokenHash, await hashShareToken(token)), gt(draftShares.expiresAt, now))
 			)
 	);
+	if (!share || (await shareToken(secret, share.id)) !== token) return null;
+	return share;
 }
 
 type TargetState = { connectionId: string; status: string; remotePostId: string | null };
@@ -128,16 +139,17 @@ function targetStates(db: AppDb, draftId: string) {
 
 /**
  * The draft behind a token, or null when the token is malformed, unknown,
- * expired, or its post has gone out. Every caller answers all of those with the
+ * expired, from an earlier key, or its post has gone out. Every caller answers all of those with the
  * same 404, so a visitor cannot tell a revoked link from one that never existed.
  * A deleted draft takes its share row with it (ON DELETE CASCADE).
  */
 export async function resolveShare(
 	db: AppDb,
+	secret: string,
 	token: string | null | undefined,
 	now = new Date()
 ): Promise<SharedDraft | null> {
-	const share = await liveShare(db, token, now);
+	const share = await liveShare(db, secret, token, now);
 	if (!share) return null;
 	const [draftRows, targets, variants, media, accounts] = (await batchQueries(db, [
 		db.select().from(drafts).where(eq(drafts.id, share.draftId)),
@@ -183,11 +195,12 @@ export async function resolveShare(
 /** One attachment of a shared draft, under the same rules as the page itself. */
 export async function resolveSharedMedia(
 	db: AppDb,
+	secret: string,
 	token: string | null | undefined,
 	storageKey: string,
 	now = new Date()
 ): Promise<InferSelectModel<typeof draftMedia> | null> {
-	const share = await liveShare(db, token, now);
+	const share = await liveShare(db, secret, token, now);
 	if (!share) return null;
 	const [targets, media] = (await batchQueries(db, [
 		targetStates(db, share.draftId),

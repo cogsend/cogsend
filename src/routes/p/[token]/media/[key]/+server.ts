@@ -17,7 +17,12 @@ const SHARED_MEDIA_CACHE = 'private, max-age=300';
 export const GET: RequestHandler = async ({ params, locals, request, url }) => {
 	try {
 		const key = assertSafeStorageKey(params.key);
-		const media = await resolveSharedMedia(locals.db, params.token, key);
+		const media = await resolveSharedMedia(
+			locals.db,
+			locals.env.APP_ENCRYPTION_KEY,
+			params.token,
+			key
+		);
 		if (!media) return fail('Not found', 404);
 		if (url.searchParams.has('cover')) {
 			const cover = await locals.media.get(coverKey(key));

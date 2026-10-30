@@ -175,22 +175,22 @@ describe('preview links, end to end', () => {
 		return { status: res.status, body: await res.json() };
 	};
 	const tokenOf = (url: string) => new URL(url).pathname.split('/').pop()!;
-	const view = (token: string) =>
+	const view = (token: string, env = TEST_ENV) =>
 		sharePageLoad({
 			params: { token },
-			locals: { db, env: TEST_ENV },
+			locals: { db, env },
 			setHeaders: () => {}
 		} as never) as Promise<Record<string, unknown>>;
-	const viewStatus = (token: string) =>
-		view(token).then(
+	const viewStatus = (token: string, env = TEST_ENV) =>
+		view(token, env).then(
 			() => 200,
 			(err: { status?: number }) => err.status
 		);
-	const fetchMedia = async (token: string, key: string) => {
+	const fetchMedia = async (token: string, key: string, env = TEST_ENV) => {
 		const url = new URL(`http://localhost/p/${token}/media/${key}`);
 		return (await sharedMediaGET({
 			params: { token, key },
-			locals: { db, media: store },
+			locals: { db, media: store, env },
 			request: new Request(url),
 			url
 		} as never)) as Response;
@@ -356,6 +356,17 @@ describe('preview links, end to end', () => {
 		expect(tokenOf(fresh.body.share.url)).not.toBe(old);
 		expect((await share('GET', id, { env: rotated })).body.share.url).toBe(fresh.body.share.url);
 		expect(await viewStatus(old)).toBe(404);
+	});
+
+	it('ends a link and its media as soon as the encryption key changes', async () => {
+		const { id, key } = await seedDraft();
+		const token = tokenOf((await share('POST', id)).body.share.url);
+		const rotated = { ...TEST_ENV, APP_ENCRYPTION_KEY: 'beef'.repeat(16) };
+		expect(await viewStatus(token)).toBe(200);
+		expect((await fetchMedia(token, key)).status).toBe(200);
+
+		expect(await viewStatus(token, rotated)).toBe(404);
+		expect((await fetchMedia(token, key, rotated)).status).toBe(404);
 	});
 
 	it('stores only a hash of the token', async () => {
