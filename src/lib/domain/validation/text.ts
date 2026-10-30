@@ -111,8 +111,9 @@ export function validateInstagramText(
 ): { ok: boolean; length: number; max: number; message?: string } {
 	const length = countGraphemes(text);
 	if (length > maxChars) return tooLong(length, maxChars, 'Instagram max 2200');
-	// A `#` inside a word, a URL fragment or an HTML entity is not a hashtag.
-	const hashtags = text.match(/(?<![\p{L}\p{N}_&/#])#[\p{L}\p{N}_]+/gu)?.length ?? 0;
+	// A `#` inside a word, a URL fragment or an HTML entity is not a hashtag. No
+	// lookbehind: this loads in the composer, and Safari before 16.4 cannot parse one.
+	const hashtags = text.match(/(?:^|[^\p{L}\p{N}_&/#])#[\p{L}\p{N}_]+/gu)?.length ?? 0;
 	if (hashtags > INSTAGRAM_MAX_HASHTAGS) {
 		return {
 			ok: false,

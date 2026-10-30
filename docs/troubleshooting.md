@@ -124,8 +124,9 @@ The Cloudflare account is new and has never picked its workers.dev subdomain; ad
 
 ## A post failed with "may have been published"
 
-CogSend sent the post to X, LinkedIn or Threads, but no answer came back in time,
-so it cannot tell whether the platform published it. Those platforms take no id
+CogSend sent the post to X, LinkedIn, Threads or Instagram, but no answer came back
+in time, or Instagram answered with a server error, so it cannot tell whether the
+platform published it. Those platforms take no id
 that would let a second attempt be recognised as the same post, so CogSend does
 not retry on its own: a blind retry could post it twice. Open the account on the
 platform. If the post is there, press **Discard** next to that account in

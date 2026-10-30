@@ -55,6 +55,10 @@ const TRANSIENT_CODES = new Set([1, 2]);
 // container made before its parts finished says it is not ready yet.
 const MEDIA_FETCH_SUBCODES = new Set([2207003, 2207027, 2207052]);
 const DAILY_LIMIT_SUBCODE = 2207042;
+// A photo container reports its failure as text ("Media upload has failed with
+// error code 2207052"), and these are the codes worth another try. 2207001 is
+// Meta's own server error.
+const RETRIED_PHOTO_CODES = new Set([...MEDIA_FETCH_SUBCODES, 2207001]);
 
 function parseMetaError(body: string): { code?: number; subcode?: number; message?: string } {
 	try {
@@ -118,6 +122,23 @@ export function instagramUpstreamError(
 		return new ProviderError(message, { status, code: 'upstream', detail });
 	}
 	return new ProviderError(message, { status, code: 'forbidden', detail });
+}
+
+/**
+ * Whether a failed media_publish may be live anyway. Instagram takes no
+ * idempotency key, so only an answer that proves nothing was posted may retry
+ * on its own: a container Meta calls not ready was never published, but its
+ * server errors say nothing about how far the post got.
+ */
+function mayHavePublished(err: ProviderError): boolean {
+	if (err.code !== 'upstream') return false;
+	const { subcode } = parseMetaError(err.detail ?? '');
+	return subcode === undefined || !MEDIA_FETCH_SUBCODES.has(subcode);
+}
+
+function isRetriedPhotoFailure(status: string): boolean {
+	const code = status.match(/\b2207\d{3}\b/)?.[0];
+	return code !== undefined && RETRIED_PHOTO_CODES.has(Number(code));
 }
 
 function isJpeg(m: MediaAttachment): boolean {
@@ -199,7 +220,13 @@ export const instagramProvider: PlatformProvider = {
 			} catch {
 				return null;
 			}
-			if (!res.ok) return null;
+			if (!res.ok) {
+				// A dead token never recovers, and a parked Reel would otherwise wait
+				// out its whole deadline before anyone heard about it.
+				const err = instagramUpstreamError('Instagram status', res.status, await res.text());
+				if (err.code === 'auth') throw err;
+				return null;
+			}
 			const data = (await res.json().catch(() => ({}))) as {
 				status_code?: unknown;
 				status?: unknown;
@@ -218,8 +245,10 @@ export const instagramProvider: PlatformProvider = {
 
 		/**
 		 * Wait for photo containers. One Meta could not take is a problem with
-		 * the photo; one still working after the wait is published anyway, and
-		 * media_publish says whether it was ready.
+		 * the photo, unless Meta's code says otherwise; the retry makes new
+		 * containers, so nothing here can post twice. One still working after
+		 * the wait is published anyway, and media_publish says whether it was
+		 * ready.
 		 */
 		async function photosReady(ids: string[]): Promise<void> {
 			let waiting = [...ids];
@@ -237,7 +266,7 @@ export const instagramProvider: PlatformProvider = {
 						const state = await containerState(id);
 						if (state?.state === 'failed') {
 							throw new ProviderError(`Instagram could not take a photo: ${state.status}`, {
-								code: 'forbidden',
+								code: isRetriedPhotoFailure(state.status) ? 'upstream' : 'forbidden',
 								detail: state.status
 							});
 						}
@@ -347,12 +376,14 @@ export const instagramProvider: PlatformProvider = {
 				'Instagram publish'
 			);
 		} catch (err) {
-			if (err instanceof ProviderError) throw err;
-			// No answer: the post may be live, and a second try would post it twice.
+			if (err instanceof ProviderError && !mayHavePublished(err)) throw err;
+			// The post may be live, and a second try would post it twice.
 			throw unconfirmedPostError('Instagram', err);
 		}
+		// Before the permalink: a run cut off during that read must resume knowing
+		// the post is live. Only the link is lost if it does.
+		await opts?.checkpoint?.({ segmentIds: postId ? [postId] : [] });
 		const remoteUrl = postId ? await permalink(postId, token, fetchImpl) : null;
-		await opts?.checkpoint?.({ segmentIds: postId ? [postId] : [], remoteUrl });
 		return { remotePostId: postId || undefined, remoteUrl: remoteUrl ?? undefined };
 	},
 
@@ -412,7 +443,7 @@ async function permalink(id: string, token: string, fetchImpl: FetchLike): Promi
  */
 function tokenAwareError(prefix: string, status: number, body: string): ProviderError {
 	const err = instagramUpstreamError(prefix, status, body);
-	if (err.code !== 'auth' && status !== 403) return err;
+	if (err.code !== 'auth') return err;
 	return new ProviderError(`${err.message} — reconnect`, {
 		status: 401,
 		code: 'auth',

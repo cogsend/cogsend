@@ -166,12 +166,7 @@ export async function updateDraft(
 		.where(eq(drafts.id, id));
 	return { ok: true as const };
 }
-/**
- * Instagram refuses a post without a photo or video, and a few other shapes
- * the rest take. Every other platform's problems surface when it is sent, but
- * these are certain, so the request is refused before anything is written:
- * an API client learns now, not at the scheduled time.
- */
+
 // get, Images, put and the meta write, plus room for the publish after.
 const JPEG_COPY_CALLS = 4;
 const JPEG_COPY_RESERVE = 25;
@@ -207,6 +202,12 @@ async function makeMissingJpegCopies(ctx: OperationContext, draftId: string): Pr
 	return false;
 }
 
+/**
+ * Instagram refuses a post without a photo or video, and a few other shapes
+ * the rest take. Every other platform's problems surface when it is sent, but
+ * these are certain, so the request is refused before anything is written:
+ * an API client learns now, not at the scheduled time.
+ */
 async function refuseUnfitForInstagram(
 	ctx: OperationContext,
 	draftId: string,

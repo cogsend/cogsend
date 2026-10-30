@@ -125,6 +125,9 @@ describe('Instagram text and video rules', () => {
 		expect(over.message).toBe('Instagram takes up to 30 hashtags (31 used)');
 		// A colour code or a URL fragment is not a hashtag.
 		expect(validateInstagramText(`${tags(30)} &#38; https://a.test/#top`).ok).toBe(true);
+		// Right after another tag, or at the very start, the same rule holds.
+		expect(validateInstagramText(`${tags(30)}#glued ##double a#b`).ok).toBe(true);
+		expect(validateInstagramText(`#first ${tags(30)}`).ok).toBe(false);
 	});
 
 	it("holds a Reel to Meta's limits", () => {
@@ -216,6 +219,35 @@ describe('instagramProvider.publish', () => {
 		expect(publish.get('creation_id')).toBe('c1');
 	});
 
+	it('saves the post before reading its link, so a run cut off there cannot post twice', async () => {
+		const order: string[] = [];
+		const { fetchImpl } = fakeMeta({
+			'/1789/media_publish': () => json({ id: 'post-1' }),
+			'/1789/media': () => json({ id: 'c1' }),
+			'/c1?fields=status_code': () => json({ status_code: 'FINISHED' }),
+			'/post-1?fields=permalink': () => {
+				order.push('permalink');
+				return json({ permalink: 'https://www.instagram.com/p/abc/' });
+			}
+		});
+		const saved: unknown[] = [];
+		const result = await instagramProvider.publish(
+			{ text: '', media: [photo(1)] },
+			creds,
+			undefined,
+			fetchImpl,
+			opts({
+				checkpoint: (state) => {
+					order.push('checkpoint');
+					saved.push(state);
+				}
+			})
+		);
+		expect(order).toEqual(['checkpoint', 'permalink']);
+		expect(saved).toEqual([{ segmentIds: ['post-1'] }]);
+		expect(result.remoteUrl).toBe('https://www.instagram.com/p/abc/');
+	});
+
 	it('makes a carousel only once every photo in it is ready', async () => {
 		let created = 0;
 		const order: string[] = [];
@@ -266,6 +298,53 @@ describe('instagramProvider.publish', () => {
 		expect(children.slice(0, 3).every((c) => !c.has('caption'))).toBe(true);
 		expect(children[3].get('children')).toBe('child-1,child-2,child-3');
 		expect(children[3].get('caption')).toBe('album');
+	});
+
+	it('retries a photo Meta failed to fetch, but not one it refused', async () => {
+		const failure = async (status: string) => {
+			const { seen, fetchImpl } = fakeMeta({
+				'/1789/media_publish': () => json({ id: 'never' }),
+				'/1789/media': () => json({ id: 'c1' }),
+				'?fields=status_code': () => json({ status_code: 'ERROR', status })
+			});
+			const err = (await instagramProvider
+				.publish({ text: '', media: [photo(1)] }, creds, undefined, fetchImpl, opts())
+				.catch((e: unknown) => e)) as ProviderError;
+			expect(seen.some((r) => r.url.includes('media_publish'))).toBe(false);
+			return err.code;
+		};
+		const fetchFailed = 'Error: Media upload has failed with error code 2207052';
+		expect(await failure(fetchFailed)).toBe('upstream');
+		expect(await failure('Error: Media upload has failed with error code 2207001')).toBe(
+			'upstream'
+		);
+		expect(await failure('Error: Media upload has failed with error code 2207026')).toBe(
+			'forbidden'
+		);
+	});
+
+	it('stops at a dead token while waiting, rather than parking a Reel until its deadline', async () => {
+		const { seen, fetchImpl } = fakeMeta({
+			'/1789/media_publish': () => json({ id: 'never' }),
+			'/1789/media': () => json({ id: 'c1' }),
+			'?fields=status_code': () => json({ error: { code: 190, message: 'expired' } }, 400)
+		});
+		const err = (await instagramProvider
+			.publish({ text: '', media: [reel] }, creds, undefined, fetchImpl, opts())
+			.catch((e: unknown) => e)) as ProviderError;
+		expect(err.code).toBe('auth');
+		expect(seen.some((r) => r.url.includes('media_publish'))).toBe(false);
+	});
+
+	it('still waits on a status read that merely failed', async () => {
+		const { fetchImpl } = fakeMeta({
+			'/1789/media': () => json({ id: 'c1' }),
+			'?fields=status_code': () => json({}, 503)
+		});
+		const err = (await instagramProvider
+			.publish({ text: '', media: [reel] }, creds, undefined, fetchImpl, opts())
+			.catch((e: unknown) => e)) as ProviderError;
+		expect(err.code).toBe('processing');
 	});
 
 	it('refuses a photo Meta could not take, without publishing anything', async () => {
@@ -350,6 +429,42 @@ describe('instagramProvider.publish', () => {
 		);
 		expect(done.remotePostId).toBe('reel-2');
 		expect(made).toBe(1);
+	});
+
+	it('never retries a publish Meta failed on its own side, which may be live', async () => {
+		const outcome = async (res: () => Response) => {
+			const { fetchImpl } = fakeMeta({
+				'/1789/media_publish': res,
+				'/1789/media': () => json({ id: 'c1' }),
+				'?fields=status_code': () => json({ status_code: 'FINISHED' })
+			});
+			const err = (await instagramProvider
+				.publish({ text: '', media: [photo(1)] }, creds, undefined, fetchImpl, opts())
+				.catch((e: unknown) => e)) as ProviderError;
+			return { code: err.code, retryable: err.retryable };
+		};
+		const metaError = (code: number, subcode?: number) =>
+			json({ error: { code, error_subcode: subcode, message: 'nope' } }, 400);
+		const unconfirmed = { code: 'unconfirmed', retryable: false };
+		expect(await outcome(() => json({}, 500))).toEqual(unconfirmed);
+		expect(await outcome(() => new Response('<html>bad gateway', { status: 502 }))).toEqual(
+			unconfirmed
+		);
+		expect(await outcome(() => metaError(1))).toEqual(unconfirmed);
+		expect(await outcome(() => metaError(2))).toEqual(unconfirmed);
+
+		// Answers that prove nothing was posted keep their own handling.
+		expect(await outcome(() => metaError(9, 2207027))).toMatchObject({
+			code: 'rate_limited',
+			retryable: true
+		});
+		expect(await outcome(() => metaError(1, 2207027))).toEqual({
+			code: 'upstream',
+			retryable: true
+		});
+		expect(await outcome(() => metaError(4))).toMatchObject({ code: 'rate_limited' });
+		expect(await outcome(() => metaError(190))).toMatchObject({ code: 'auth' });
+		expect(await outcome(() => metaError(100, 2207009))).toMatchObject({ code: 'forbidden' });
 	});
 
 	it('never publishes twice: a lost answer is unconfirmed, a resumed post is done', async () => {
@@ -491,6 +606,10 @@ describe('Instagram tokens and profile', () => {
 		expect(await instagramProvider.refreshIfNeeded!(soon, throttled.fetchImpl)).toBe(soon);
 		const down = fakeMeta({ refresh_access_token: () => json({}, 503) });
 		expect(await instagramProvider.refreshIfNeeded!(soon, down.fetchImpl)).toBe(soon);
+		const blocked = fakeMeta({
+			refresh_access_token: () => json({ error: { code: 10, message: 'not now' } }, 403)
+		});
+		expect(await instagramProvider.refreshIfNeeded!(soon, blocked.fetchImpl)).toBe(soon);
 	});
 
 	it('reads the posting account from user_id, never the app-scoped id', async () => {
