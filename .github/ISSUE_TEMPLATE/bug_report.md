@@ -10,7 +10,7 @@ labels: bug
 
 **Steps to reproduce** 1.
 
-**Which platform** (Mastodon / Bluesky / LinkedIn / Threads / X / UI only / deployment)
+**Which platform** (Mastodon / Bluesky / LinkedIn / Threads / Instagram / X / UI only / deployment)
 
 **Environment**
 
