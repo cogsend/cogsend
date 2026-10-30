@@ -1,8 +1,16 @@
 import { isZernioConnection } from '#lib/domain/zernio.js';
 import { blueskyProvider } from './bluesky';
+import { instagramProvider } from './instagram';
 import { linkedinProvider } from './linkedin';
 import { mastodonProvider } from './mastodon';
 import { threadsProvider } from './threads';
+export {
+	instagramProvider,
+	instagramAuthorizeUrl,
+	instagramExchangeCode,
+	instagramVerify,
+	PERSONAL_ACCOUNT_MESSAGE
+} from './instagram';
 import { xProvider } from './x';
 import { zernioProviderFor } from './zernio';
 import type { PlatformId, PlatformProvider } from './types';
@@ -12,6 +20,7 @@ const providers: Record<PlatformId, PlatformProvider> = {
 	mastodon: mastodonProvider,
 	linkedin: linkedinProvider,
 	threads: threadsProvider,
+	instagram: instagramProvider,
 	x: xProvider
 };
 

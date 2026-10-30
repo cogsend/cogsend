@@ -30,7 +30,7 @@ as 23 characters, and X also counts CJK characters and each emoji as 2.
   those instead.
 - **Alt + ↑ / ↓** moves the card you are typing in up or down the thread.
 
-LinkedIn has no threads: a thread sent there is flattened into one post. The
+LinkedIn and Instagram have no threads: a thread sent there is flattened into one post. The
 limits for every platform are in [OAuth apps → Platforms](oauth-apps.md#platforms).
 
 An X account on a paid plan can post up to 25,000 characters in one post ([how CogSend knows](accounts.md#long-posts-on-x)). The counter still follows the strictest account you picked, so adding a free X account holds the whole post to 280. X shows about the first 280 characters of a long post and folds the rest behind **Show more**, and the card says so once the text passes that point. If X refuses a long post, it fails without a retry and that account drops back to 280; the message says how to turn long posts on again.
@@ -52,15 +52,21 @@ animation. If an attached image is still over a selected platform's limit,
 a line under the image names the platform, with a button to uncheck it, and
 Publish and Schedule stop until it is resolved.
 
+## Instagram
+
+Every Instagram post needs a photo or a video, so with an Instagram account selected a text-only post shows **Instagram needs a photo or video** on the first card, with **Uncheck Instagram**, and Publish and Schedule stop until you attach something or uncheck it. The other accounts are not held to it.
+
+One photo goes out as a photo post, two to ten as a carousel, and a video on its own as a Reel. Instagram takes JPEG photos from 4:5 tall to 1.91:1 wide; a PNG or WebP is sent through a full-size JPEG copy your browser makes when you attach it, and an image without one, attached before Instagram support or too large to copy within Instagram's 8 MB, asks to be attached again or as a JPEG. With the [Images binding](configuration.md#faster-post-thumbnails), the server makes a missing copy itself when the post is scheduled or published. GIFs, a video beside photos, and more than ten photos are refused for Instagram the same way, with a line naming the problem. A thread is flattened into one caption of up to 2,200 characters and 30 hashtags.
+
 A URL in a card shows the link preview it will produce, while you write.
 
 ## Video
 
 A card takes one video (MP4, MOV or WebM) and nothing else beside it; a thread can have a video on each card. Your browser prepares it before it uploads: a file every platform already takes goes up as it is, and anything else, such as a phone's HEVC video, a 4K clip or a frame rate over 60, is converted to MP4 (H.264 with AAC sound) at most 1920 pixels on the long edge. The card shows the video at its own shape, with **Reading**, **Converting** and **Uploading** and the progress along its bottom edge, and **Cancel** stops it. Once it is up, the video shows its cover with a play button and its length, and loads only when you press play. Videos up to 300 MB go up in parts, so a slow connection only resends the part that failed. Leave the page while a video is still uploading and the browser asks first, since the upload stops with it. A browser that can't convert the file says so; export it as MP4 (H.264) and attach it again.
 
-When every selected platform takes the video, nothing more is shown. When one doesn't, a line under the video says why, one line per platform: X takes 2:20 unless the account has X Premium, Threads 5 minutes, Bluesky 10, LinkedIn 30. **Uncheck** on the line drops that platform's accounts, and the accounts button in the dock and the account itself carry a red dot until it is resolved. Publish and Schedule stop on the first platform that would refuse it; trim the video or uncheck that account. A Mastodon account is held to the limits its server reports, which CogSend reads when you connect the account and again every day, so a server that raises its limits is followed within a day.
+When every selected platform takes the video, nothing more is shown. When one doesn't, a line under the video says why, one line per platform: X takes 2:20 unless the account has X Premium, Threads 5 minutes, Bluesky 10, Instagram 15, LinkedIn 30. **Uncheck** on the line drops that platform's accounts, and the accounts button in the dock and the account itself carry a red dot until it is resolved. Publish and Schedule stop on the first platform that would refuse it; trim the video or uncheck that account. A Mastodon account is held to the limits its server reports, which CogSend reads when you connect the account and again every day, so a server that raises its limits is followed within a day.
 
-**COVER**, among the buttons on the video, picks the frame shown before it plays: scrub to a moment and **Use this frame**, or **Upload image**. Mastodon and LinkedIn show it; X, Threads and Bluesky choose their own frame. Until you pick one, the frame one second in is the cover, and it is also what **Posts** shows. **ALT** describes the video, as for an image.
+**COVER**, among the buttons on the video, picks the frame shown before it plays: scrub to a moment and **Use this frame**, or **Upload image**. Mastodon, LinkedIn and Instagram show it; X, Threads and Bluesky choose their own frame. Until you pick one, the frame one second in is the cover, and it is also what **Posts** shows. **ALT** describes the video, as for an image.
 
 Platforms process a video before it can be posted, which can take minutes. CogSend uploads and waits for up to 20 seconds of the publish, then hands the rest to the next [tick](scheduling.md): the result says the platform "is processing the video" and that it publishes on its own, and **Posts** marks it **Processing**. A large video to X or LinkedIn is sent over several ticks the same way, carrying on from the last part sent. So closing or reloading the tab right after **Publish** loses nothing. Waiting uses none of the five attempts. A video still not ready after 45 minutes fails, and **Retry** starts it again.
 

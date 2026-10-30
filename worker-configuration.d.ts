@@ -101,6 +101,8 @@ interface Env {
 	LINKEDIN_CLIENT_SECRET?: string;
 	THREADS_APP_ID?: string;
 	THREADS_APP_SECRET?: string;
+	INSTAGRAM_APP_ID?: string;
+	INSTAGRAM_APP_SECRET?: string;
 	X_CLIENT_ID?: string;
 	X_CLIENT_SECRET?: string;
 	/** Local-dev only: skips 2FA. Honored only while the resolved URL is a

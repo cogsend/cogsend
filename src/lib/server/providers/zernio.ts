@@ -1,5 +1,5 @@
 import { toZernioPlatform, zernioRequestId } from '#lib/domain/zernio.js';
-import { platformName } from '#lib/domain/platforms.js';
+import { platformName, supportsThreads } from '#lib/domain/platforms.js';
 import {
 	createPost,
 	getPost,
@@ -8,6 +8,7 @@ import {
 	type ZernioPost
 } from '../zernio';
 import { getProvider } from './index';
+import type { PublicMediaVariant } from '../public-media';
 import { providerFetch } from './timed-fetch';
 import {
 	ProviderError,
@@ -62,16 +63,19 @@ async function createOrAdopt(opts: {
 export const ZERNIO_POLL_INTERVAL_MS = 3_000;
 export const ZERNIO_MAX_POLLS = 8;
 
-type MediaUrlFor = (storageKey: string) => Promise<string> | string;
+type MediaUrlFor = (storageKey: string, variant?: PublicMediaVariant) => Promise<string> | string;
 
-async function mediaItemFor(media: MediaAttachment, mediaUrlFor: MediaUrlFor) {
+async function mediaItemFor(media: MediaAttachment, mediaUrlFor: MediaUrlFor, platform: string) {
 	if (!media.storageKey) throw new Error('Zernio posts need stored media');
 	const mime = (media.mime || '').toLowerCase();
 	const type = mime.startsWith('video/') ? 'video' : mime === 'image/gif' ? 'gif' : 'image';
+	// Instagram is sent the JPEG copy, as a direct connection is: the copy is
+	// what the composer's Instagram check counted on.
+	const jpeg = platform === 'instagram' && type === 'image' && mime !== 'image/jpeg';
 	return {
 		type,
-		url: await mediaUrlFor(media.storageKey),
-		mimeType: media.mime,
+		url: await mediaUrlFor(media.storageKey, jpeg ? 'jpeg' : undefined),
+		mimeType: jpeg ? 'image/jpeg' : media.mime,
 		...(media.alt ? { altText: media.alt } : {})
 	};
 }
@@ -89,12 +93,12 @@ export async function buildZernioPostBody(opts: {
 	const hasMedia = segments.some((s) => (s.media?.length ?? 0) > 0);
 	if (hasMedia && !opts.mediaUrlFor) throw new Error('Zernio posts need a media signer');
 	const items = async (media: MediaAttachment[] | undefined) =>
-		Promise.all((media ?? []).map((m) => mediaItemFor(m, opts.mediaUrlFor!)));
+		Promise.all((media ?? []).map((m) => mediaItemFor(m, opts.mediaUrlFor!, opts.platform)));
 	const target: Record<string, unknown> = { platform: zernioPlatform, accountId: opts.accountId };
 
-	// LinkedIn has no threads (the direct provider joins the segments too), and
-	// a single segment goes out flat everywhere.
-	if (segments.length === 1 || opts.platform === 'linkedin') {
+	// LinkedIn and Instagram have no threads (the direct providers join the
+	// segments too), and a single segment goes out flat everywhere.
+	if (segments.length === 1 || !supportsThreads(opts.platform)) {
 		const text = segments
 			.map((s) => s.text || '')
 			.filter(Boolean)

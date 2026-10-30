@@ -296,10 +296,24 @@ export function previewKey(storageKey: string): string {
 /** A browser preview is a JPEG of at most 1280 px; anything larger is not one. */
 export const MAX_PREVIEW_BYTES = 1_000_000;
 
+/**
+ * A JPEG of a PNG or WebP original, for Instagram, which takes nothing else.
+ * The browser makes it at upload; the Images binding, when the deployment has
+ * it, makes one later for an image that arrived without.
+ */
+export function jpegKey(storageKey: string): string {
+	return `jpeg/${storageKey}`;
+}
+
+/** Instagram's own cap on a photo. */
+export const MAX_JPEG_COPY_BYTES = 8_000_000;
+
 /** What `draft_media.meta_json` holds for an image. */
 export interface StoredImageMeta {
 	/** Set once a preview is stored at previewKey(); `v` versions its URL. */
 	preview?: { v: number };
+	/** Set once a JPEG copy is stored at jpegKey(). */
+	jpeg?: { v: number };
 }
 
 /**
@@ -323,7 +337,7 @@ export function thumbCandidate(
  */
 export interface ImageResizer {
 	input(source: ReadableStream | ArrayBuffer | Uint8Array): {
-		transform(opts: { width: number; fit: 'scale-down' }): {
+		transform(opts: { width: number; fit: 'scale-down'; background?: string }): {
 			output(opts: { format: string; quality: number }): Promise<{ response(): Response }>;
 		};
 	};
@@ -358,6 +372,45 @@ export async function storedThumbnail(
 	}
 }
 
+/** An animated WebP sets the animation flag in its VP8X header. */
+export function isAnimatedWebpBytes(bytes: Uint8Array): boolean {
+	if (bytes.length < 21) return false;
+	return String.fromCharCode(...bytes.slice(12, 16)) === 'VP8X' && (bytes[20] & 0x02) !== 0;
+}
+
+/**
+ * The Images binding's version of the JPEG copy the browser makes at upload,
+ * for an image that arrived without one: attached before the copy existed, or
+ * uploaded through the API. Full size, so the copy is the photo, not a preview.
+ * An animated WebP is left alone, as the browser leaves it.
+ */
+export async function makeStoredJpegCopy(
+	store: MediaStore,
+	key: string,
+	width: number | null | undefined,
+	images: ImageResizer
+): Promise<boolean> {
+	const original = await store.get(key);
+	if (!original || isAnimatedWebpBytes(original)) return false;
+	try {
+		const copy = new Uint8Array(original.byteLength);
+		copy.set(original);
+		const rendered = await images
+			.input(new Blob([copy]).stream())
+			// JPEG has no alpha: without a fill, transparent pixels turn black.
+			.transform({ width: width || 8192, fit: 'scale-down', background: '#ffffff' })
+			.output({ format: 'image/jpeg', quality: 90 });
+		const response = await rendered.response();
+		if (!response.ok) return false;
+		const bytes = new Uint8Array(await response.arrayBuffer());
+		if (!bytes.byteLength || bytes.byteLength > MAX_JPEG_COPY_BYTES) return false;
+		await store.put(jpegKey(key), bytes, 'image/jpeg');
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export function jpegResponse(bytes: Uint8Array, cacheControl: string): Response {
 	return new Response(bytes as unknown as BodyInit, {
 		headers: {
@@ -374,7 +427,7 @@ export async function deleteMediaObjects(store: MediaStore, keys: string[]): Pro
 	const all = keys.flatMap((key) =>
 		key.endsWith('.mp4')
 			? [key, thumbCacheKey(key), coverKey(key)]
-			: [key, thumbCacheKey(key), previewKey(key)]
+			: [key, thumbCacheKey(key), previewKey(key), jpegKey(key)]
 	);
 	if (!all.length) return;
 	if (store.deleteMany) {

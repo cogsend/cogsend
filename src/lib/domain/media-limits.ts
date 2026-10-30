@@ -11,6 +11,12 @@ export const LINKEDIN_MAX_IMAGES = 4;
 export const X_MAX_IMAGE_BYTES = 5_000_000;
 export const X_MAX_GIF_BYTES = 15_000_000;
 export const THREADS_MAX_IMAGE_BYTES = 8_000_000;
+export const INSTAGRAM_MAX_IMAGE_BYTES = 8_000_000;
+// Instagram takes 20 in a carousel, but each item costs a create and a status
+// read, and 20 would not fit one run's 50 calls on the Workers Free plan. A
+// flattened thread is one post there, as on LinkedIn, so this counts the
+// whole thread's media.
+export const INSTAGRAM_MAX_ITEMS = 10;
 export const MAX_IMAGES_PER_SEGMENT = 4;
 
 // The largest video any route stores. Bluesky's 300 MB is the smallest cap
@@ -119,12 +125,20 @@ export function validateImageUpload(input: {
 	return { ok: true, mime };
 }
 
-const PLATFORM_LABEL = { bluesky: 'Bluesky', linkedin: 'LinkedIn', threads: 'Threads', x: 'X' };
+const PLATFORM_LABEL = {
+	bluesky: 'Bluesky',
+	linkedin: 'LinkedIn',
+	threads: 'Threads',
+	instagram: 'Instagram',
+	x: 'X'
+};
 
 function imageCap(platform: string, mime: string): number | null {
 	if (platform === 'bluesky') return BLUESKY_MAX_IMAGE_BYTES;
 	if (platform === 'linkedin') return LINKEDIN_MAX_IMAGE_BYTES;
 	if (platform === 'threads') return THREADS_MAX_IMAGE_BYTES;
+	// Anything else goes to Instagram as its JPEG copy, capped when it is made.
+	if (platform === 'instagram') return mime === 'image/jpeg' ? INSTAGRAM_MAX_IMAGE_BYTES : null;
 	if (platform === 'x') return mime === 'image/gif' ? X_MAX_GIF_BYTES : X_MAX_IMAGE_BYTES;
 	return null;
 }
@@ -164,6 +178,57 @@ export function imageOverCap(
 		}
 	}
 	return null;
+}
+
+/** An attachment as far as Instagram's rules care. */
+export interface InstagramMediaFacts {
+	mime: string;
+	width?: number | null;
+	height?: number | null;
+	/** A JPEG copy was stored beside a PNG or WebP original. */
+	hasJpegCopy?: boolean;
+}
+
+// Feed photos run from 4:5 portrait to 1.91:1 landscape; a hair of slack so a
+// 1080×1350 crop rounded by an editor still counts as 4:5.
+const INSTAGRAM_MIN_ASPECT = 0.8 - 0.005;
+const INSTAGRAM_MAX_ASPECT = 1.91 + 0.005;
+
+/**
+ * What stops a post from going to Instagram, worst first, given the whole
+ * flattened post's media. One rule for the composer, the API and the provider:
+ * Instagram is the one platform that refuses a post without a photo or video.
+ */
+export function instagramMediaProblems(media: InstagramMediaFacts[]): string[] {
+	if (media.length === 0) return ['Instagram needs a photo or video'];
+	const problems: string[] = [];
+	const videos = media.filter((m) => (m.mime || '').toLowerCase().startsWith('video/'));
+	const images = media.length - videos.length;
+	if (videos.length > 1 || (videos.length && images)) {
+		problems.push('Instagram posts a video on its own, as a Reel');
+	}
+	if (images > INSTAGRAM_MAX_ITEMS) {
+		problems.push(`Instagram takes up to ${INSTAGRAM_MAX_ITEMS} photos (${images} attached)`);
+	}
+	for (const m of media) {
+		const mime = (m.mime || '').toLowerCase();
+		if (mime.startsWith('video/')) continue;
+		if (mime === 'image/gif') {
+			problems.push("Instagram doesn't take GIFs");
+			break;
+		}
+		if (mime !== 'image/jpeg' && !m.hasJpegCopy) {
+			problems.push('Instagram takes JPEG only — attach this image again, or as a JPEG');
+			break;
+		}
+	}
+	const offShape = media.some((m) => {
+		if ((m.mime || '').toLowerCase().startsWith('video/') || !m.width || !m.height) return false;
+		const aspect = m.width / m.height;
+		return aspect < INSTAGRAM_MIN_ASPECT || aspect > INSTAGRAM_MAX_ASPECT;
+	});
+	if (offShape) problems.push('Instagram takes photos from 4:5 tall to 1.91:1 wide');
+	return problems;
 }
 
 /**

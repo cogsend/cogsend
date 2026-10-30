@@ -41,6 +41,6 @@ a proxied DNS record.
 
    `npm run secrets:put APP_URL` uploads it from `.dev.vars` instead. Re-running `setup` leaves an existing `APP_URL` alone, but it will pin the workers.dev URL again if the secret is missing.
 
-2. Re-register the redirect URI in every OAuth app you created — LinkedIn, Threads, X — as `https://<new-host>/api/connections/<platform>/callback`; a provider whose registered URI no longer matches answers with a redirect error. Mastodon and Bluesky keep working: their tokens are stored, and the redirect URI is only used while connecting.
+2. Re-register the redirect URI in every OAuth app you created — LinkedIn, Threads, Instagram, X — as `https://<new-host>/api/connections/<platform>/callback`; a provider whose registered URI no longer matches answers with a redirect error. Mastodon and Bluesky keep working: their tokens are stored, and the redirect URI is only used while connecting.
 3. Point an external pinger at the new host. The Worker's own cron trigger calls the app in-process, so it is unaffected.
 4. Confirm with `npm run doctor -- --app-url https://<new-host>`.

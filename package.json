@@ -1,8 +1,8 @@
 {
 	"name": "cogsend",
 	"private": true,
-	"version": "1.20.2",
-	"description": "Minimal social scheduler for Mastodon, Bluesky, LinkedIn, Threads, and X. SvelteKit on Cloudflare Workers, D1, and R2.",
+	"version": "1.21.0",
+	"description": "Minimal social scheduler for Mastodon, Bluesky, LinkedIn, Threads, Instagram, and X. SvelteKit on Cloudflare Workers, D1, and R2.",
 	"license": "MIT",
 	"author": "DeepakNess <me@deepakness.com> (https://github.com/deepakness)",
 	"repository": {
@@ -20,6 +20,7 @@
 		"bluesky",
 		"linkedin",
 		"threads",
+		"instagram",
 		"sveltekit",
 		"cloudflare-workers"
 	],

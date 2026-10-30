@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+	JPEG_COPY_MAX_BYTES,
+	makeJpegCopy,
 	makePreview,
 	PREVIEW_EDGE,
 	shrinkSteps,
@@ -120,5 +122,34 @@ describe('makePreview', () => {
 			encode: async () => null
 		};
 		expect(await makePreview(file(1_500_000, 'image/jpeg'), broken)).toBeNull();
+	});
+});
+
+describe('makeJpegCopy', () => {
+	it('makes a full-size JPEG of a PNG or WebP, for Instagram', async () => {
+		for (const type of ['image/png', 'image/webp']) {
+			const { codec, tried, closed } = fakeCodec(() => 900_000);
+			const copy = await makeJpegCopy(file(1_200_000, type), codec);
+			expect(copy?.type).toBe('image/jpeg');
+			expect(tried).toEqual(['image/jpeg@4000:0.9']);
+			expect(closed()).toBe(true);
+		}
+	});
+
+	it('leaves JPEGs and GIFs alone: one is already a JPEG, the other cannot go', async () => {
+		const { codec, tried } = fakeCodec(() => 1);
+		expect(await makeJpegCopy(file(1_000_000, 'image/jpeg'), codec)).toBeNull();
+		expect(await makeJpegCopy(file(1_000_000, 'image/gif'), codec)).toBeNull();
+		expect(tried).toEqual([]);
+	});
+
+	it("steps down once, then gives up rather than send a copy over Instagram's cap", async () => {
+		const smaller = fakeCodec((step) =>
+			step.quality === 0.9 ? JPEG_COPY_MAX_BYTES + 1 : 7_000_000
+		);
+		expect((await makeJpegCopy(file(5_000_000, 'image/png'), smaller.codec))?.size).toBe(7_000_000);
+		expect(smaller.tried).toEqual(['image/jpeg@4000:0.9', 'image/jpeg@4000:0.8']);
+		const huge = fakeCodec(() => JPEG_COPY_MAX_BYTES + 1);
+		expect(await makeJpegCopy(file(5_000_000, 'image/png'), huge.codec)).toBeNull();
 	});
 });

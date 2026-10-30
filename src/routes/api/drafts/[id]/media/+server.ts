@@ -21,6 +21,8 @@ import {
 import { fail, handleError, ok } from '#lib/server/http.js';
 import {
 	deleteMediaObjects,
+	jpegKey,
+	MAX_JPEG_COPY_BYTES,
 	MAX_PREVIEW_BYTES,
 	previewKey,
 	saveMediaBytes,
@@ -39,26 +41,22 @@ const MAX_UPLOAD_BYTES = 100_000_000;
 const MAX_FORM_VIDEO_BYTES = 95_000_000;
 
 /**
- * Keep the composer's smaller copy of an image, for showing it. A preview that
- * is missing or not a small JPEG is dropped: the original is shown instead,
- * and the upload never fails over it.
+ * Keep a JPEG the composer made of an image: a smaller one for showing it, or
+ * a full-size one for Instagram. One that is missing, too large or not a JPEG
+ * is dropped, and the upload never fails over it.
  */
-async function savePreview(
+async function saveJpegVariant(
 	locals: App.Locals,
-	storageKey: string,
-	file: File | null
+	key: string,
+	file: File | null,
+	maxBytes: number
 ): Promise<boolean> {
-	if (!file || file.size > MAX_PREVIEW_BYTES) return false;
+	if (!file || file.size > maxBytes) return false;
 	const bytes = new Uint8Array(await file.arrayBuffer());
-	const check = validateImageUpload({
-		mime: 'image/jpeg',
-		size: bytes.length,
-		maxBytes: MAX_PREVIEW_BYTES,
-		bytes
-	});
+	const check = validateImageUpload({ mime: 'image/jpeg', size: bytes.length, maxBytes, bytes });
 	if (!check.ok || check.mime !== 'image/jpeg') return false;
 	try {
-		await locals.media.put(previewKey(storageKey), bytes, 'image/jpeg');
+		await locals.media.put(key, bytes, 'image/jpeg');
 		return true;
 	} catch {
 		return false;
@@ -91,13 +89,19 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		const existingOnSegment = existing.filter((m) => (m.segmentIndex ?? 0) === segmentIndex).length;
 
 		const files: File[] = [];
-		// `preview-<n>` is the composer's smaller copy of the n-th file entry.
+		// `preview-<n>` is the composer's smaller copy of the n-th file entry,
+		// `jpeg-<n>` its full-size JPEG copy of a PNG or WebP.
 		const previews: Array<File | null> = [];
+		const jpegs: Array<File | null> = [];
+		const fileField = (name: string) => {
+			const value = form.get(name);
+			return value instanceof File && value.size > 0 ? value : null;
+		};
 		[...form.getAll('files'), ...form.getAll('file')].forEach((entry, n) => {
 			if (!(entry instanceof File) || entry.size <= 0 || files.includes(entry)) return;
 			files.push(entry);
-			const preview = form.get(`preview-${n}`);
-			previews.push(preview instanceof File && preview.size > 0 ? preview : null);
+			previews.push(fileField(`preview-${n}`));
+			jpegs.push(fileField(`jpeg-${n}`));
 		});
 		if (!files.length) return fail('file required');
 		// Per-file caps, ahead of the ArrayBuffer copy below: formData() already
@@ -149,10 +153,21 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			const file = files[i];
 			const bytes = new Uint8Array(await file.arrayBuffer());
 			const saved = await saveMediaBytes(locals.media, { bytes, mime: file.type || 'image/jpeg' });
-			const preview = saved.video
-				? false
-				: await savePreview(locals, saved.storageKey, previews[i]);
-			const imageMeta: StoredImageMeta | null = preview ? { preview: { v: Date.now() } } : null;
+			const imageMeta: StoredImageMeta = {};
+			if (!saved.video) {
+				const v = Date.now();
+				const key = saved.storageKey;
+				if (await saveJpegVariant(locals, previewKey(key), previews[i], MAX_PREVIEW_BYTES)) {
+					imageMeta.preview = { v };
+				}
+				// A JPEG original is already what Instagram takes.
+				if (
+					saved.mime !== 'image/jpeg' &&
+					(await saveJpegVariant(locals, jpegKey(key), jpegs[i], MAX_JPEG_COPY_BYTES))
+				) {
+					imageMeta.jpeg = { v };
+				}
+			}
 			let media;
 			try {
 				[media] = await locals.db
@@ -167,7 +182,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 						height: saved.height,
 						metaJson: saved.video
 							? JSON.stringify(saved.video)
-							: imageMeta
+							: Object.keys(imageMeta).length
 								? JSON.stringify(imageMeta)
 								: null,
 						altText: i === 0 ? altText : null,

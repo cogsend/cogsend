@@ -38,6 +38,7 @@
 		mastodon: '#6364ff',
 		linkedin: '#0a66c2',
 		threads: '#000000',
+		instagram: '#e4405f',
 		x: '#000000'
 	};
 	const badgeLabel: Record<string, string> = {
@@ -45,6 +46,7 @@
 		mastodon: 'Mastodon',
 		linkedin: 'LinkedIn',
 		threads: 'Threads',
+		instagram: 'Instagram',
 		x: 'X'
 	};
 	const bg = $derived(badgeBg[platform] ?? '#6b7280');

@@ -508,8 +508,8 @@ function checkNode() {
 }
 
 /**
- * Which of the three platforms that need an app registered at the provider
- * (LinkedIn, Threads, X) this deployment could connect. Presence, not
+ * Which of the platforms that need an app registered at the provider
+ * (LinkedIn, Threads, Instagram, X) this deployment could connect. Presence, not
  * validity: a wrong id still counts as set up and is rejected by the provider
  * when someone tries to connect.
  *
@@ -524,6 +524,7 @@ export function platformVerdict(secretNames) {
 	const platforms = {
 		LinkedIn: ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET'],
 		Threads: ['THREADS_APP_ID', 'THREADS_APP_SECRET'],
+		Instagram: ['INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET'],
 		X: ['X_CLIENT_ID']
 	};
 	const missing = Object.entries(platforms)
@@ -533,8 +534,8 @@ export function platformVerdict(secretNames) {
 		return {
 			id: 'platforms',
 			status: 'ok',
-			label: 'LinkedIn, Threads and X have app credentials',
-			detail: 'all five platforms can be connected'
+			label: 'LinkedIn, Threads, Instagram and X have app credentials',
+			detail: 'all six platforms can be connected'
 		};
 	}
 	const ready = Object.keys(platforms).filter((platform) => !missing.includes(platform));

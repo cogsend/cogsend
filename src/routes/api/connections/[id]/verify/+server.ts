@@ -8,6 +8,7 @@ import { fail, handleError, ok } from '#lib/server/http.js';
 import {
 	blueskyCreateSession,
 	getProvider,
+	instagramVerify,
 	linkedinVerify,
 	ProviderError,
 	threadsVerify,
@@ -212,6 +213,58 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 					displayName: info.displayName || conn.displayName,
 					avatarUrl: info.avatarUrl || conn.avatarUrl,
 					handle: info.handle || conn.handle,
+					...(Object.keys(credsPatch).length
+						? {
+								credentialsEncrypted: await encryptJson(
+									{ ...checkCreds, ...credsPatch },
+									locals.env.APP_ENCRYPTION_KEY
+								)
+							}
+						: {}),
+					updatedAt: new Date()
+				})
+				.where(owned);
+		} else if (conn.platform === 'instagram') {
+			let checkCreds = creds;
+			try {
+				const refreshed = await getProvider('instagram').refreshIfNeeded!(creds);
+				if (refreshed.accessToken && refreshed.accessToken !== creds.accessToken) {
+					checkCreds = refreshed;
+					await locals.db
+						.update(connections)
+						.set({
+							credentialsEncrypted: await encryptJson(refreshed, locals.env.APP_ENCRYPTION_KEY),
+							updatedAt: new Date()
+						})
+						.where(owned);
+				}
+			} catch (err) {
+				if ((err as { status?: number } | null)?.status === 401) {
+					await locals.db
+						.update(connections)
+						.set({ status: 'expired', updatedAt: new Date() })
+						.where(owned);
+					return fail('Token expired — reconnect', 401);
+				}
+			}
+			const info = await instagramVerify(checkCreds);
+			const meta = parseJson<Record<string, unknown>>(conn.metaJson, {});
+			// A reconnect finds this account again by meta.igUserId.
+			const metaChanged = Boolean(info.userId && meta.igUserId !== info.userId);
+			const credsPatch = {
+				...(info.userId && info.userId !== checkCreds.igUserId ? { igUserId: info.userId } : {}),
+				...(info.username && info.username !== checkCreds.igUsername
+					? { igUsername: info.username }
+					: {})
+			};
+			await locals.db
+				.update(connections)
+				.set({
+					status: 'active',
+					displayName: info.displayName || conn.displayName,
+					avatarUrl: info.avatarUrl || conn.avatarUrl,
+					handle: info.handle || conn.handle,
+					...(metaChanged ? { metaJson: JSON.stringify({ ...meta, igUserId: info.userId }) } : {}),
 					...(Object.keys(credsPatch).length
 						? {
 								credentialsEncrypted: await encryptJson(

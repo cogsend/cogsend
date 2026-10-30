@@ -30,6 +30,8 @@ const envSchema = z.object({
 	LINKEDIN_CLIENT_SECRET: z.string().min(1).optional(),
 	THREADS_APP_ID: z.string().min(1).optional(),
 	THREADS_APP_SECRET: z.string().min(1).optional(),
+	INSTAGRAM_APP_ID: z.string().min(1).optional(),
+	INSTAGRAM_APP_SECRET: z.string().min(1).optional(),
 	X_CLIENT_ID: z.string().min(1).optional(),
 	X_CLIENT_SECRET: z.string().min(1).optional(),
 	// Failure-digest email (Resend). All optional: when unset, the digest is
@@ -38,7 +40,7 @@ const envSchema = z.object({
 	NOTIFY_EMAIL: z.string().min(3).optional(),
 	NOTIFY_FROM: z.string().min(3).optional(),
 	// Optional public media origin (for example an R2 custom domain with
-	// Cloudflare cache). When set, Threads is handed direct URLs here instead
+	// Cloudflare cache). When set, Threads and Instagram are handed direct URLs here instead
 	// of the signed Worker route, which removes the Worker/R2 hop from Meta's
 	// crawler fetch. Deliberately not schema-validated: a bad value degrades
 	// to the signed route (publicMediaUrlFor) instead of 500ing every
@@ -151,6 +153,9 @@ export async function envFromPlatform(
 			asString(platformEnv?.LINKEDIN_CLIENT_SECRET) ?? fallback.LINKEDIN_CLIENT_SECRET,
 		THREADS_APP_ID: asString(platformEnv?.THREADS_APP_ID) ?? fallback.THREADS_APP_ID,
 		THREADS_APP_SECRET: asString(platformEnv?.THREADS_APP_SECRET) ?? fallback.THREADS_APP_SECRET,
+		INSTAGRAM_APP_ID: asString(platformEnv?.INSTAGRAM_APP_ID) ?? fallback.INSTAGRAM_APP_ID,
+		INSTAGRAM_APP_SECRET:
+			asString(platformEnv?.INSTAGRAM_APP_SECRET) ?? fallback.INSTAGRAM_APP_SECRET,
 		X_CLIENT_ID: asString(platformEnv?.X_CLIENT_ID) ?? fallback.X_CLIENT_ID,
 		X_CLIENT_SECRET: asString(platformEnv?.X_CLIENT_SECRET) ?? fallback.X_CLIENT_SECRET,
 		RESEND_API_KEY: asString(platformEnv?.RESEND_API_KEY) ?? fallback.RESEND_API_KEY,

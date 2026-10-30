@@ -13,7 +13,7 @@ Include what you did, what you expected, and what happened. A proof of concept o
 
 Worth knowing before you report something:
 
-- **Third-party OAuth credentials** (Mastodon, Bluesky, LinkedIn, Threads, X) in D1, encrypted with AES-256-GCM under `APP_ENCRYPTION_KEY`.
+- **Third-party OAuth credentials** (Mastodon, Bluesky, LinkedIn, Threads, Instagram, X) in D1, encrypted with AES-256-GCM under `APP_ENCRYPTION_KEY`.
 - **The account**: an email and a PBKDF2-SHA256 hash, written into D1 by `npm run setup`. No password is stored anywhere in plaintext.
 - **A TOTP secret and backup codes** for that account, encrypted the same way.
 - **Draft content and uploaded media** (R2). Media handed to Meta is served through short-lived signed URLs.

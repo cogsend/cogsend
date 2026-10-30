@@ -1,15 +1,15 @@
 import { platformName } from '#lib/domain/platforms.js';
 
 /**
- * The three platforms whose client credentials belong to whoever runs the
- * deployment: LinkedIn issues them to an app owner, Meta to a Threads app, X to
- * a developer project. Only that person can create them, so a deployment
+ * The platforms whose client credentials belong to whoever runs the
+ * deployment: LinkedIn issues them to an app owner, Meta to a Threads or an
+ * Instagram app, X to a developer project. Only that person can create them, so a deployment
  * without them cannot connect the account at all.
  *
  * Mastodon is absent on purpose — it registers its app on the instance itself —
  * and Bluesky takes an app password, so both are self-serve.
  */
-export type OAuthPlatformId = 'linkedin' | 'threads' | 'x';
+export type OAuthPlatformId = 'linkedin' | 'threads' | 'instagram' | 'x';
 
 export type PlatformSetup = {
 	/** Worker secrets the connect route requires: it answers "not enabled"
@@ -59,6 +59,18 @@ export const PLATFORM_SETUP: Record<OAuthPlatformId, PlatformSetup> = {
 		redirectField: 'the Threads use case → Redirect Callback URLs',
 		docsAnchor: 'threads'
 	},
+	instagram: {
+		secrets: ['INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET'],
+		callbackPath: '/api/connections/instagram/callback',
+		consoleUrl: 'https://developers.facebook.com/apps/',
+		consoleName: 'Meta for Developers',
+		consoleRequirement:
+			'Create the app with the Manage messaging & content on Instagram use case (or add it to an existing app), add the instagram_business_basic and instagram_business_content_publish permissions, and while it is still in development add the account you connect as an Instagram tester and accept the invite. The Instagram app ID and secret under API setup with Instagram login are the ones to use, not the Meta app’s own.',
+		redirectField:
+			'the Instagram use case → API setup with Instagram login → Set up Instagram business login → Redirect URL',
+		docsAnchor: 'instagram',
+		note: 'Only Business and Creator accounts can post through the API.'
+	},
 	x: {
 		// PKCE alone completes the exchange, so the secret is read (as HTTP
 		// Basic auth) only for a confidential "Web App" client.
@@ -79,7 +91,7 @@ export type PlatformConfigured = Record<OAuthPlatformId, boolean>;
 
 const SETUP_GUIDE_BASE = 'https://github.com/cogsend/cogsend/blob/main/docs/oauth-apps.md';
 
-/** Setup guide for the three platforms above, in the repository's docs. */
+/** Setup guide for the platforms above, in the repository's docs. */
 export const SETUP_GUIDE_URL = `${SETUP_GUIDE_BASE}#oauth-app-setup`;
 
 /** That platform's own section of the guide: what the dialog links to, so a
@@ -166,7 +178,7 @@ export function callbackUri(id: OAuthPlatformId, appUrl: string): string {
  * Self-serve platforms first, then the ones that may need server setup — the
  * order the accounts empty state lists them in.
  */
-const CONNECT_ORDER = ['bluesky', 'mastodon', 'linkedin', 'threads', 'x'] as const;
+const CONNECT_ORDER = ['bluesky', 'mastodon', 'linkedin', 'threads', 'instagram', 'x'] as const;
 
 /** "Bluesky", "Bluesky or Mastodon", "Bluesky, Mastodon, or LinkedIn". */
 export function joinPlatformNames(names: readonly string[]): string {

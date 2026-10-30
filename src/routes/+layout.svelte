@@ -140,7 +140,7 @@
 	<title>{data.appName} — write & schedule</title>
 	<meta
 		name="description"
-		content="Minimal social scheduler for Mastodon, Bluesky, LinkedIn, Threads, and X"
+		content="Minimal social scheduler for Mastodon, Bluesky, LinkedIn, Threads, Instagram, and X"
 	/>
 	<link rel="icon" href={favicon} type="image/svg+xml" />
 	<link rel="icon" href={faviconDark} type="image/svg+xml" media="(prefers-color-scheme: dark)" />

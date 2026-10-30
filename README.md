@@ -5,7 +5,7 @@
 <h1 align="center">CogSend</h1>
 
 <p align="center">
-  Self-hosted social scheduler for Mastodon, Bluesky, LinkedIn, Threads and X.<br />
+  Self-hosted social scheduler for Mastodon, Bluesky, LinkedIn, Threads, Instagram and X.<br />
   Write a draft, customize it per platform, then publish it now or schedule it.
 </p>
 
@@ -82,7 +82,7 @@ cd cogsend && npm install && npm run setup
 
 `setup` creates the Cloudflare resources, your admin account and the secrets, deploys, and prints your URL. Sign in there, scan the QR with an authenticator app and save the backup codes. It is safe to re-run; [docs/deploy.md](docs/deploy.md#one-command) lists every step and flag.
 
-Next, [connect your accounts](docs/accounts.md). Mastodon and Bluesky work straight away; LinkedIn, Threads and X need an [OAuth app](docs/oauth-apps.md) first, which the accounts dialog walks you through (or hands to a browser agent), or you can connect them through [Zernio](docs/zernio.md).
+Next, [connect your accounts](docs/accounts.md). Mastodon and Bluesky work straight away; LinkedIn, Threads, Instagram and X need an [OAuth app](docs/oauth-apps.md) first, which the accounts dialog walks you through (or hands to a browser agent), or you can connect them through [Zernio](docs/zernio.md).
 
 ## Updating
 
@@ -106,7 +106,7 @@ Also published, with search, at [cogsend.com/docs](https://cogsend.com/docs/).
 
 - [Deploying](docs/deploy.md): the one-click button, the terminal install and its flags, checking it worked
 - [Updating](docs/updates.md): updating from Settings, through GitHub or from a checkout, rolling back, and why each is safe
-- [OAuth apps](docs/oauth-apps.md): LinkedIn, Threads and X app setup, and what each platform allows
+- [OAuth apps](docs/oauth-apps.md): LinkedIn, Threads, Instagram and X app setup, and what each platform allows
 - [Zernio](docs/zernio.md): connecting through Zernio instead of registering your own apps
 - [Connecting accounts](docs/accounts.md): connecting, reconnecting and disconnecting accounts
 

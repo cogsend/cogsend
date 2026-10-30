@@ -6,6 +6,7 @@ import { createTestDb, TEST_ENV } from '#lib/server/db/test.js';
 import { GET as connectionsGET } from '../src/routes/api/connections/+server';
 import { POST as linkedinPOST } from '../src/routes/api/connections/linkedin/+server';
 import { POST as mastodonPOST } from '../src/routes/api/connections/mastodon/+server';
+import { POST as instagramPOST } from '../src/routes/api/connections/instagram/+server';
 import { POST as threadsPOST } from '../src/routes/api/connections/threads/+server';
 import { POST as xPOST } from '../src/routes/api/connections/x/+server';
 import { platformName } from '#lib/domain/platforms.js';
@@ -13,7 +14,7 @@ import { PLATFORM_SECRET_NAMES, PLATFORM_SETUP } from '#lib/domain/platform-setu
 import { OAUTH_PENDING_TTL_MS } from '#lib/domain/oauth-pending.js';
 
 /**
- * The four connect entry points. They were untested: a regression here (a
+ * The connect entry points. They were untested: a regression here (a
  * dropped state binding, a wrong pending marker, a leaked authorize URL shape)
  * only surfaced when someone tried to connect a real account.
  */
@@ -27,6 +28,8 @@ describe('connect routes', () => {
 		...TEST_ENV,
 		THREADS_APP_ID: 'threads-app',
 		THREADS_APP_SECRET: 'threads-secret',
+		INSTAGRAM_APP_ID: 'ig-app',
+		INSTAGRAM_APP_SECRET: 'ig-secret',
 		X_CLIENT_ID: 'x-client',
 		X_CLIENT_SECRET: 'x-secret',
 		LINKEDIN_CLIENT_ID: 'li-client',
@@ -79,7 +82,7 @@ describe('connect routes', () => {
 	afterEach(() => vi.unstubAllGlobals());
 
 	it('refuses bearer credentials — connecting is session-only', async () => {
-		for (const handler of [mastodonPOST, threadsPOST, xPOST, linkedinPOST]) {
+		for (const handler of [mastodonPOST, threadsPOST, instagramPOST, xPOST, linkedinPOST]) {
 			const res = await call(
 				handler,
 				{ instanceUrl: 'https://mastodon.example' },
@@ -96,6 +99,7 @@ describe('connect routes', () => {
 		// instance itself and needs no client credentials of its own.
 		for (const [handler, platform, secrets] of [
 			[threadsPOST, 'threads', ['THREADS_APP_ID', 'THREADS_APP_SECRET']],
+			[instagramPOST, 'instagram', ['INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET']],
 			[xPOST, 'x', ['X_CLIENT_ID']],
 			[linkedinPOST, 'linkedin', ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET']]
 		] as const) {
@@ -128,6 +132,7 @@ describe('connect routes', () => {
 	it('requires exactly the secrets the setup panel lists', async () => {
 		for (const [handler, platform] of [
 			[threadsPOST, 'threads'],
+			[instagramPOST, 'instagram'],
 			[xPOST, 'x'],
 			[linkedinPOST, 'linkedin']
 		] as const) {
@@ -168,7 +173,7 @@ describe('connect routes', () => {
 			secrets: Record<string, boolean>;
 			appUrl?: string;
 		};
-		expect(body.configured).toEqual({ linkedin: true, threads: true, x: true });
+		expect(body.configured).toEqual({ linkedin: true, threads: true, instagram: true, x: true });
 		expect(body.appUrl).toBe('https://cogsend.example.com/');
 		// Presence per secret, not just per platform: this is what lets the
 		// dialog name the missing half instead of repeating "no credentials".
@@ -188,6 +193,7 @@ describe('connect routes', () => {
 		expect(bareBody.configured).toEqual({
 			linkedin: false,
 			threads: false,
+			instagram: false,
 			x: false
 		});
 		expect(Object.values(bareBody.secrets).some(Boolean)).toBe(false);
@@ -229,9 +235,10 @@ describe('connect routes', () => {
 		expect(row.clientSecretEnc).not.toContain('x-secret');
 	});
 
-	it('returns Threads and LinkedIn authorize URLs with a bound state', async () => {
+	it('returns Threads, Instagram and LinkedIn authorize URLs with a bound state', async () => {
 		for (const [handler, marker, client] of [
 			[threadsPOST, 'threads', 'threads-app'],
+			[instagramPOST, 'instagram', 'ig-app'],
 			[linkedinPOST, 'linkedin', 'li-client']
 		] as const) {
 			const res = await call(handler);
@@ -244,6 +251,15 @@ describe('connect routes', () => {
 			const row = await pendingFor(marker);
 			expect(row.userId).toBe(userId);
 			expect(row.expiresAt.getTime()).toBeGreaterThan(Date.now());
+			if (marker === 'instagram') {
+				expect(url.origin + url.pathname).toBe('https://www.instagram.com/oauth/authorize');
+				expect(url.searchParams.get('scope')).toBe(
+					'instagram_business_basic,instagram_business_content_publish'
+				);
+				expect(url.searchParams.get('redirect_uri')).toMatch(
+					/\/api\/connections\/instagram\/callback$/
+				);
+			}
 		}
 	});
 

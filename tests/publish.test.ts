@@ -1777,6 +1777,95 @@ describe('posts a platform may have taken, URL-only media and stored links', () 
 		expect(target.remoteUrl).toBeNull();
 	});
 
+	describe('Instagram', () => {
+		const igCreds = {
+			accessToken: 'tok',
+			igUserId: '1789',
+			igUsername: 'someone',
+			expiresAt: Date.now() + 30 * 24 * 60 * 60_000
+		};
+
+		/** A post with one PNG that has its JPEG copy, as the composer uploads it. */
+		async function withPhoto(connectionId: string, body: string) {
+			const id = await pending(connectionId, body);
+			const { draftId } = await row(id);
+			await db.insert(draftMedia).values({
+				id: newId(),
+				draftId,
+				storageKey: `${Date.now()}-0123456789abcdef.png`,
+				mime: 'image/png',
+				size: 80,
+				width: 1080,
+				height: 1080,
+				metaJson: JSON.stringify({ jpeg: { v: 1 } }),
+				segmentIndex: 0,
+				sortOrder: 0,
+				createdAt: new Date()
+			});
+			return id;
+		}
+
+		const meta = (publish: () => Response, seen: Request[] = []) =>
+			mockFetch({
+				'/media_publish': publish,
+				'?fields=status_code': () => Response.json({ status_code: 'FINISHED' }),
+				'?fields=permalink': () => Response.json({ permalink: 'https://www.instagram.com/p/abc/' }),
+				'/1789/media': (req) => {
+					seen.push(req);
+					return Response.json({ id: 'container-1' });
+				}
+			});
+
+		it('publishes a PNG through its JPEG copy and records the permalink', async () => {
+			const conn = await connection('instagram', igCreds);
+			const id = await withPhoto(conn, 'hello instagram');
+			const seen: Request[] = [];
+			const result = await publishTarget(db, TEST_ENV, store, id, {
+				fetchImpl: meta(() => Response.json({ id: 'ig-post-1' }), seen)
+			});
+			expect(result.status).toBe('published');
+			const target = await row(id);
+			expect(target.remotePostId).toBe('ig-post-1');
+			expect(target.remoteUrl).toBe('https://www.instagram.com/p/abc/');
+			const sent = new URLSearchParams(await seen[0].text());
+			expect(sent.get('caption')).toBe('hello instagram');
+			const imageUrl = new URL(sent.get('image_url')!);
+			expect(imageUrl.origin).toBe(TEST_ENV.APP_URL);
+			expect(imageUrl.searchParams.get('v')).toBe('jpeg');
+		});
+
+		it('waits an hour when the account has used its 100 posts for the day', async () => {
+			const conn = await connection('instagram', igCreds);
+			const id = await withPhoto(conn, 'one too many');
+			const before = Date.now();
+			const result = await publishTarget(db, TEST_ENV, store, id, {
+				fetchImpl: meta(() =>
+					Response.json(
+						{ error: { code: 9, error_subcode: 2207042, message: 'limit reached' } },
+						{ status: 400 }
+					)
+				),
+				now: new Date(before)
+			});
+			expect(result.status).toBe('scheduled');
+			const target = await row(id);
+			expect(target.errorMessage).toMatch(/limit of 100 posts a day/);
+			const retryAt = target.scheduledFor?.getTime() ?? 0;
+			expect(retryAt).toBeGreaterThanOrEqual(before + 60 * 60_000);
+			expect(retryAt).toBeLessThan(before + 61 * 60_000);
+			const [account] = await db.select().from(connections).where(eq(connections.id, conn));
+			expect(account.status).toBe('active');
+		});
+
+		it('a publish that gets no answer fails for good and says it may be live', async () => {
+			const conn = await connection('instagram', igCreds);
+			const id = await withPhoto(conn, 'slow network');
+			const result = await publishTarget(db, TEST_ENV, store, id, { fetchImpl: meta(noAnswer) });
+			expect(result.status).toBe('failed');
+			expect((await row(id)).errorMessage).toMatch(/may have been published/);
+		});
+	});
+
 	it('never retries an unconfirmed post on a timer', () => {
 		expect(
 			isRetryableError(

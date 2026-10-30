@@ -72,7 +72,7 @@ describe('zernio import', () => {
 			imported: false
 		});
 		expect(toImportable(account({ _id: 'acc-9' }), imported)?.imported).toBe(true);
-		expect(toImportable(account({ platform: 'instagram' }), imported)).toBeNull();
+		expect(toImportable(account({ platform: 'tiktok' }), imported)).toBeNull();
 		// Created as a side effect of an ads connect: Zernio's own UI hides it.
 		expect(toImportable(account({ enabled: false }), imported)).toBeNull();
 	});

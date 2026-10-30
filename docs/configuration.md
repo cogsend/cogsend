@@ -27,6 +27,7 @@ cannot reach anything except the tick (see [Scheduling](scheduling.md)).
 | `API_TOKEN`                                     | a machine bearer for the API — prefer a personal key instead  |
 | `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` | LinkedIn ([OAuth apps](oauth-apps.md))                        |
 | `THREADS_APP_ID` / `THREADS_APP_SECRET`         | Threads                                                       |
+| `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET`     | Instagram                                                     |
 | `X_CLIENT_ID` / `X_CLIENT_SECRET`               | X                                                             |
 | `RESEND_API_KEY`, `NOTIFY_EMAIL`, `NOTIFY_FROM` | failure digests by email                                      |
 | `MEDIA_PUBLIC_BASE_URL`                         | serving Meta's crawler from a public media origin (see below) |
@@ -96,6 +97,11 @@ part of the Images Free plan (5,000 unique transformations a month, then $0.50
 per 1,000); because the result is cached, each image is transformed once, not
 once per view. Without the binding, and for GIFs, videos, or an encode that
 fails, the original is served — this is a speed-up, not a requirement.
+
+The same binding makes the JPEG copy Instagram needs for a PNG or WebP that
+arrived without one — attached before Instagram support, or uploaded through
+the API — when the post is scheduled or published. Each copy is made once and
+kept.
 
 ## Keeping your own deployment separate from upstream
 

@@ -1,6 +1,6 @@
 # CogSend
 
-> Self-hosted social scheduler for Mastodon, Bluesky, LinkedIn, Threads and X. SvelteKit 3 and Svelte 5 on Cloudflare Workers, D1 via Drizzle, R2 for media.
+> Self-hosted social scheduler for Mastodon, Bluesky, LinkedIn, Threads, Instagram and X. SvelteKit 3 and Svelte 5 on Cloudflare Workers, D1 via Drizzle, R2 for media.
 
 CogSend is single-tenant: one admin account on the operator's own Cloudflare account, with their own provider credentials. Every instance is somebody's personal deployment, so nothing may assume the maintainer's account, domain or data.
 

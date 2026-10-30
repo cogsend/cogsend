@@ -15,6 +15,7 @@ import {
 	validateBlueskyText,
 	validateLinkedinText,
 	validateMastodonText,
+	validateInstagramText,
 	validateThreadsText,
 	validateXText
 } from '#lib/domain/validation/text.js';
@@ -48,7 +49,12 @@ import {
 	draftEditBlock,
 	draftHasInFlightPublish
 } from '#lib/server/publish-plan.js';
-import { INLINE_PUBLISH_MS, refreshDraftStatus, publishTarget } from '#lib/server/publish.js';
+import {
+	buildNormalizedPost,
+	INLINE_PUBLISH_MS,
+	refreshDraftStatus,
+	publishTarget
+} from '#lib/server/publish.js';
 import { humanizedCause } from '#lib/domain/human-error.js';
 import type { SubrequestBudget } from '#lib/server/budget.js';
 import { randomHex } from '#lib/domain/bytes.js';
@@ -59,9 +65,12 @@ import {
 	assertSafeStorageKey,
 	coverKey,
 	deleteMediaObjects,
+	jpegKey,
+	makeStoredJpegCopy,
 	previewKey,
 	probeStoredVideo,
 	videoMetaFrom,
+	type ImageResizer,
 	type StoredImageMeta,
 	type StoredVideoMeta
 } from '#lib/server/media.js';
@@ -72,6 +81,7 @@ import { listConnections as loadConnectionList } from '#lib/server/connection-li
 import { loadOwnedDraft } from '#lib/server/draft-record.js';
 
 export type OperationContext = Pick<App.Locals, 'db' | 'env' | 'media'> & {
+	bindings?: object;
 	budget?: SubrequestBudget;
 	waitUntil?: (promise: Promise<unknown>) => void;
 };
@@ -96,6 +106,7 @@ export function validatePost(input: {
 		mastodon = validateMastodonText(text, maxCharacters ?? 500),
 		linkedin = validateLinkedinText(text),
 		threads = validateThreadsText(text),
+		instagram = validateInstagramText(text),
 		x = validateXText(text);
 	const issues =
 		platform && isPlatformId(platform)
@@ -108,6 +119,7 @@ export function validatePost(input: {
 		mastodon,
 		linkedin,
 		threads,
+		instagram,
 		x,
 		issues
 	};
@@ -154,6 +166,70 @@ export async function updateDraft(
 		.where(eq(drafts.id, id));
 	return { ok: true as const };
 }
+/**
+ * Instagram refuses a post without a photo or video, and a few other shapes
+ * the rest take. Every other platform's problems surface when it is sent, but
+ * these are certain, so the request is refused before anything is written:
+ * an API client learns now, not at the scheduled time.
+ */
+// get, Images, put and the meta write, plus room for the publish after.
+const JPEG_COPY_CALLS = 4;
+const JPEG_COPY_RESERVE = 25;
+
+/**
+ * A PNG or WebP attached before 1.21, or uploaded through the API, has no
+ * JPEG copy for Instagram. With the Images binding the server makes the copy
+ * and keeps it, so it happens once. Returns true when the request's call
+ * budget ran short and some were left for the next try.
+ */
+async function makeMissingJpegCopies(ctx: OperationContext, draftId: string): Promise<boolean> {
+	const images = (ctx.bindings as { IMAGES?: ImageResizer } | undefined)?.IMAGES;
+	if (!images) return false;
+	const rows = await ctx.db.select().from(draftMedia).where(eq(draftMedia.draftId, draftId));
+	const missing = rows.filter((row) => {
+		const mime = (row.mime || '').toLowerCase();
+		if (mime !== 'image/png' && mime !== 'image/webp') return false;
+		return !parseJson<StoredImageMeta>(row.metaJson, {}).jpeg;
+	});
+	for (const row of missing) {
+		if (ctx.budget && ctx.budget.remaining < JPEG_COPY_CALLS + JPEG_COPY_RESERVE) return true;
+		ctx.budget?.count();
+		if (!(await makeStoredJpegCopy(ctx.media, row.storageKey, row.width, images))) continue;
+		const meta: StoredImageMeta = {
+			...parseJson<StoredImageMeta>(row.metaJson, {}),
+			jpeg: { v: 1 }
+		};
+		await ctx.db
+			.update(draftMedia)
+			.set({ metaJson: JSON.stringify(meta) })
+			.where(eq(draftMedia.id, row.id));
+	}
+	return false;
+}
+
+async function refuseUnfitForInstagram(
+	ctx: OperationContext,
+	draftId: string,
+	conns: Array<{ platform: string }>
+) {
+	if (!conns.some((c) => c.platform === 'instagram')) return;
+	const deferred = await makeMissingJpegCopies(ctx, draftId);
+	const content = await buildNormalizedPost(ctx.db, draftId, 'instagram');
+	const issues = getProvider('instagram').validate(content);
+	if (issues.length) {
+		if (deferred && issues.some((issue) => issue.message.includes('JPEG'))) {
+			invalid('Instagram: still making JPEG copies of the photos — try again', 503, {
+				platform: 'instagram',
+				retryable: true
+			});
+		}
+		invalid(`Instagram: ${issues[0].message}`, 400, {
+			platform: 'instagram',
+			issues: issues.map((issue) => issue.message)
+		});
+	}
+}
+
 export async function scheduleDraft(
 	ctx: OperationContext,
 	userId: string,
@@ -198,6 +274,7 @@ export async function scheduleDraft(
 			alreadyPublished: already,
 			inFlight: flight
 		});
+	await refuseUnfitForInstagram(ctx, draftId, conns);
 	const ensured = await ensureTargets(ctx.db, draftId, conns, 'schedule', runAt, now);
 	const blocked = ensured.filter((i) => i.alreadyPublished || i.inFlight);
 	if (blocked.length)
@@ -386,7 +463,7 @@ export async function rescheduleDelivery(
 const ALLOWED_MEDIA_EXTENSIONS = new Set(['jpg', 'png', 'webp', 'gif', 'mp4']);
 // 12 bound parameters per media row; D1 caps a query at 100.
 const MEDIA_INSERT_CHUNK = 8;
-const VARIANT_PLATFORMS = new Set(['mastodon', 'bluesky', 'linkedin', 'threads', 'x']);
+const VARIANT_PLATFORMS = new Set(['mastodon', 'bluesky', 'linkedin', 'threads', 'instagram', 'x']);
 const VISIBILITIES = new Set(['public', 'unlisted', 'private', 'direct']);
 
 /**
@@ -418,19 +495,31 @@ async function copyVideo(
 	}
 }
 
-/** An image's preview comes along when the store can copy it; otherwise the copy shows the original. */
-async function copyPreview(
+/**
+ * An image's preview and JPEG copy come along when the store can copy them;
+ * otherwise the copy shows the original, and Instagram asks for it again.
+ */
+async function copyImageVariants(
 	store: OperationContext['media'],
 	item: { storageKey: string; metaJson: string | null },
 	storageKey: string
-): Promise<StoredImageMeta['preview'] | null> {
-	const preview = parseJson<StoredImageMeta>(item.metaJson, {}).preview;
-	if (!preview || !store.copy) return null;
-	try {
-		return (await store.copy(previewKey(item.storageKey), previewKey(storageKey))) ? preview : null;
-	} catch {
-		return null;
+): Promise<StoredImageMeta | null> {
+	const stored = parseJson<StoredImageMeta>(item.metaJson, {});
+	const copied: StoredImageMeta = {};
+	const variants = [
+		['preview', previewKey],
+		['jpeg', jpegKey]
+	] as const;
+	for (const [name, keyOf] of variants) {
+		const variant = stored[name];
+		if (!variant || !store.copy) continue;
+		try {
+			if (await store.copy(keyOf(item.storageKey), keyOf(storageKey))) copied[name] = variant;
+		} catch {
+			// The original is still copied; this variant is just left behind.
+		}
 	}
+	return Object.keys(copied).length ? copied : null;
 }
 
 export async function listDrafts(ctx: OperationContext, userId: string, requestedLimit?: number) {
@@ -627,7 +716,7 @@ export async function duplicateDraft(ctx: OperationContext, userId: string, draf
 			if (!validated.ok) continue;
 			await ctx.media.put(storageKey, bytes, validated.mime);
 			savedKeys.push(storageKey);
-			const preview = await copyPreview(ctx.media, item, storageKey);
+			const imageMeta = await copyImageVariants(ctx.media, item, storageKey);
 			mediaValues.push({
 				id: newId(),
 				draftId: newDraftId,
@@ -636,7 +725,7 @@ export async function duplicateDraft(ctx: OperationContext, userId: string, draf
 				size: bytes.length,
 				width: item.width,
 				height: item.height,
-				metaJson: preview ? JSON.stringify({ preview } satisfies StoredImageMeta) : null,
+				metaJson: imageMeta ? JSON.stringify(imageMeta) : null,
 				altText: item.altText,
 				sortOrder: item.sortOrder,
 				segmentIndex: item.segmentIndex,
@@ -725,7 +814,7 @@ export async function setDraftVariant(
 	}
 	const platform = String(fields.platform || '');
 	if (!VARIANT_PLATFORMS.has(platform))
-		invalid('platform must be mastodon, bluesky, linkedin, threads, or x');
+		invalid('platform must be mastodon, bluesky, linkedin, threads, instagram, or x');
 	const existing = await first(
 		ctx.db
 			.select()
@@ -849,6 +938,14 @@ export async function publishDraft(
 		.filter((item) => item.kind === 'inFlight')
 		.map((item) => item.connectionId);
 	if (inFlight.length) invalid('Already publishing', 409, { inFlight });
+	const published = new Set(
+		classified.filter((item) => item.kind === 'published').map((item) => item.connectionId)
+	);
+	await refuseUnfitForInstagram(
+		ctx,
+		draftId,
+		userConnections.filter((row) => !published.has(row.id))
+	);
 	const ensured = await ensureTargets(ctx.db, draftId, userConnections, 'now', null, now);
 	const results = [];
 	let stopped: string | null = null;

@@ -9,6 +9,7 @@ export const ZERNIO_PENDING_MARKER = 'zernio';
 const TO_ZERNIO: Partial<Record<PlatformId, string>> = {
 	x: 'twitter',
 	threads: 'threads',
+	instagram: 'instagram',
 	linkedin: 'linkedin',
 	bluesky: 'bluesky'
 };

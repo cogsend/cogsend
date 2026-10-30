@@ -136,6 +136,19 @@ function limitsFor(platform: string, meta: VideoRuleMeta | null | undefined): Li
 				maxFps: 60,
 				faststart: true
 			};
+		case 'instagram':
+			// A Reel: Meta's published limits for media_type=REELS.
+			return {
+				minMs: 3_000,
+				maxMs: 15 * 60_000,
+				maxBytes: 300_000_000,
+				codecs: ['avc', 'hevc'],
+				aspect: [0.01, 10, '1:100 and 10:1'],
+				maxWidth: 1920,
+				minFps: 23,
+				maxFps: 60,
+				faststart: true
+			};
 		default:
 			return null;
 	}

@@ -162,3 +162,41 @@ export async function makePreview(
 		return null;
 	}
 }
+
+/** Instagram's cap on a photo; the server refuses a larger copy. */
+export const JPEG_COPY_MAX_BYTES = 8_000_000;
+
+/**
+ * A full-size JPEG of a PNG or WebP, for Instagram, which takes nothing else
+ * and which the Worker cannot convert to. Made at upload whatever is selected,
+ * because the file is stored once and may go anywhere later. An animated WebP
+ * gets its first frame: Instagram cannot show the animation either. Null for a
+ * JPEG or GIF, or when the browser cannot make one small enough.
+ */
+export async function makeJpegCopy(
+	file: File,
+	codec: ImageCodec = canvasCodec
+): Promise<Blob | null> {
+	const type = file.type.toLowerCase();
+	if (type !== 'image/png' && type !== 'image/webp') return null;
+	try {
+		const image = await codec.decode(file);
+		if (!image) return null;
+		try {
+			for (const quality of [0.9, 0.8]) {
+				const blob = await codec.encode(image, {
+					width: image.width,
+					height: image.height,
+					type: 'image/jpeg',
+					quality
+				});
+				if (blob && blob.size > 0 && blob.size <= JPEG_COPY_MAX_BYTES) return blob;
+			}
+			return null;
+		} finally {
+			image.close();
+		}
+	} catch {
+		return null;
+	}
+}

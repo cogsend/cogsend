@@ -9,9 +9,9 @@ import {
 	parseThreadsMetaMarker
 } from '#lib/domain/threads-error.js';
 import { decodeImageDimensions } from './image-dimensions';
-import { coverKey, type StoredVideoMeta } from './media';
+import { coverKey, type StoredImageMeta, type StoredVideoMeta } from './media';
 import { parsePollConfig } from '#lib/domain/poll.js';
-import { signPublicMediaUrl } from './public-media';
+import { signPublicMediaUrl, type PublicMediaVariant } from './public-media';
 import { resolvePublishSegments } from '#lib/domain/thread-segments.js';
 import { targetRecordKey } from '#lib/domain/tid.js';
 import { decryptJson, encryptJson } from './crypto';
@@ -138,6 +138,7 @@ export async function buildNormalizedPost(
 
 	const toAttachment = (m: (typeof media)[number]) => {
 		const video = isVideoMedia(m) ? parseJson<StoredVideoMeta | null>(m.metaJson, null) : null;
+		const image = video ? null : parseJson<StoredImageMeta>(m.metaJson, {});
 		return {
 			storageKey: m.storageKey,
 			mime: m.mime,
@@ -145,7 +146,8 @@ export async function buildNormalizedPost(
 			alt: m.altText || undefined,
 			width: m.width ?? undefined,
 			height: m.height ?? undefined,
-			...(video ? { video, coverKey: video.cover ? coverKey(m.storageKey) : undefined } : {})
+			...(video ? { video, coverKey: video.cover ? coverKey(m.storageKey) : undefined } : {}),
+			...(image?.jpeg ? { hasJpegCopy: true } : {})
 		};
 	};
 
@@ -253,10 +255,19 @@ async function hydrateMedia(content: NormalizedPost, store: MediaStore): Promise
  * never expire, so a leaked one stays valid. Without it, fall back to the
  * short-lived signed Worker route.
  */
-export function publicMediaUrlFor(env: AppEnv, storageKey: string): Promise<string> | string {
+export function publicMediaUrlFor(
+	env: AppEnv,
+	storageKey: string,
+	variant?: PublicMediaVariant
+): Promise<string> | string {
 	const base = httpsBaseUrl(env.MEDIA_PUBLIC_BASE_URL);
-	if (base) return `${base}/${encodeURIComponent(storageKey)}`;
-	return signPublicMediaUrl(env.APP_ENCRYPTION_KEY, env.APP_URL, storageKey);
+	// A JPEG copy lives in the bucket at `jpeg/<key>` and never changes. A cover
+	// is rewritten in place when it is changed, so a cached copy at a public
+	// origin could be the old one: covers always go through the uncached route.
+	if (base && variant !== 'cover') {
+		return `${base}/${variant ? `${variant}/` : ''}${encodeURIComponent(storageKey)}`;
+	}
+	return signPublicMediaUrl(env.APP_ENCRYPTION_KEY, env.APP_URL, storageKey, Date.now(), variant);
 }
 
 /** Normalized https origin, or null when unset/malformed (fall back). */
@@ -323,6 +334,13 @@ export function publishCallEstimate(platform: string, content: NormalizedPost): 
 			// carousel adds a container and polls per item; the permalink lookup
 			// and the identity check run once.
 			platformCalls += segments.length * 4 + images.length * 3 + 4;
+			platformCalls -= videos.length * (VIDEO_START_CALLS - 3);
+			storage = 0;
+			break;
+		case 'instagram':
+			// One post: a container and a couple of status reads per item, then
+			// the carousel container, its read, the publish and the permalink.
+			platformCalls += images.length * 3 + 4;
 			platformCalls -= videos.length * (VIDEO_START_CALLS - 3);
 			storage = 0;
 			break;
@@ -662,7 +680,8 @@ export async function publishTarget(
 				{
 					resume: resumeFrom ?? undefined,
 					allowLocalHosts: isLocalAppUrl(env.APP_URL),
-					mediaUrlFor: (storageKey: string) => publicMediaUrlFor(env, storageKey),
+					mediaUrlFor: (storageKey: string, variant?: PublicMediaVariant) =>
+						publicMediaUrlFor(env, storageKey, variant),
 					mediaReader: mediaReaderFor(store),
 					callsLeft: () => options.budget?.remaining ?? Infinity,
 					timeLeft: () =>
@@ -777,7 +796,8 @@ export async function publishTarget(
 				// not partial: a remote post created before the error (Zernio creates,
 				// then polls) must be resumed, not created twice. An empty list is the
 				// provider saying that post is dead, so the retry starts fresh.
-				lastCheckpoint: resumeState.last
+				lastCheckpoint: resumeState.last,
+				retryAfterMs: err instanceof ProviderError ? err.retryAfterMs : undefined
 			}
 		);
 		return { status: nextStatus, error: finalMessage };
@@ -935,6 +955,8 @@ async function markFailed(
 		/** What this run resumed from, so a pending video it did not finish
 		 *  survives a retryable failure. */
 		resume?: PublishResume | null;
+		/** The provider's own wait, such as Instagram's daily limit, when longer than the backoff. */
+		retryAfterMs?: number;
 	} = {}
 ): Promise<'scheduled' | 'failed' | 'published'> {
 	const now = opts.now ?? new Date();
@@ -961,7 +983,9 @@ async function markFailed(
 				: new Date(opts.scheduledFor).getTime()
 			: null;
 		if (when == null || Number.isNaN(when) || when <= now.getTime() + 5000) {
-			retryAt = new Date(now.getTime() + retryDelayMs(claimedGeneration));
+			retryAt = new Date(
+				now.getTime() + Math.max(retryDelayMs(claimedGeneration), opts.retryAfterMs ?? 0)
+			);
 		}
 	}
 	const failed = await db

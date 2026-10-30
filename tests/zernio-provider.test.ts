@@ -112,6 +112,27 @@ describe('buildZernioPostBody', () => {
 		expect(body.platforms).toEqual([{ platform: 'linkedin', accountId: 'acc-1' }]);
 	});
 
+	it('sends Instagram the JPEG copy of a PNG, and a JPEG as it is', async () => {
+		const body = await buildZernioPostBody({
+			platform: 'instagram',
+			accountId: 'acc-1',
+			content: {
+				text: 'one',
+				thread: [
+					{ text: 'one', media: [{ storageKey: 'k1', mime: 'image/png', hasJpegCopy: true }] },
+					{ text: 'two', media: [{ storageKey: 'k2', mime: 'image/jpeg' }] }
+				]
+			},
+			mediaUrlFor: (key, variant) => `https://media.example/${variant ? `${variant}/` : ''}${key}`
+		});
+		expect(body.content).toBe('one\n\ntwo');
+		expect(body.mediaItems).toEqual([
+			{ type: 'image', url: 'https://media.example/jpeg/k1', mimeType: 'image/jpeg' },
+			{ type: 'image', url: 'https://media.example/k2', mimeType: 'image/jpeg' }
+		]);
+		expect(body.platforms).toEqual([{ platform: 'instagram', accountId: 'acc-1' }]);
+	});
+
 	it('refuses to build without a media signer, like Threads', async () => {
 		await expect(
 			buildZernioPostBody({

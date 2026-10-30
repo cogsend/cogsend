@@ -27,24 +27,25 @@ import {
  * checked here; the connect routes are checked against the same data in
  * tests/connections-connect.test.ts.
  */
-const all: PlatformConfigured = { linkedin: true, threads: true, x: true };
-const none: PlatformConfigured = { linkedin: false, threads: false, x: false };
+const all: PlatformConfigured = { linkedin: true, threads: true, instagram: true, x: true };
+const none: PlatformConfigured = { linkedin: false, threads: false, instagram: false, x: false };
 
 describe('platform setup data', () => {
-	it('knows the three platforms that need an app, and only those', () => {
-		for (const id of ['linkedin', 'threads', 'x']) expect(isOAuthPlatform(id)).toBe(true);
+	it('knows the four platforms that need an app, and only those', () => {
+		for (const id of ['linkedin', 'threads', 'instagram', 'x'])
+			expect(isOAuthPlatform(id)).toBe(true);
 		// Mastodon registers its app per instance and Bluesky takes an app
 		// password: neither can be blocked on missing credentials.
-		for (const id of ['mastodon', 'bluesky', 'instagram', '']) {
+		for (const id of ['mastodon', 'bluesky', '']) {
 			expect(isOAuthPlatform(id)).toBe(false);
 			expect(setupFor(id)).toBeNull();
 			expect(needsSetup(id, none)).toBe(false);
 		}
-		expect(Object.keys(PLATFORM_SETUP)).toEqual(['linkedin', 'threads', 'x']);
+		expect(Object.keys(PLATFORM_SETUP)).toEqual(['linkedin', 'threads', 'instagram', 'x']);
 	});
 
 	it('only asks for a platform when the deployment lacks it', () => {
-		for (const id of ['linkedin', 'threads', 'x'] as const) {
+		for (const id of ['linkedin', 'threads', 'instagram', 'x'] as const) {
 			expect(needsSetup(id, all)).toBe(false);
 			expect(needsSetup(id, none)).toBe(true);
 			expect(needsSetup(id, { ...all, [id]: false })).toBe(true);
@@ -52,7 +53,7 @@ describe('platform setup data', () => {
 	});
 
 	it('points every redirect URI at a callback route that exists', () => {
-		for (const id of ['linkedin', 'threads', 'x'] as const) {
+		for (const id of ['linkedin', 'threads', 'instagram', 'x'] as const) {
 			const uri = callbackUri(id, 'https://social.example');
 			expect(uri.startsWith('https://social.example/api/connections/')).toBe(true);
 			const path = new URL(uri).pathname;
@@ -83,7 +84,7 @@ describe('platform setup data', () => {
 		expect(headings).toContain(SETUP_GUIDE_URL.split('#')[1]);
 		// Every platform links to its own section, so the dialog's "Full steps"
 		// link lands on the right steps rather than the top of the page.
-		for (const id of ['linkedin', 'threads', 'x'] as const) {
+		for (const id of ['linkedin', 'threads', 'instagram', 'x'] as const) {
 			const url = setupGuideUrl(id);
 			expect([id, url.startsWith(`${SETUP_GUIDE_URL.split('#')[0]}#`)]).toEqual([id, true]);
 			expect([id, headings.includes(PLATFORM_SETUP[id].docsAnchor)]).toEqual([id, true]);
@@ -92,7 +93,7 @@ describe('platform setup data', () => {
 	});
 
 	it('sends the reader to the console that issues the credentials', () => {
-		for (const id of ['linkedin', 'threads', 'x'] as const) {
+		for (const id of ['linkedin', 'threads', 'instagram', 'x'] as const) {
 			const setup = PLATFORM_SETUP[id];
 			// https and a real host: the dialog renders this as a link, so a typo
 			// would be a dead end in the middle of the setup steps.
@@ -111,6 +112,8 @@ describe('platform setup data', () => {
 			'LINKEDIN_CLIENT_SECRET',
 			'THREADS_APP_ID',
 			'THREADS_APP_SECRET',
+			'INSTAGRAM_APP_ID',
+			'INSTAGRAM_APP_SECRET',
 			'X_CLIENT_ID',
 			'X_CLIENT_SECRET'
 		]);
@@ -139,7 +142,7 @@ describe('platform setup data', () => {
 	});
 
 	it('derives "configured" from the same presence the dialog shows', () => {
-		for (const id of ['linkedin', 'threads', 'x'] as const) {
+		for (const id of ['linkedin', 'threads', 'instagram', 'x'] as const) {
 			const all = Object.fromEntries(platformSecretNames(id).map((name) => [name, true]));
 			expect([id, platformConfigured(id, all)]).toEqual([id, true]);
 			expect([id, platformConfigured(id, {})]).toEqual([id, false]);
@@ -157,6 +160,7 @@ describe('platform setup data', () => {
 		const configured = {
 			linkedin: platformConfigured('linkedin', present),
 			threads: platformConfigured('threads', present),
+			instagram: platformConfigured('instagram', present),
 			x: platformConfigured('x', present)
 		};
 		expect(needsSetup('x', configured)).toBe(false);
@@ -182,7 +186,7 @@ describe('platform setup data', () => {
 describe('empty-state sentence', () => {
 	it('lists only the platforms that can be connected', () => {
 		expect(emptyStateSentence(all)).toBe(
-			'No accounts yet. Connect Bluesky, Mastodon, LinkedIn, Threads, or X to start posting.'
+			'No accounts yet. Connect Bluesky, Mastodon, LinkedIn, Threads, Instagram, or X to start posting.'
 		);
 		// The case behind the change: no app credentials anywhere, so naming
 		// LinkedIn, Threads or X would offer something this deployment cannot do.

@@ -8,7 +8,7 @@ import { POST as importPOST } from '../src/routes/api/connections/zernio/import/
 
 const zernioAccounts = [
 	{ _id: 'acc-x', platform: 'twitter', profileId: 'p1', username: '@acme', displayName: 'Acme' },
-	{ _id: 'acc-ig', platform: 'instagram', profileId: 'p1', username: 'acme' },
+	{ _id: 'acc-tt', platform: 'tiktok', profileId: 'p1', username: 'acme' },
 	{ _id: 'acc-li', platform: 'linkedin', profileId: 'p1', displayName: 'Acme Inc' }
 ];
 
@@ -177,8 +177,8 @@ describe('zernio list and import routes', () => {
 		const unknown = await call(importPOST, { accountIds: ['nope'] });
 		expect(unknown.status).toBe(400);
 		expect(((await unknown.json()) as { error: string }).error).toContain('nope');
-		const instagram = await call(importPOST, { accountIds: ['acc-ig'] });
-		expect(instagram.status).toBe(400);
+		const tiktok = await call(importPOST, { accountIds: ['acc-tt'] });
+		expect(tiktok.status).toBe(400);
 		const empty = await call(importPOST, { accountIds: [] });
 		expect(empty.status).toBe(400);
 	});

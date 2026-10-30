@@ -147,6 +147,52 @@ describe('POST /api/connections/[id]/verify — session only, gate before write'
 		vi.unstubAllGlobals();
 	});
 
+	describe('Instagram', () => {
+		const instagramRow = async () =>
+			addConnection(ownerId, {
+				platform: 'instagram',
+				handle: '@acme',
+				metaJson: JSON.stringify({ igUserId: '1789' }),
+				credentialsEncrypted: await encryptJson(
+					{
+						accessToken: 'tok',
+						igUserId: '1789',
+						expiresAt: Date.now() + 30 * 24 * 60 * 60_000
+					},
+					TEST_ENV.APP_ENCRYPTION_KEY
+				)
+			});
+
+		it('expires the row when Meta answers that the token is dead', async () => {
+			const conn = await instagramRow();
+			vi.stubGlobal(
+				'fetch',
+				vi.fn(async () =>
+					Response.json({ error: { code: 190, message: 'Session has expired' } }, { status: 400 })
+				)
+			);
+			const res = await verify(conn);
+			expect(res.status).toBe(401);
+			expect((await statusOf(conn)).status).toBe('expired');
+			vi.unstubAllGlobals();
+		});
+
+		it('keeps the account a reconnect matches on in step with its profile', async () => {
+			const conn = await instagramRow();
+			vi.stubGlobal(
+				'fetch',
+				vi.fn(async () => Response.json({ user_id: '2001', username: 'renamed' }))
+			);
+			const res = await verify(conn);
+			expect(res.status).toBe(200);
+			const row = await statusOf(conn);
+			expect(row.status).toBe('active');
+			expect(row.handle).toBe('@renamed');
+			expect(JSON.parse(row.metaJson ?? '{}').igUserId).toBe('2001');
+			vi.unstubAllGlobals();
+		});
+	});
+
 	it('stores the limits the instance reports, and keeps what it knew when the instance does not say', async () => {
 		const stored = { maxCharacters: 5000, videoSizeLimit: 40_000_000 };
 		const conn = await addConnection(ownerId, {

@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm';
 import { newId, type AppDb } from '#lib/server/db/client.js';
 import { draftMedia, drafts, users } from '#lib/server/db/schema.js';
 import { createTestDb, createTestMedia } from '#lib/server/db/test.js';
-import { deleteMediaObjects, previewKey } from '#lib/server/media.js';
+import { deleteMediaObjects, jpegKey, previewKey } from '#lib/server/media.js';
+import { buildNormalizedPost } from '#lib/server/publish.js';
 import { imageUrl } from '#lib/domain/media-layout.js';
 import { POST as mediaPOST } from '../src/routes/api/drafts/[id]/media/+server';
 import { POST as duplicatePOST } from '../src/routes/api/drafts/[id]/duplicate/+server';
@@ -47,13 +48,14 @@ describe('image previews', () => {
 
 	async function upload(
 		draftId: string,
-		files: Array<{ image: Uint8Array<ArrayBuffer>; preview?: Blob }>
+		files: Array<{ image: Uint8Array<ArrayBuffer>; preview?: Blob; jpeg?: Blob }>
 	) {
 		const form = new FormData();
 		form.set('segmentIndex', '0');
-		files.forEach(({ image, preview }, n) => {
+		files.forEach(({ image, preview, jpeg }, n) => {
 			form.append('files', new File([image], `p${n}.png`, { type: 'image/png' }));
 			if (preview) form.append(`preview-${n}`, preview, 'preview.jpg');
+			if (jpeg) form.append(`jpeg-${n}`, jpeg, 'copy.jpg');
 		});
 		const res = (await mediaPOST({
 			params: { id: draftId },
@@ -62,7 +64,11 @@ describe('image previews', () => {
 		} as never)) as Response;
 		expect(res.status).toBe(201);
 		const body = (await res.json()) as {
-			items: Array<{ id: string; storageKey: string; meta: { preview?: { v: number } } | null }>;
+			items: Array<{
+				id: string;
+				storageKey: string;
+				meta: { preview?: { v: number }; jpeg?: { v: number } } | null;
+			}>;
 		};
 		return body.items;
 	}
@@ -152,5 +158,60 @@ describe('image previews', () => {
 		expect(await media.get(item.storageKey)).toBeNull();
 		expect(await media.get(previewKey(item.storageKey))).toBeNull();
 		expect(await media.get(previewKey(copy.storageKey))).toEqual(JPEG);
+	});
+
+	it("keeps a PNG's JPEG copy for Instagram, and hands publishing the news", async () => {
+		const draftId = await freshDraft();
+		const copy = new Blob([JPEG], { type: 'image/jpeg' });
+		const [kept, notJpeg] = await upload(draftId, [
+			{ image: PNG, jpeg: copy },
+			{ image: PNG, jpeg: new Blob([PNG], { type: 'image/jpeg' }) }
+		]);
+		expect(kept.meta?.jpeg?.v).toBeTypeOf('number');
+		expect(await media.get(jpegKey(kept.storageKey))).toEqual(JPEG);
+		expect(notJpeg.meta).toBeNull();
+		expect(await media.get(jpegKey(notJpeg.storageKey))).toBeNull();
+
+		const post = await buildNormalizedPost(db, draftId, 'instagram');
+		expect(post.media?.map((m) => m.hasJpegCopy ?? false)).toEqual([true, false]);
+
+		await deleteMediaObjects(media, [kept.storageKey]);
+		expect(await media.get(jpegKey(kept.storageKey))).toBeNull();
+	});
+
+	it('keeps no copy of an image that is already a JPEG', async () => {
+		const draftId = await freshDraft();
+		const form = new FormData();
+		form.set('segmentIndex', '0');
+		form.append('files', new File([JPEG], 'p.jpg', { type: 'image/jpeg' }));
+		form.append('jpeg-0', new Blob([JPEG], { type: 'image/jpeg' }), 'copy.jpg');
+		const res = (await mediaPOST({
+			params: { id: draftId },
+			request: new Request('http://localhost/api/drafts/x/media', { method: 'POST', body: form }),
+			locals: locals()
+		} as never)) as Response;
+		const [item] = ((await res.json()) as { items: Array<{ storageKey: string; meta: unknown }> })
+			.items;
+		expect(item.meta).toBeNull();
+		expect(await media.get(jpegKey(item.storageKey))).toBeNull();
+	});
+
+	it('brings the JPEG copy along when the post is duplicated', async () => {
+		const draftId = await freshDraft();
+		const [item] = await upload(draftId, [
+			{
+				image: PNG,
+				preview: new Blob([JPEG], { type: 'image/jpeg' }),
+				jpeg: new Blob([JPEG], { type: 'image/jpeg' })
+			}
+		]);
+		const res = (await duplicatePOST({
+			params: { id: draftId },
+			locals: locals()
+		} as never)) as Response;
+		const { draft } = (await res.json()) as { draft: { id: string } };
+		const [copy] = await db.select().from(draftMedia).where(eq(draftMedia.draftId, draft.id));
+		expect(JSON.parse(copy.metaJson ?? '{}')).toEqual(item.meta);
+		expect(await media.get(jpegKey(copy.storageKey))).toEqual(JPEG);
 	});
 });

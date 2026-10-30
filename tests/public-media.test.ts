@@ -3,6 +3,7 @@ import { newId, type AppDb } from '#lib/server/db/client.js';
 import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
 import { draftMedia, drafts, users } from '#lib/server/db/schema.js';
 import { signPublicMediaUrl, verifyPublicMediaSig } from '#lib/server/public-media.js';
+import { jpegKey } from '#lib/server/media.js';
 import { publicMediaUrlFor } from '#lib/server/publish.js';
 import { readAppEnv } from '#lib/server/env.js';
 import { GET as publicMediaGET } from '../src/routes/api/media/public/[key]/+server';
@@ -13,6 +14,23 @@ describe('publicMediaUrlFor', () => {
 		expect(publicMediaUrlFor(env, '1700000000000-0123456789abcdef.png')).toBe(
 			'https://media.test/1700000000000-0123456789abcdef.png'
 		);
+	});
+
+	it('names a kept JPEG beside the original under the media origin', () => {
+		const env = { ...TEST_ENV, MEDIA_PUBLIC_BASE_URL: 'https://media.test/' };
+		expect(publicMediaUrlFor(env, '1700000000000-0123456789abcdef.png', 'jpeg')).toBe(
+			'https://media.test/jpeg/1700000000000-0123456789abcdef.png'
+		);
+	});
+
+	it('sends a cover through the uncached route, since a new one replaces it in place', async () => {
+		const env = { ...TEST_ENV, MEDIA_PUBLIC_BASE_URL: 'https://media.test/' };
+		const url = new URL(
+			await publicMediaUrlFor(env, '1700000000000-0123456789abcdef.mp4', 'cover')
+		);
+		expect(url.origin).toBe(TEST_ENV.APP_URL);
+		expect(url.pathname).toBe('/api/media/public/1700000000000-0123456789abcdef.mp4');
+		expect(url.searchParams.get('v')).toBe('cover');
 	});
 
 	it('falls back to the signed Worker route', async () => {
@@ -148,5 +166,46 @@ describe('public media urls', () => {
 			locals
 		} as never)) as Response;
 		expect(bad.status).toBe(403);
+	});
+
+	it('serves the JPEG copy only to a URL signed for it', async () => {
+		const key = '1700000000000-0123456789abcdef.png';
+		const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 9]);
+		await media.put(jpegKey(key), jpeg, 'image/jpeg');
+		const locals = { db, media, user, env: TEST_ENV } as never;
+		const get = (url: URL) =>
+			publicMediaGET({ params: { key }, url, locals } as never) as Promise<Response>;
+
+		const signed = new URL(
+			await signPublicMediaUrl(
+				TEST_ENV.APP_ENCRYPTION_KEY,
+				'https://app.test',
+				key,
+				Date.now(),
+				'jpeg'
+			)
+		);
+		expect(signed.searchParams.get('v')).toBe('jpeg');
+		const copy = await get(signed);
+		expect(copy.status).toBe(200);
+		expect(copy.headers.get('Content-Type')).toBe('image/jpeg');
+		expect(new Uint8Array(await copy.arrayBuffer())).toEqual(jpeg);
+
+		// A URL signed for the original cannot be turned into one for the copy,
+		// nor the other way round, nor pointed at something else kept beside it.
+		const plain = new URL(
+			await signPublicMediaUrl(TEST_ENV.APP_ENCRYPTION_KEY, 'https://app.test', key)
+		);
+		plain.searchParams.set('v', 'jpeg');
+		expect((await get(plain)).status).toBe(403);
+		const dropped = new URL(signed);
+		dropped.searchParams.delete('v');
+		expect((await get(dropped)).status).toBe(403);
+		const cover = new URL(signed);
+		cover.searchParams.set('v', 'cover');
+		expect((await get(cover)).status).toBe(403);
+		const unknown = new URL(signed);
+		unknown.searchParams.set('v', 'preview');
+		expect((await get(unknown)).status).toBe(400);
 	});
 });

@@ -1,6 +1,6 @@
 # Connect through Zernio
 
-LinkedIn, Threads and X normally need a developer app of your own before CogSend can post to them ([OAuth apps](oauth-apps.md)). [Zernio](https://zernio.link/cogsend?utm_source=cogsend&utm_medium=sponsorship&utm_campaign=cogsend-integration&utm_content=provider-guide) is a way around that: it already has approved apps for X, Threads, LinkedIn and Bluesky, and CogSend can publish through them instead.
+LinkedIn, Threads, Instagram and X normally need a developer app of your own before CogSend can post to them ([OAuth apps](oauth-apps.md)). [Zernio](https://zernio.link/cogsend?utm_source=cogsend&utm_medium=sponsorship&utm_campaign=cogsend-integration&utm_content=provider-guide) is a way around that: it already has approved apps for X, Threads, Instagram, LinkedIn and Bluesky, and CogSend can publish through them instead.
 
 Nothing else changes. You still write, schedule and retry in CogSend, and your posts and history stay on your Cloudflare account; Zernio only carries the publish. Zernio has a free plan, though connecting X needs a card on your Zernio account ([pricing](https://zernio.link/cogsend-pricing?utm_source=cogsend&utm_medium=sponsorship&utm_campaign=cogsend-integration&utm_content=provider-guide-pricing)). Zernio also sponsors CogSend.
 
@@ -23,7 +23,7 @@ Each imported account behaves like any other: it gets its platform's tab in the 
 
 In the same panel, under **Connect a new account through Zernio**, pick the platform and the Zernio profile and press **Connect**. You approve CogSend on the platform, and come back to **Accounts** with the account added.
 
-The same option appears when you pick LinkedIn, Threads or X on an instance that has no app set up for it: the setup steps end with a link to connect through Zernio instead.
+The same option appears when you pick LinkedIn, Threads, Instagram or X on an instance that has no app set up for it: the setup steps end with a link to connect through Zernio instead.
 
 Bluesky can only be imported for now. Connect it in Zernio's own dashboard first, then import it here.
 
@@ -35,14 +35,14 @@ Disconnecting an account in CogSend does not remove it from Zernio. Remove it th
 
 ## What is different through Zernio
 
-| Area              | Through Zernio                                                                                                                      |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Scheduling        | The same. At the scheduled minute, CogSend asks Zernio to publish immediately.                                                      |
-| Threads           | X, Threads and Bluesky threads post as threads. LinkedIn gets a single post with the parts joined, the same as a direct connection. |
-| Images and video  | Zernio fetches them from your instance when the post goes out. Each platform's size and format limits still apply.                  |
-| Posts and retries | The same. A post is only marked published once Zernio confirms it, and a failure shows Zernio's reason.                             |
-| Duplicates        | Zernio refuses the same text to the same account within 24 hours. The post fails with that reason and is not retried.               |
-| Tokens            | Zernio keeps and refreshes them. If a platform revokes one, the account shows as expired here.                                      |
+| Area              | Through Zernio                                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Scheduling        | The same. At the scheduled minute, CogSend asks Zernio to publish immediately.                                                                   |
+| Threads           | X, Threads and Bluesky threads post as threads. LinkedIn and Instagram get a single post with the parts joined, the same as a direct connection. |
+| Images and video  | Zernio fetches them from your instance when the post goes out. Each platform's size and format limits still apply.                               |
+| Posts and retries | The same. A post is only marked published once Zernio confirms it, and a failure shows Zernio's reason.                                          |
+| Duplicates        | Zernio refuses the same text to the same account within 24 hours. The post fails with that reason and is not retried.                            |
+| Tokens            | Zernio keeps and refreshes them. If a platform revokes one, the account shows as expired here.                                                   |
 
 ## Troubleshooting
 

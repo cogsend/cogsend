@@ -83,6 +83,8 @@ export function validateMastodonText(
 
 export const LINKEDIN_MAX_CHARS = 3000;
 export const THREADS_MAX_CHARS = 500;
+export const INSTAGRAM_MAX_CHARS = 2200;
+export const INSTAGRAM_MAX_HASHTAGS = 30;
 export const X_MAX_CHARS = 280;
 
 export function validateLinkedinText(
@@ -100,6 +102,25 @@ export function validateThreadsText(
 ): { ok: boolean; length: number; max: number; message?: string } {
 	const length = countGraphemes(text);
 	if (length > maxChars) return tooLong(length, maxChars, 'Threads max 500');
+	return { ok: true, length, max: maxChars };
+}
+
+export function validateInstagramText(
+	text: string,
+	maxChars = INSTAGRAM_MAX_CHARS
+): { ok: boolean; length: number; max: number; message?: string } {
+	const length = countGraphemes(text);
+	if (length > maxChars) return tooLong(length, maxChars, 'Instagram max 2200');
+	// A `#` inside a word, a URL fragment or an HTML entity is not a hashtag.
+	const hashtags = text.match(/(?<![\p{L}\p{N}_&/#])#[\p{L}\p{N}_]+/gu)?.length ?? 0;
+	if (hashtags > INSTAGRAM_MAX_HASHTAGS) {
+		return {
+			ok: false,
+			length,
+			max: maxChars,
+			message: `Instagram takes up to ${INSTAGRAM_MAX_HASHTAGS} hashtags (${hashtags} used)`
+		};
+	}
 	return { ok: true, length, max: maxChars };
 }
 

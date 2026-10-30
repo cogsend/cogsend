@@ -9,4 +9,5 @@
 	initialSettings={data.settings}
 	initialDraft={data.draft}
 	displayName={data.displayName}
+	canMakeJpegCopies={data.canMakeJpegCopies}
 />

@@ -59,7 +59,7 @@
 	};
 	// Bluesky is imported, never connected from here: Zernio's hosted Bluesky
 	// page cannot bring the visitor back with a usable result yet.
-	const ZERNIO_PLATFORMS = ['x', 'threads', 'linkedin'] as const;
+	const ZERNIO_PLATFORMS = ['x', 'threads', 'instagram', 'linkedin'] as const;
 	const isZernioPlatform = (p: string): p is (typeof ZERNIO_PLATFORMS)[number] =>
 		(ZERNIO_PLATFORMS as readonly string[]).includes(p);
 	const viaZernio = (account: Connection) => account.metaJson?.provider === 'zernio';
@@ -82,10 +82,11 @@
 		)
 	);
 	// svelte-ignore state_referenced_locally
-	let configured = $state<{ linkedin: boolean; threads: boolean; x: boolean }>(
+	let configured = $state<Record<OAuthPlatformId, boolean>>(
 		data.configured ?? {
 			linkedin: true,
 			threads: true,
+			instagram: true,
 			x: true
 		}
 	);
@@ -98,11 +99,11 @@
 	// form in the setup panel. Only the form's own can be changed from here.
 	// svelte-ignore state_referenced_locally
 	let credentialSources = $state<Record<OAuthPlatformId, 'env' | 'app' | null>>(
-		data.sources ?? { linkedin: null, threads: null, x: null }
+		data.sources ?? { linkedin: null, threads: null, instagram: null, x: null }
 	);
 	// svelte-ignore state_referenced_locally
 	let savedClientIds = $state<Record<OAuthPlatformId, string | null>>(
-		data.savedClientIds ?? { linkedin: null, threads: null, x: null }
+		data.savedClientIds ?? { linkedin: null, threads: null, instagram: null, x: null }
 	);
 	let appForm = $state<Record<string, string>>({});
 	let appFormBusy = $state(false);
@@ -156,6 +157,12 @@
 			form: null
 		},
 		{
+			id: 'instagram',
+			name: 'Instagram',
+			description: 'Connect a Business or Creator account',
+			form: null
+		},
+		{
 			id: 'linkedin',
 			name: 'LinkedIn',
 			description: 'Connect your personal or company page',
@@ -200,6 +207,7 @@
 				configured = {
 					linkedin: payload.configured.linkedin !== false,
 					threads: payload.configured.threads !== false,
+					instagram: payload.configured.instagram !== false,
 					x: payload.configured.x !== false
 				};
 			}
@@ -245,7 +253,7 @@
 	}
 
 	async function connectOAuth(
-		platform: 'mastodon' | 'linkedin' | 'threads' | 'x',
+		platform: 'mastodon' | OAuthPlatformId,
 		body: Record<string, string>
 	) {
 		loading = true;
@@ -359,7 +367,7 @@
 		openConnectDialog();
 		modalForm = 'zernio';
 		zernioAccounts = null;
-		if (platform) zernioConnectPlatform = platform;
+		if (platform && isZernioPlatform(platform)) zernioConnectPlatform = platform;
 		if (zernioHasStoredKey) void loadZernioAccounts();
 	}
 
@@ -534,6 +542,7 @@
 		if (
 			account.platform === 'linkedin' ||
 			account.platform === 'threads' ||
+			account.platform === 'instagram' ||
 			account.platform === 'x'
 		) {
 			if (needsSetup(account.platform, configured)) {

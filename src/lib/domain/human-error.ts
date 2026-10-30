@@ -39,6 +39,16 @@ export function humanizedCause(raw: string | null | undefined): string | null {
 	if (s.includes('403') || s.includes('forbidden')) {
 		return 'The platform refused this post (permissions or policy)';
 	}
+	// Instagram's errors carry the same Meta marker, so they are told apart by
+	// the provider's prefix before the Threads wording below can claim them.
+	if (s.startsWith('instagram')) {
+		if (isThreadsAuthFailure(s)) {
+			return 'Instagram refused with a permissions error — reconnect the account and retry';
+		}
+		if (isThreadsMediaFetchFailure(s)) {
+			return 'Instagram could not download the image — retry to publish it';
+		}
+	}
 	// Meta permission failures are HTTP 400s, so the 401/403 branches never
 	// match. Scoped to Threads wording (provider prefixes every message).
 	if (isThreadsAuthFailure(s)) {

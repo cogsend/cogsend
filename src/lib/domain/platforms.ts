@@ -1,7 +1,14 @@
-export type PlatformId = 'mastodon' | 'bluesky' | 'linkedin' | 'threads' | 'x';
+export type PlatformId = 'mastodon' | 'bluesky' | 'linkedin' | 'threads' | 'instagram' | 'x';
 
-/** Canonical display order everywhere: X first, then Threads, LinkedIn, Mastodon, Bluesky. */
-export const PLATFORM_ORDER: PlatformId[] = ['x', 'threads', 'linkedin', 'mastodon', 'bluesky'];
+/** Canonical display order everywhere: X first, then Threads, Instagram, LinkedIn, Mastodon, Bluesky. */
+export const PLATFORM_ORDER: PlatformId[] = [
+	'x',
+	'threads',
+	'instagram',
+	'linkedin',
+	'mastodon',
+	'bluesky'
+];
 
 /** The same set, for validation and iteration. Derived so the platform list
  *  only has to be maintained in one place. */
@@ -12,7 +19,14 @@ export function isPlatformId(value: string): value is PlatformId {
 }
 
 /** Preview preference when several platforms apply (matches server capabilities). */
-export const PREVIEW_PRIORITY: PlatformId[] = ['x', 'threads', 'linkedin', 'mastodon', 'bluesky'];
+export const PREVIEW_PRIORITY: PlatformId[] = [
+	'x',
+	'threads',
+	'instagram',
+	'linkedin',
+	'mastodon',
+	'bluesky'
+];
 
 /** Sort rank for a platform id; unknown platforms sink to the end, stable. */
 export function platformRank(platform: string): number {

@@ -81,11 +81,11 @@ export function findExistingConnection<
 }
 
 /**
- * The four connect flows share everything but the token exchange and the
+ * Every connect flow shares everything but the token exchange and the
  * credential payload: parameter handling and error redirects, CSRF state
  * verification against the pending row, the upsert that keeps one connection
  * per account, and the pending-row cleanup. Keeping that in one place means a
- * fix to the state check cannot land in three of four routes.
+ * fix to the state check cannot land in only some of the routes.
  */
 export function createOAuthCallback(opts: OAuthCallbackOptions): RequestHandler {
 	return async ({ url, locals, cookies }) => {

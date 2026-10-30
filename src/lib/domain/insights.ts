@@ -375,6 +375,7 @@ export function categorizeFailure(
 	// only stands in when the row outlived its connection.
 	const isThreads = platform === 'threads' || (!platform && s.includes('threads'));
 	const isLinkedIn = platform === 'linkedin' || (!platform && s.includes('linkedin'));
+	const isInstagram = platform === 'instagram' || (!platform && s.includes('instagram'));
 
 	if (isThreads) {
 		if (isThreadsMediaFetchFailure(raw)) return 'Threads media timeout';
@@ -382,6 +383,12 @@ export function categorizeFailure(
 		if (s.includes('429') || s.includes('rate limit')) return 'Threads rate limit';
 		if (s.includes('does not support') || s.includes('not supported'))
 			return 'Threads unsupported content';
+	}
+	if (isInstagram) {
+		if (isThreadsMediaFetchFailure(raw)) return 'Instagram media timeout';
+		if (isThreadsAuthFailure(raw)) return 'Instagram permission';
+		if (s.includes('100 posts a day')) return 'Instagram daily limit';
+		if (s.includes('needs a photo or video')) return 'Instagram needs media';
 	}
 	if (isLinkedIn) {
 		if (s.includes('does not support threads') || s.includes('single post'))

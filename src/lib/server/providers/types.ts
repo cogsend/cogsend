@@ -1,5 +1,6 @@
 import type { PlatformId } from '#lib/domain/platforms.js';
 import { PROCESSING_MARK } from '#lib/domain/video-rules.js';
+import type { PublicMediaVariant } from '../public-media';
 export type { PlatformId } from '#lib/domain/platforms.js';
 export { PLATFORM_IDS, isPlatformId } from '#lib/domain/platforms.js';
 export { PROCESSING_MARK };
@@ -22,6 +23,8 @@ export interface MediaAttachment {
 	} | null;
 	/** The chosen cover of a video, a JPEG in the media store. */
 	coverKey?: string;
+	/** A JPEG copy of a PNG or WebP image is stored beside it (jpegKey()). */
+	hasJpegCopy?: boolean;
 }
 
 export function mediaByteLength(media: MediaAttachment): number {
@@ -84,6 +87,9 @@ export interface ConnectionCredentials {
 	/** Threads numeric user id (also the publish target) */
 	threadsUserId?: string;
 	threadsUsername?: string;
+	/** Instagram professional account id (`/me` user_id), the publish target */
+	igUserId?: string;
+	igUsername?: string;
 	/** X numeric user id */
 	xUserId?: string;
 	/** X handle without @ (for permalinks) */
@@ -102,6 +108,9 @@ export interface ConnectionMeta {
 	pdsHost?: string;
 	personUrn?: string;
 	threadsUserId?: string;
+	igUserId?: string;
+	/** Instagram: `Business` or `Media_Creator`, the only kinds that can post. */
+	igAccountType?: string;
 	xUserId?: string;
 	/** X: the last `subscription_type` seen, and the operator's long-post switch. */
 	xSubscription?: string;
@@ -363,7 +372,9 @@ export interface PlatformProvider {
 			/** Allow localhost/private Mastodon hosts. True only for a local
 			 *  instance — see #lib/domain/app-url. */
 			allowLocalHosts?: boolean;
-			mediaUrlFor?: (storageKey: string) => Promise<string> | string;
+			/** A public URL for the stored object, or for the JPEG kept beside
+			 *  it (`jpeg`: an image's JPEG copy; `cover`: a video's cover). */
+			mediaUrlFor?: (storageKey: string, variant?: PublicMediaVariant) => Promise<string> | string;
 			checkpoint?: (state: PublishCheckpoint) => Promise<void> | void;
 			/** Videos are read through this; they are never in `media[].bytes`. */
 			mediaReader?: MediaReader;

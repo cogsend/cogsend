@@ -1,8 +1,8 @@
 import { extractFirstUrl } from '#lib/domain/links.js';
-import { joinThreadTexts } from '#lib/domain/thread-segments.js';
 import { validateLinkedinText } from '#lib/domain/validation/text.js';
 import { fetchOgImage } from '../opengraph';
 import { fetchLinkCard } from '../x-post-preview';
+import { singlePost } from './flatten';
 import type {
 	ConnectionCredentials,
 	ConnectionMeta,
@@ -48,20 +48,6 @@ function authorUrn(creds: ConnectionCredentials, meta?: ConnectionMeta): string 
 	throw new ProviderError('LinkedIn credentials require personUrn (reconnect account)', {
 		code: 'auth'
 	});
-}
-
-/**
- * LinkedIn has no threads: a multi-post draft is flattened into one post —
- * non-empty segment texts joined by a blank line, media combined in segment
- * order. Selecting LinkedIn on a thread draft therefore never fails just
- * because the draft threads elsewhere.
- */
-function singlePost(content: NormalizedPost): { text: string; media: MediaAttachment[] } {
-	const segments = content.thread && content.thread.length > 0 ? content.thread : [content];
-	return {
-		text: joinThreadTexts(segments.map((s) => s.text)),
-		media: segments.flatMap((s) => s.media ?? [])
-	};
 }
 
 /**

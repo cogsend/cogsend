@@ -79,7 +79,7 @@ This path needs no GitHub App and no Workers Builds, and nothing to configure in
    (or, after the button, the account you just created). The first sign-in asks
    for an authenticator app: scan the QR and save the backup codes it shows.
 2. Connect accounts under **Accounts**. Mastodon and Bluesky work immediately;
-   LinkedIn, Threads and X need an OAuth app each, with the redirect URI built
+   LinkedIn, Threads, Instagram and X need an OAuth app each, with the redirect URI built
    from your deployed URL. The accounts dialog walks you through it, takes the
    app's credentials in a form, and can hand the whole job to a browser agent
    ([OAuth apps](oauth-apps.md)).
