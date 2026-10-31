@@ -128,6 +128,46 @@ describe('POST /api/connections/[id]/verify — session only, gate before write'
 		vi.unstubAllGlobals();
 	});
 
+	it('keeps an account Mastodon refuses with a 403, because its token still works', async () => {
+		const conn = await addConnection(ownerId, {
+			credentialsEncrypted: await encryptJson(
+				{ instanceUrl: 'https://mastodon.example', accessToken: 'good-token' },
+				TEST_ENV.APP_ENCRYPTION_KEY
+			)
+		});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response('disabled', { status: 403 }))
+		);
+
+		const res = await verify(conn);
+
+		expect(res.status).toBe(403);
+		expect((await statusOf(conn)).status).toBe('active');
+		vi.unstubAllGlobals();
+	});
+
+	it('keeps an account another platform refuses with a 403, and expires it on a 401', async () => {
+		const conn = await addConnection(ownerId, {
+			platform: 'linkedin',
+			credentialsEncrypted: await encryptJson({ accessToken: 'tok' }, TEST_ENV.APP_ENCRYPTION_KEY)
+		});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response('no scope', { status: 403 }))
+		);
+		expect((await verify(conn)).status).toBe(403);
+		expect((await statusOf(conn)).status).toBe('active');
+
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response('revoked', { status: 401 }))
+		);
+		expect((await verify(conn)).status).toBe(401);
+		expect((await statusOf(conn)).status).toBe('expired');
+		vi.unstubAllGlobals();
+	});
+
 	it('marks the row active again when the provider accepts the token', async () => {
 		const conn = await addConnection(ownerId, {
 			credentialsEncrypted: await encryptJson(

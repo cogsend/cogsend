@@ -346,13 +346,14 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 				isLocalAppUrl(locals.env.APP_URL)
 			);
 			await res.body?.cancel().catch(() => {});
-			if (res.status === 401 || res.status === 403) {
+			if (res.status === 401) {
 				await locals.db
 					.update(connections)
 					.set({ status: 'expired', updatedAt: new Date() })
 					.where(owned);
 				return fail('Mastodon token expired — reconnect', 401);
 			}
+			if (res.status === 403) return fail('Mastodon refused this account', 403);
 			if (!res.ok) {
 				// Transient (429/5xx/network): keep status, report 502 so the UI
 				// does not flap a healthy connection to `expired`.
@@ -378,11 +379,12 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		}
 		return ok({ ok: true, status: 'active' });
 	} catch (err) {
-		// Only auth failures expire the connection. Transients (network, 5xx,
-		// bad stored instance) keep their status so a blip cannot flap a
-		// healthy connection to `expired`.
+		// Only a rejected credential expires the connection. A 403 is a refusal
+		// of an accepted one, as in publishing, and transients (network, 5xx, bad
+		// stored instance) keep their status so a blip cannot flap a healthy
+		// connection to `expired`.
 		const status = (err as { status?: number } | null)?.status;
-		if (status === 401 || status === 403) {
+		if (status === 401) {
 			await locals.db
 				.update(connections)
 				.set({ status: 'expired', updatedAt: new Date() })
