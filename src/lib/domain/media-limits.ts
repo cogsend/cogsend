@@ -189,6 +189,18 @@ export interface InstagramMediaFacts {
 	hasJpegCopy?: boolean;
 }
 
+/**
+ * Whether an attachment will have its JPEG copy by the time Instagram needs it:
+ * it has one, or the deployment's Images binding can make one when the post is
+ * scheduled, which it does for anything but an animated WebP.
+ */
+export function jpegCopyExpected(
+	meta: { jpeg?: unknown; animated?: boolean } | null | undefined,
+	canMakeJpegCopies: boolean
+): boolean {
+	return Boolean(meta?.jpeg) || (canMakeJpegCopies && !meta?.animated);
+}
+
 // Feed photos run from 4:5 portrait to 1.91:1 landscape; a hair of slack so a
 // 1080×1350 crop rounded by an editor still counts as 4:5.
 const INSTAGRAM_MIN_ASPECT = 0.8 - 0.005;

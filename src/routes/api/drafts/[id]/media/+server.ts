@@ -21,6 +21,7 @@ import {
 import { fail, handleError, ok } from '#lib/server/http.js';
 import {
 	deleteMediaObjects,
+	isAnimatedWebpBytes,
 	jpegKey,
 	MAX_JPEG_COPY_BYTES,
 	MAX_PREVIEW_BYTES,
@@ -157,6 +158,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			if (!saved.video) {
 				const v = Date.now();
 				const key = saved.storageKey;
+				if (saved.mime === 'image/webp' && isAnimatedWebpBytes(bytes)) imageMeta.animated = true;
 				if (await saveJpegVariant(locals, previewKey(key), previews[i], MAX_PREVIEW_BYTES)) {
 					imageMeta.preview = { v };
 				}

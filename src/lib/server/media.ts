@@ -314,6 +314,8 @@ export interface StoredImageMeta {
 	preview?: { v: number };
 	/** Set once a JPEG copy is stored at jpegKey(). */
 	jpeg?: { v: number };
+	/** An animated WebP, which makeStoredJpegCopy leaves alone. */
+	animated?: boolean;
 }
 
 /**

@@ -179,6 +179,42 @@ describe('image previews', () => {
 		expect(await media.get(jpegKey(kept.storageKey))).toBeNull();
 	});
 
+	it('remembers an animated WebP, through a duplicate too, so the composer can warn', async () => {
+		const webp = new Uint8Array(32);
+		webp.set([...'RIFF'].map((c) => c.charCodeAt(0)));
+		webp.set(
+			[...'WEBPVP8X'].map((c) => c.charCodeAt(0)),
+			8
+		);
+		const draftId = await freshDraft();
+		const send = async (flags: number) => {
+			webp[20] = flags;
+			const body = new FormData();
+			body.set('segmentIndex', '0');
+			body.append('files', new File([webp], 'a.webp', { type: 'image/webp' }));
+			const res = (await mediaPOST({
+				params: { id: draftId },
+				request: new Request('http://localhost/api/drafts/x/media', { method: 'POST', body }),
+				locals: locals()
+			} as never)) as Response;
+			expect(res.status).toBe(201);
+			return ((await res.json()) as { items: Array<{ meta: { animated?: boolean } | null }> })
+				.items[0];
+		};
+
+		expect((await send(0x02)).meta?.animated).toBe(true);
+		expect((await send(0x00)).meta).toBeNull();
+
+		const res = (await duplicatePOST({
+			params: { id: draftId },
+			locals: locals()
+		} as never)) as Response;
+		expect(res.ok).toBe(true);
+		const { draft } = (await res.json()) as { draft: { id: string } };
+		const copies = await db.select().from(draftMedia).where(eq(draftMedia.draftId, draft.id));
+		expect(copies.filter((c) => JSON.parse(c.metaJson ?? '{}').animated)).toHaveLength(1);
+	});
+
 	it('keeps no copy of an image that is already a JPEG', async () => {
 		const draftId = await freshDraft();
 		const form = new FormData();

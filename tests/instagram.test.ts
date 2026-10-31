@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { INSTAGRAM_MAX_ITEMS, instagramMediaProblems } from '#lib/domain/media-limits.js';
+import {
+	INSTAGRAM_MAX_ITEMS,
+	instagramMediaProblems,
+	jpegCopyExpected
+} from '#lib/domain/media-limits.js';
 import { humanizedCause } from '#lib/domain/human-error.js';
 import { validateInstagramText } from '#lib/domain/validation/text.js';
 import { videoIssues } from '#lib/domain/video-rules.js';
@@ -68,6 +72,19 @@ const opts = (extra: Partial<Opts> = {}): Opts => ({
 	// is left to media_publish, or parked.
 	timeLeft: () => 0,
 	...extra
+});
+
+describe('jpegCopyExpected', () => {
+	it('counts on the Images binding for anything but an animated WebP', () => {
+		expect(jpegCopyExpected(null, false)).toBe(false);
+		expect(jpegCopyExpected(null, true)).toBe(true);
+		expect(jpegCopyExpected({ animated: true }, true)).toBe(false);
+	});
+
+	it('trusts a stored copy, animated or not', () => {
+		expect(jpegCopyExpected({ jpeg: { v: 1 } }, false)).toBe(true);
+		expect(jpegCopyExpected({ jpeg: { v: 1 }, animated: true }, true)).toBe(true);
+	});
 });
 
 describe('instagramMediaProblems', () => {

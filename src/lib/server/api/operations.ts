@@ -506,7 +506,7 @@ async function copyImageVariants(
 	storageKey: string
 ): Promise<StoredImageMeta | null> {
 	const stored = parseJson<StoredImageMeta>(item.metaJson, {});
-	const copied: StoredImageMeta = {};
+	const copied: StoredImageMeta = stored.animated ? { animated: true } : {};
 	const variants = [
 		['preview', previewKey],
 		['jpeg', jpegKey]

@@ -38,6 +38,7 @@
 		groupMediaBySegment,
 		imageOverCap,
 		instagramMediaProblems,
+		jpegCopyExpected,
 		mediaSizeProblem,
 		remapSegmentIndexAfterRemoval
 	} from '#lib/domain/media-limits.js';
@@ -172,6 +173,7 @@
 			cover?: { v: number; atMs?: number } | null;
 			/** A JPEG copy of a PNG or WebP is stored for Instagram. */
 			jpeg?: { v: number } | null;
+			animated?: boolean;
 		} | null;
 	};
 
@@ -618,7 +620,7 @@
 				mime: m.mime,
 				width: m.width,
 				height: m.height,
-				hasJpegCopy: canMakeJpegCopies || Boolean(m.meta?.jpeg)
+				hasJpegCopy: jpegCopyExpected(m.meta, canMakeJpegCopies)
 			}))
 		);
 		return problems[0] ?? null;
