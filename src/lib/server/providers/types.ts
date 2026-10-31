@@ -170,8 +170,8 @@ export type MediaReader = Required<Pick<MediaStore, 'getRange' | 'size' | 'open'
  * - `forbidden` (HTTP 403) → the platform refused this action but the
  *   credential was accepted: do NOT expire the connection. Retrying
  *   unchanged content is pointless, so it is also non-retryable.
- * - `unconfirmed` → the post request went out and no answer came back, so it
- *   may be live. Non-retryable: see unconfirmedPostError.
+ * - `unconfirmed` → the post request went out and no clear answer came back,
+ *   so it may be live. Non-retryable: see unconfirmedPostError.
  * - `processing` → a video is not ready yet: park and resume, see processingError.
  * Unknown/legacy errors fall back to the previous regex classification.
  */
@@ -256,9 +256,10 @@ export const UNCONFIRMED_POST_MARK = 'may have been published';
 
 /**
  * The request that creates a post failed without an answer (timeout, dropped
- * connection), so the platform may have published it. X, LinkedIn and Threads
- * take no idempotency key, so a retry cannot be recognised as the same post:
- * retrying on its own would risk a duplicate, and the person has to look first.
+ * connection) or with a server error, so the platform may have published it.
+ * X, LinkedIn, Threads and Instagram take no idempotency key, so a retry cannot
+ * be recognised as the same post: retrying on its own would risk a duplicate,
+ * and the person has to look first.
  * The wording avoids the words humanizedCause and the auth matchers react to,
  * so it reaches the reader as written.
  */

@@ -1,6 +1,7 @@
 import {
 	formatThreadsMetaMarker,
 	isThreadsMediaFetchFailure,
+	parseThreadsMetaMarker,
 	THREADS_META_AUTH_CODES
 } from '#lib/domain/threads-error.js';
 import { validateThreadsText } from '#lib/domain/validation/text.js';
@@ -82,6 +83,8 @@ const THREADS_SEGMENT_DELAY_MS = 300;
 // retries only for transient failures.
 const PERMALINK_ATTEMPTS = 3;
 const PERMALINK_RETRY_DELAYS_MS = [400, 1200];
+/** Meta's own transient failures, whatever HTTP status they arrive with. */
+const META_TRANSIENT_CODES = [1, 2];
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((r) => setTimeout(r, ms));
@@ -166,6 +169,18 @@ export function threadsUpstreamError(prefix: string, status: number, body: strin
 	// base.message alone would drop the marker downstream matchers gate on.
 	if (detail) return new ProviderError(message, { status: base.status, code: base.code, detail });
 	return base;
+}
+
+/**
+ * Whether a failed threads_publish may be live anyway. Threads takes no
+ * idempotency key, so only an answer that proves nothing was posted may retry
+ * on its own: a refusal, or a container Meta calls not ready. Its server errors
+ * say nothing about how far the post got.
+ */
+function mayHavePublished(err: ProviderError): boolean {
+	if (err.code || isThreadsMediaFetchFailure(err.message)) return false;
+	const code = parseThreadsMetaMarker(err.message)?.code;
+	return (err.status ?? 0) >= 500 || (code !== undefined && META_TRANSIENT_CODES.includes(code));
 }
 
 // Token facts via GET /debug_token (self-inspection: the user token checks
@@ -604,8 +619,7 @@ export const threadsProvider: PlatformProvider = {
 			}
 			// Still processing after the budget: try publishing anyway so a
 			// slow-but-finished container still succeeds. A genuinely unready
-			// container fails here with the API's own error, which stays
-			// retryable like any other upstream 4xx/5xx.
+			// container fails here with the API's own error.
 		}
 
 		// Meta validates every carousel child when the CAROUSEL parent is
@@ -703,8 +717,10 @@ export const threadsProvider: PlatformProvider = {
 			} catch (err) {
 				throw unconfirmedPostError('Threads', err);
 			}
-			if (!pubRes.ok)
-				throw threadsUpstreamError('Threads publish', pubRes.status, await pubRes.text());
+			if (!pubRes.ok) {
+				const err = threadsUpstreamError('Threads publish', pubRes.status, await pubRes.text());
+				throw mayHavePublished(err) ? unconfirmedPostError('Threads', err) : err;
+			}
 			// A 2xx is a live post even without a readable id: a retry would build
 			// a new container and post it again.
 			const published = (await pubRes.json().catch(() => ({}))) as { id?: unknown };

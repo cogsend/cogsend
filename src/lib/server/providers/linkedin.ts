@@ -636,11 +636,14 @@ export const linkedinProvider: PlatformProvider = {
 		} catch (err) {
 			throw unconfirmedPostError('LinkedIn', err);
 		}
-		if (!res.ok)
-			throw Object.assign(
+		if (!res.ok) {
+			const failed = Object.assign(
 				new Error(`LinkedIn post failed (${res.status}): ${(await res.text()).slice(0, 300)}`),
 				{ status: res.status }
 			);
+			// A server error says nothing about how far the post got.
+			throw res.status >= 500 ? unconfirmedPostError('LinkedIn', failed) : failed;
+		}
 		const restId = res.headers.get('x-restli-id') || res.headers.get('X-Restli-Id');
 		const data = (await res.json().catch(() => ({}))) as { id?: unknown; urn?: unknown };
 		const candidate = restId || data.id || data.urn;

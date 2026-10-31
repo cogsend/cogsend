@@ -759,9 +759,11 @@ export const xProvider: PlatformProvider = {
 					if (xWeightedLength(text) > X_MAX_CHARS && isLongPostRefusal(res.status, detail)) {
 						throw longPostRefused(res.status, detail);
 					}
-					throw Object.assign(new Error(`X post failed (${res.status}): ${detail}`), {
+					const failed = Object.assign(new Error(`X post failed (${res.status}): ${detail}`), {
 						status: res.status
 					});
+					// A server error says nothing about how far the post got.
+					throw res.status >= 500 ? unconfirmedPostError('X', failed) : failed;
 				}
 				// A 2xx is a posted tweet even when its body cannot be read: retrying
 				// it for want of an id would post it twice.

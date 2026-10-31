@@ -1680,7 +1680,7 @@ describe('posts a platform may have taken, URL-only media and stored links', () 
 					data: {
 						is_valid: true,
 						user_id: '777',
-						scopes: ['threads_basic', 'threads_content_publish']
+						scopes: ['threads_basic', 'threads_content_publish', 'threads_manage_replies']
 					}
 				}),
 			'/threads_publish': publish,
@@ -1734,6 +1734,100 @@ describe('posts a platform may have taken, URL-only media and stored links', () 
 		expect((await row(id)).status).toBe('published');
 	});
 
+	const serverError = () => new Response('Service Unavailable', { status: 503 });
+
+	it('an X post that gets a server error fails for good', async () => {
+		const conn = await connection('x', xCreds);
+		const id = await pending(conn, 'hello x');
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: mockFetch({ '/2/tweets': serverError })
+		});
+		expect(result.status).toBe('failed');
+		const target = await row(id);
+		expect(target.status).toBe('failed');
+		expect(target.errorMessage).toMatch(/Check X before you retry/);
+		const [account] = await db.select().from(connections).where(eq(connections.id, conn));
+		expect(account.status).toBe('active');
+	});
+
+	it('a thread that gets a server error on its second X post keeps the first and stops', async () => {
+		const conn = await connection('x', xCreds);
+		const id = await pending(conn, 'first post\n---\nsecond post');
+		let calls = 0;
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: mockFetch({
+				'/2/tweets': () => {
+					calls += 1;
+					if (calls === 1) return Response.json({ data: { id: '100' } }, { status: 201 });
+					return serverError();
+				}
+			})
+		});
+		expect(result.status).toBe('failed');
+		expect(calls).toBe(2);
+		const target = await row(id);
+		expect(target.status).toBe('failed');
+		expect(target.errorMessage).toMatch(/may have been published/);
+	});
+
+	it('an X rate limit still retries', async () => {
+		const conn = await connection('x', xCreds);
+		const id = await pending(conn, 'hello x');
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: mockFetch({ '/2/tweets': () => new Response('slow down', { status: 429 }) })
+		});
+		expect(result.status).not.toBe('failed');
+		expect((await row(id)).status).toBe('scheduled');
+	});
+
+	it('an X post the platform refuses stays an ordinary failure', async () => {
+		const conn = await connection('x', xCreds);
+		const id = await pending(conn, 'hello x');
+		await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: mockFetch({ '/2/tweets': () => new Response('duplicate', { status: 400 }) })
+		});
+		expect((await row(id)).errorMessage).not.toMatch(/may have been published/);
+	});
+
+	const linkedinCreds = {
+		accessToken: 'tok',
+		personUrn: 'abc',
+		expiresAt: Date.now() + 30 * 24 * 60 * 60_000
+	};
+
+	it('a LinkedIn post that gets a server error fails for good', async () => {
+		const conn = await connection('linkedin', linkedinCreds);
+		const id = await pending(conn, 'hello linkedin');
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: mockFetch({ '/rest/posts': serverError })
+		});
+		expect(result.status).toBe('failed');
+		const target = await row(id);
+		expect(target.status).toBe('failed');
+		expect(target.errorMessage).toMatch(/Check LinkedIn before you retry/);
+		const [account] = await db.select().from(connections).where(eq(connections.id, conn));
+		expect(account.status).toBe('active');
+	});
+
+	it('a LinkedIn rate limit still retries', async () => {
+		const conn = await connection('linkedin', linkedinCreds);
+		const id = await pending(conn, 'hello linkedin');
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: mockFetch({ '/rest/posts': () => new Response('slow down', { status: 429 }) })
+		});
+		expect(result.status).not.toBe('failed');
+		expect((await row(id)).status).toBe('scheduled');
+	});
+
+	it('a LinkedIn post the platform refuses stays an ordinary failure', async () => {
+		const conn = await connection('linkedin', linkedinCreds);
+		const id = await pending(conn, 'hello linkedin');
+		await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: mockFetch({ '/rest/posts': () => new Response('bad text', { status: 422 }) })
+		});
+		expect((await row(id)).errorMessage).not.toMatch(/may have been published/);
+	});
+
 	it('a Threads publish that gets no answer fails for good', async () => {
 		const conn = await connection('threads', threadsCreds);
 		const id = await pending(conn, 'hello threads');
@@ -1742,6 +1836,85 @@ describe('posts a platform may have taken, URL-only media and stored links', () 
 		});
 		expect(result.status).toBe('failed');
 		expect((await row(id)).errorMessage).toMatch(/Threads did not confirm the post/);
+	});
+
+	it('a Threads publish that gets a server error fails for good', async () => {
+		const conn = await connection('threads', threadsCreds);
+		const id = await pending(conn, 'hello threads');
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: threadsApi(() => new Response('Bad Gateway', { status: 502 }))
+		});
+		expect(result.status).toBe('failed');
+		const target = await row(id);
+		expect(target.status).toBe('failed');
+		expect(target.errorMessage).toMatch(/may have been published/);
+	});
+
+	it('a Threads publish refused with Meta transient code fails for good', async () => {
+		const conn = await connection('threads', threadsCreds);
+		const id = await pending(conn, 'hello threads');
+		const body = JSON.stringify({ error: { message: 'An unknown error occurred', code: 1 } });
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: threadsApi(() => new Response(body, { status: 400 }))
+		});
+		expect(result.status).toBe('failed');
+		expect((await row(id)).errorMessage).toMatch(/may have been published/);
+	});
+
+	it('a Threads thread that gets a server error on its second post keeps the first and stops', async () => {
+		const conn = await connection('threads', threadsCreds);
+		const id = await pending(conn, 'first post\n---\nsecond post');
+		let calls = 0;
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: threadsApi(() => {
+				calls += 1;
+				if (calls === 1) return Response.json({ id: 'media-1' });
+				return new Response('Bad Gateway', { status: 502 });
+			})
+		});
+		expect(result.status).toBe('failed');
+		expect(calls).toBe(2);
+		const target = await row(id);
+		expect(target.status).toBe('failed');
+		expect(target.errorMessage).toMatch(/may have been published/);
+	});
+
+	it('a Threads container Meta calls not ready still retries, even on a server error', async () => {
+		const conn = await connection('threads', threadsCreds);
+		const id = await pending(conn, 'hello threads');
+		const body = JSON.stringify({
+			error: { message: 'Media not found', code: 1, error_subcode: 4279009 }
+		});
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: threadsApi(() => new Response(body, { status: 500 }))
+		});
+		const target = await row(id);
+		expect(result.status).not.toBe('failed');
+		expect(target.status).toBe('scheduled');
+		expect(target.errorMessage).not.toMatch(/may have been published/);
+	});
+
+	it('a Threads rate limit on publish still retries', async () => {
+		const conn = await connection('threads', threadsCreds);
+		const id = await pending(conn, 'hello threads');
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: threadsApi(
+				() => new Response(JSON.stringify({ error: { code: 2 } }), { status: 429 })
+			)
+		});
+		expect(result.status).not.toBe('failed');
+		expect((await row(id)).status).toBe('scheduled');
+	});
+
+	it('a Threads publish Meta refuses stays an ordinary failure', async () => {
+		const conn = await connection('threads', threadsCreds);
+		const id = await pending(conn, 'hello threads');
+		const body = JSON.stringify({ error: { message: 'Invalid parameter', code: 100 } });
+		const result = await publishTarget(db, TEST_ENV, store, id, {
+			fetchImpl: threadsApi(() => new Response(body, { status: 400 }))
+		});
+		expect(result.status).toBe('failed');
+		expect((await row(id)).errorMessage).not.toMatch(/may have been published/);
 	});
 
 	it('publishes a Threads image without reading its bytes from storage', async () => {
