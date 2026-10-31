@@ -114,7 +114,8 @@ Also published, with search, at [cogsend.com/docs](https://cogsend.com/docs/).
 
 - [Writing and publishing](docs/composer.md): threads, per-platform overrides, images, video and alt text, scheduling
 - [Posts and Insights](docs/posts.md): the queue, what each post can do, and the delivery stats
-- [API](docs/api.md): personal API keys, the MCP server, and worked examples (the full reference is in-app at `/api`)
+- [API](docs/api.md): personal API keys, every endpoint, and worked examples
+- [MCP server](docs/mcp.md): connecting Claude Code, Codex and other agents
 
 **Run it**
 

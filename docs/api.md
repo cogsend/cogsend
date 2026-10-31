@@ -1,10 +1,6 @@
 # API
 
-The browser UI uses the `cog_session` cookie after TOTP. Scripts, Shortcuts, cron
-and [MCP clients](#mcp-server) use a personal API key instead — no login, no cookies. Manage it in
-**Settings → API access** (generate, rotate, revoke); the raw key is shown once
-and only its hash is stored. Worked examples for the common calls live in-app at
-`/api`.
+The browser UI uses the `cog_session` cookie after TOTP. Scripts, Shortcuts and cron use a personal API key instead — no login, no cookies. Manage it in **Settings → API access** (generate, rotate, revoke). Only one key is active at a time: the raw key is shown once, only its hash is stored, and generating a replacement revokes the old one at once. If a key ever touches a log or screenshot, rotate it. AI agents connect through the [MCP server](mcp.md).
 
 ## Authentication
 
@@ -28,32 +24,46 @@ touching the scheduler.
 
 A key is either **Read-only** or **Read + write**, chosen when you generate it. Read-only can list and fetch connections, drafts and the queue and validate text; anything that creates, changes, deletes, schedules or publishes needs Read + write.
 
+## Errors
+
+A failed request answers a JSON object with an `error` property.
+
+## Endpoints
+
+### With any key
+
+- `GET /api/connections`: account ids, platforms, statuses, and which platforms this deployment can connect.
+- `GET /api/drafts`: list drafts with their variants, media and targets.
+- `GET /api/drafts/:id`: one draft.
+- `GET /api/drafts/:id/share`: the draft's preview link, see [Preview links](#preview-links).
+- `GET /api/queue`: upcoming and recent deliveries.
+- `POST /api/validate`: check a post against each platform's rules.
+- `GET /api/insights`: delivery stats. `?days=` and `?tz=` are optional.
+- `GET /api/settings`: read settings.
+
+### With a Read + write key
+
+- `POST /api/drafts`: `{"title?", "baseBody?", "selectedConnectionIds?"}` answers `201` with `{draft}`.
+- `PATCH /api/drafts/:id`: edit the title, body or `selectedConnectionIds`. **409** while publishing.
+- `DELETE /api/drafts/:id`: delete a draft.
+- `PUT /api/drafts/:id/variants`: `{"platform", "body?", "options?"}` sets one platform's copy.
+- `DELETE /api/drafts/:id/variants?platform=`: remove that copy.
+- `POST /api/drafts/:id/media`: upload files, see [Media](#media).
+- `PATCH /api/drafts/:id/media`: `{"mediaId", "altText?", "segmentIndex?"}` changes an attachment.
+- `DELETE /api/drafts/:id/media?mediaId=`: remove an attachment.
+- `POST /api/drafts/:id/duplicate`: copy a draft, media included, into a new draft.
+- `POST` and `DELETE /api/drafts/:id/share`: make or turn off a preview link.
+- `POST /api/drafts/:id/publish`: `{"connectionIds": []}` answers `{results, draft}`, with one result per account.
+- `POST /api/drafts/:id/schedule`: `{"connectionIds": [], "runAt": "<ISO date>"}` answers `{targets}`.
+- `POST /api/targets/:id/cancel`: cancel one delivery.
+- `POST /api/targets/:id/retry`: retry one delivery.
+- `POST /api/targets/:id/reschedule`: `{"runAt": "<ISO date>"}` moves one delivery.
+- `POST /api/targets/bulk`: `{"op", "ids", "runAt?"}` acts on up to 10 deliveries at once. `op` is `cancel`, `retry` or `reschedule`.
+- `PATCH /api/settings`: change settings.
+
 ## MCP server
 
-`<your instance>/api/mcp` is a Model Context Protocol server, so agents such as Claude Code and Codex can work with drafts and the publish queue. It is stateless Streamable HTTP over `POST`. It accepts only a personal key as `Authorization: Bearer`: no cookies, no `X-API-Key` and no `API_TOKEN`.
-
-For Claude Code, add this to `.mcp.json` and set `COGSEND_API_KEY` in your environment:
-
-```json
-{
-	"mcpServers": {
-		"cogsend": {
-			"type": "http",
-			"url": "https://cogsend.example.com/api/mcp",
-			"headers": { "Authorization": "Bearer ${COGSEND_API_KEY}" }
-		}
-	}
-}
-```
-
-**Settings → API access** shows this with your own URL, plus the Codex version.
-
-| Tools                                                                                                                                                                                                         | Key needed   |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| `list_connections`, `list_drafts`, `get_draft`, `list_queue`, `validate_post`                                                                                                                                 | Read-only    |
-| `create_draft`, `update_draft`, `duplicate_draft`, `delete_draft`, `set_draft_variant`, `delete_draft_variant`, `schedule_draft`, `reschedule_delivery`, `cancel_delivery`, `publish_draft`, `retry_delivery` | Read + write |
-
-`publish_draft` and `retry_delivery` post to real accounts. Set your client to ask before it runs tools that write or publish; CogSend marks them, but only the client can stop and ask. Media, settings, insights and account management are not exposed. If Cloudflare Access protects the instance, see [Cloudflare Access](access.md#the-paths-it-has-to-let-through).
+The MCP server has its own page: [MCP server](mcp.md).
 
 ## Examples
 

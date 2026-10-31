@@ -2,7 +2,7 @@
 
 The composer is one draft: a thread of cards, the accounts it goes to, and a
 Publish button with a schedule option next to it. Everything here happens in the
-browser; the same actions are available to scripts through the [API](api.md), and to AI agents through its [MCP server](api.md#mcp-server).
+browser; the same actions are available to scripts through the [API](api.md), and to AI agents through its [MCP server](mcp.md).
 
 ## Drafts save themselves
 
