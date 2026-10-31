@@ -6,6 +6,7 @@
 		Settings,
 		LogOut,
 		ChevronDown,
+		BookOpenText,
 		PenLine,
 		Calendar,
 		Users,
@@ -13,6 +14,7 @@
 	} from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
+	import { docsLinks } from '#lib/domain/docs-links.js';
 	import favicon from '#lib/assets/favicon.svg';
 	import faviconDark from '#lib/assets/favicon-dark.svg';
 	import logoGlyph from '#lib/assets/logo-glyph.svg';
@@ -399,20 +401,15 @@
 								</a>
 
 								<a
-									href="/api"
-									class="flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-bold transition-colors {page
-										.url.pathname === '/api'
-										? 'bg-stone-900 text-white shadow-md'
-										: 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'}"
+									href={docsLinks.home}
+									target="_blank"
+									rel="noopener"
+									class="flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-bold text-stone-600 transition-colors hover:bg-stone-50 hover:text-stone-900"
 									onclick={() => (showProfileDropdown = false)}
 									role="menuitem"
 								>
 									<div class="flex items-center gap-3">
-										<PenLine
-											class="h-4 w-4 {page.url.pathname === '/api'
-												? 'text-white'
-												: 'text-stone-500'}"
-										/> API docs
+										<BookOpenText class="h-4 w-4 text-stone-500" /> Docs
 									</div>
 								</a>
 							</div>

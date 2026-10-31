@@ -469,7 +469,10 @@ test('profile menu appears after login with workspace navigation', async () => {
 		page.getByRole('menuitem', { name: 'Settings' })
 	);
 	await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible();
-	await expect(page.getByRole('menuitem', { name: 'API docs' })).toBeVisible();
+	await expect(page.getByRole('menuitem', { name: 'Docs' })).toHaveAttribute(
+		'href',
+		'https://cogsend.com/docs/'
+	);
 	await page.keyboard.press('Escape');
 	await page.getByRole('button', { name: 'Workspace menu' }).click();
 	await expect(page.getByRole('menuitem', { name: 'Compose' })).toBeVisible();
@@ -656,9 +659,9 @@ test('api key works logged out, stays out of key management', async () => {
 	await expect(page.getByTestId('mcp-endpoint')).toHaveText(`${origin}/api/mcp`);
 	await expect(mcpSetup).toContainText('Claude Code');
 	await expect(mcpSetup).toContainText('OpenAI Codex');
-	await expect(mcpSetup.getByRole('link', { name: 'API reference' })).toHaveAttribute(
+	await expect(mcpSetup.getByRole('link', { name: 'MCP docs' })).toHaveAttribute(
 		'href',
-		'/api#mcp-server-heading'
+		'https://cogsend.com/docs/mcp/'
 	);
 	await expect(mcpSetup.locator('pre').nth(0)).toContainText('Bearer ${COGSEND_API_KEY}');
 	await expect(mcpSetup.locator('pre').nth(1)).toContainText(
@@ -796,10 +799,10 @@ test('api key works logged out, stays out of key management', async () => {
 	).toBe(401);
 	expect((await fetch(`${origin}/api/drafts`)).status).toBe(401);
 
-	// Docs page renders for the session.
-	await page.goto('/api');
-	await expect(page.getByRole('heading', { name: 'API' })).toBeVisible();
-	await expect(page.getByText('Authorization: Bearer').first()).toBeVisible();
+	// The old reference page now hands over to the docs site.
+	const oldPage = await page.request.get('/api', { maxRedirects: 0 });
+	expect(oldPage.status()).toBe(302);
+	expect(oldPage.headers().location).toBe('https://cogsend.com/docs/api/');
 
 	// Revoke in-session; the logged-out key dies with it.
 	await page.goto('/settings');
@@ -1066,18 +1069,11 @@ test('the header keeps a Write button on a phone', async () => {
 	await page.setViewportSize({ width: 1280, height: 800 });
 });
 
-// Regression guard: the posts tab row, the insights stat grid and the API
-// definition list all used to push the document wider than a phone screen.
+// Regression guard: the posts tab row and the insights stat grid both used to
+// push the document wider than a phone screen.
 test('key pages do not scroll sideways on a 320px phone', async () => {
 	await page.setViewportSize({ width: 320, height: 700 });
-	for (const path of [
-		'/posts',
-		'/posts?tab=drafts',
-		'/insights',
-		'/api',
-		'/settings',
-		'/compose'
-	]) {
+	for (const path of ['/posts', '/posts?tab=drafts', '/insights', '/settings', '/compose']) {
 		await page.goto(path);
 		await expect(page.getByRole('heading').first()).toBeVisible();
 		await page.waitForTimeout(200);

@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { Check, Copy, Pencil, User } from '@lucide/svelte';
+	import { docsLinks } from '#lib/domain/docs-links.js';
 	import AccountAvatar from '#lib/components/AccountAvatar.svelte';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import CopyButton from '#lib/components/CopyButton.svelte';
@@ -1073,7 +1074,9 @@
 				read or also change and publish drafts. For security, it cannot manage social accounts,
 				change credentials, or generate new API keys. See the
 				<a
-					href="/api"
+					href={docsLinks.api}
+					target="_blank"
+					rel="noopener"
 					class="font-bold text-stone-900 underline underline-offset-2 hover:text-stone-700"
 					>API reference</a
 				> for full details.
@@ -1292,8 +1295,11 @@
 				<p class="mt-5 max-w-prose text-[12px] leading-relaxed text-stone-500">
 					Give an agent a Read-only key unless it needs to change drafts or publish, and have your
 					client ask before it publishes. Tools, scopes and Cloudflare Access headers are in the
-					<a href="/api#mcp-server-heading" class="font-bold text-stone-900 underline"
-						>API reference</a
+					<a
+						href={docsLinks.mcp}
+						target="_blank"
+						rel="noopener"
+						class="font-bold text-stone-900 underline">MCP docs</a
 					>.
 				</p>
 			</section>
