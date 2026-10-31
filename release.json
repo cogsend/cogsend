@@ -1,6 +1,6 @@
 {
 	"minFromVersion": "0.0.0",
 	"manualOnly": false,
-	"schemaChange": true,
-	"notes": "Adds a table for draft preview links. The update adds it on its own, and an earlier version ignores it, so rolling back is safe."
+	"schemaChange": false,
+	"notes": null
 }
