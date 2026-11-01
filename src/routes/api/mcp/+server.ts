@@ -48,7 +48,8 @@ const variantOptions = z
 			})
 			.nullable()
 			.optional(),
-		threadSegments: z.array(z.string().max(100_000)).max(100).optional()
+		threadSegments: z.array(z.string().max(100_000)).max(100).optional(),
+		topicTag: z.string().max(1000).nullable().optional()
 	})
 	.strict()
 	.optional();

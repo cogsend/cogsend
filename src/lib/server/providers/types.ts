@@ -47,6 +47,7 @@ export interface NormalizedPost {
 			multiple?: boolean;
 			hideTotals?: boolean;
 		};
+		topicTag?: string;
 	};
 }
 

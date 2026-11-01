@@ -61,6 +61,7 @@ import { randomHex } from '#lib/domain/bytes.js';
 import { MAX_VIDEO_BYTES, validateImageUpload } from '#lib/domain/media-limits.js';
 import type { Mp4Facts } from '#lib/domain/mp4-probe.js';
 import { validatePollConfig } from '#lib/domain/poll.js';
+import { validateThreadsTopic } from '#lib/domain/threads-topic.js';
 import {
 	assertSafeStorageKey,
 	coverKey,
@@ -773,6 +774,8 @@ function validateVariantOptions(options: unknown): string | null {
 			value.threadSegments.some((segment) => typeof segment !== 'string'))
 	)
 		return 'threadSegments must be an array of strings';
+	const topic = validateThreadsTopic(value.topicTag);
+	if (!topic.ok) return topic.error;
 	return null;
 }
 
@@ -816,6 +819,8 @@ export async function setDraftVariant(
 	const platform = String(fields.platform || '');
 	if (!VARIANT_PLATFORMS.has(platform))
 		invalid('platform must be mastodon, bluesky, linkedin, threads, instagram, or x');
+	if (platform !== 'threads' && options.topicTag !== undefined && options.topicTag !== null)
+		invalid('Topic tags are only for Threads');
 	const existing = await first(
 		ctx.db
 			.select()

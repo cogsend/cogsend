@@ -169,6 +169,48 @@ describe('Threads video', () => {
 		expect(n.created).toHaveLength(1);
 	});
 
+	it('sends a topic with the video, and none without one', async () => {
+		const { video } = await storedVideo(1000);
+		const tagged = threadsNetwork(['FINISHED']);
+		await threadsProvider.publish(
+			{ text: 'watch', media: [video], options: { topicTag: 'Clips' } },
+			creds,
+			undefined,
+			tagged.fetchImpl,
+			opts()
+		);
+		expect(tagged.created[0].get('topic_tag')).toBe('Clips');
+
+		const untagged = threadsNetwork(['FINISHED']);
+		await threadsProvider.publish(
+			{ text: 'watch', media: [video] },
+			creds,
+			undefined,
+			untagged.fetchImpl,
+			opts()
+		);
+		expect(untagged.created[0].has('topic_tag')).toBe(false);
+	});
+
+	it('keeps the topic on the container made again after one expired', async () => {
+		const { video } = await storedVideo(1000);
+		const n = threadsNetwork(['EXPIRED', 'FINISHED']);
+		await threadsProvider.publish(
+			{ text: 'watch', media: [video], options: { topicTag: 'Clips' } },
+			creds,
+			undefined,
+			n.fetchImpl,
+			opts({
+				resume: {
+					segmentIds: [],
+					pending: { segment: 0, storageKey: 'v.mp4', state: { containerId: 'old' }, startedAt: 0 }
+				}
+			})
+		);
+		expect(n.created).toHaveLength(1);
+		expect(n.created[0].get('topic_tag')).toBe('Clips');
+	});
+
 	it('stops for good when Meta could not process the video', async () => {
 		const { video } = await storedVideo(1000);
 		const n = threadsNetwork(['ERROR']);

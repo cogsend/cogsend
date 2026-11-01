@@ -589,6 +589,170 @@ describe('threads permalinks on resume', () => {
 	});
 });
 
+describe('threads topic tag', () => {
+	const creds = { accessToken: 'tok', threadsUserId: '123' };
+	const mediaUrlFor = (key: string) => `https://cdn.test/${key}`;
+	const image = (key: string) => ({ storageKey: key, mime: 'image/png', size: 100 });
+
+	function network() {
+		const created: URLSearchParams[] = [];
+		let containers = 0;
+		const fetchImpl = mockFetch({
+			'/threads_publish': async () => Response.json({ id: `post-${containers}` }),
+			'fields=status': async () => Response.json({ status: 'FINISHED' }),
+			'/threads': async (req) => {
+				created.push(new URLSearchParams(await req.text()));
+				containers += 1;
+				return Response.json({ id: `container-${containers}` });
+			}
+		});
+		return { created, fetchImpl };
+	}
+
+	it('leaves an untagged text post exactly as it was', async () => {
+		const { created, fetchImpl } = network();
+		await threadsProvider.publish({ text: 'hi' }, creds, undefined, fetchImpl);
+		expect([...created[0].keys()].sort()).toEqual(['access_token', 'media_type', 'text']);
+	});
+
+	it('sends no topic for an untagged image, carousel or thread', async () => {
+		for (const content of [
+			{ text: 'one', media: [image('a')] },
+			{ text: 'two', media: [image('a'), image('b')] },
+			{ text: 'x', thread: [{ text: 'first' }, { text: 'second' }] }
+		]) {
+			const { created, fetchImpl } = network();
+			await threadsProvider.publish(content, creds, undefined, fetchImpl, { mediaUrlFor });
+			expect(created.length).toBeGreaterThan(0);
+			expect(created.some((params) => params.has('topic_tag'))).toBe(false);
+		}
+	});
+
+	it('does not invent a topic from an empty value', async () => {
+		const { created, fetchImpl } = network();
+		await threadsProvider.publish(
+			{ text: 'hi', options: { topicTag: '' } },
+			creds,
+			undefined,
+			fetchImpl
+		);
+		expect(created[0].has('topic_tag')).toBe(false);
+	});
+
+	it('tags a text post, keeping a space in the topic', async () => {
+		const { created, fetchImpl } = network();
+		await threadsProvider.publish(
+			{ text: 'hi', options: { topicTag: 'AI Tools' } },
+			creds,
+			undefined,
+			fetchImpl
+		);
+		expect(created[0].get('media_type')).toBe('TEXT');
+		expect(created[0].get('topic_tag')).toBe('AI Tools');
+	});
+
+	it('tags a single image post', async () => {
+		const { created, fetchImpl } = network();
+		await threadsProvider.publish(
+			{ text: 'look', media: [image('a')], options: { topicTag: 'Photos' } },
+			creds,
+			undefined,
+			fetchImpl,
+			{ mediaUrlFor }
+		);
+		expect(created[0].get('media_type')).toBe('IMAGE');
+		expect(created[0].get('topic_tag')).toBe('Photos');
+	});
+
+	it('tags the carousel parent and never its children', async () => {
+		const { created, fetchImpl } = network();
+		await threadsProvider.publish(
+			{ text: 'gallery', media: [image('a'), image('b')], options: { topicTag: 'Photos' } },
+			creds,
+			undefined,
+			fetchImpl,
+			{ mediaUrlFor }
+		);
+		expect(created.map((p) => [p.get('media_type'), p.get('topic_tag')])).toEqual([
+			['IMAGE', null],
+			['IMAGE', null],
+			['CAROUSEL', 'Photos']
+		]);
+	});
+
+	it('tags only the first post of a thread', async () => {
+		const { created, fetchImpl } = network();
+		const options = { topicTag: 'Launch' };
+		await threadsProvider.publish(
+			{
+				text: 'first',
+				options,
+				thread: [
+					{ text: 'first', options },
+					{ text: 'second', media: [image('a')], options },
+					{ text: 'third', options }
+				]
+			},
+			creds,
+			undefined,
+			fetchImpl,
+			{ mediaUrlFor }
+		);
+		expect(created.map((p) => p.get('topic_tag'))).toEqual(['Launch', null, null]);
+		expect(created[1].has('reply_to_id')).toBe(true);
+	});
+
+	it('sends no topic when a thread resumes after its first post', async () => {
+		const { created, fetchImpl } = network();
+		const options = { topicTag: 'Launch' };
+		await threadsProvider.publish(
+			{
+				text: 'first',
+				options,
+				thread: [
+					{ text: 'first', options },
+					{ text: 'second', options }
+				]
+			},
+			creds,
+			undefined,
+			fetchImpl,
+			{ resume: { segmentIds: ['post-root'] } }
+		);
+		expect(created).toHaveLength(1);
+		expect(created[0].get('reply_to_id')).toBe('post-root');
+		expect(created[0].has('topic_tag')).toBe(false);
+	});
+
+	it('keeps the topic on a media retry', async () => {
+		let attempts = 0;
+		const created: URLSearchParams[] = [];
+		const fetchImpl = mockFetch({
+			'/threads_publish': async () => Response.json({ id: 'post' }),
+			'fields=status': async () => Response.json({ status: 'FINISHED' }),
+			'/threads': async (req) => {
+				attempts += 1;
+				created.push(new URLSearchParams(await req.text()));
+				return attempts === 1
+					? Response.json(
+							{ error: { message: 'Media download has failed.', code: 9004 } },
+							{ status: 400 }
+						)
+					: Response.json({ id: 'container' });
+			}
+		});
+		await threadsProvider.publish(
+			{ text: 'look', media: [image('a')], options: { topicTag: 'Photos' } },
+			creds,
+			undefined,
+			fetchImpl,
+			{ mediaUrlFor }
+		);
+		expect(created.length).toBeGreaterThan(1);
+		expect(created.every((p) => p.get('topic_tag') === 'Photos')).toBe(true);
+	});
+});
+
 describe('threadsProvider.publish', () => {
 	it('creates container then publishes', async () => {
 		const calls: string[] = [];

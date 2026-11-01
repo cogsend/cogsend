@@ -81,6 +81,13 @@
 		PLATFORM_ORDER
 	} from '#lib/domain/platforms.js';
 	import { parsePollConfig, validatePollConfig, type PollConfig } from '#lib/domain/poll.js';
+	import {
+		THREADS_TOPIC_MAX_CHARS,
+		normalizeThreadsTopic,
+		parseThreadsTopic,
+		validateThreadsTopic
+	} from '#lib/domain/threads-topic.js';
+	import { isZernioConnection } from '#lib/domain/zernio.js';
 	import type { ProfileSettings } from '#lib/domain/profile-settings.js';
 	import {
 		DEFAULT_SCHEDULE_OFFSET,
@@ -195,7 +202,12 @@
 		variants?: Array<{
 			platform: string;
 			body?: string | null;
-			optionsJson?: { visibility?: string; spoilerText?: string; poll?: unknown };
+			optionsJson?: {
+				visibility?: string;
+				spoilerText?: string;
+				poll?: unknown;
+				topicTag?: unknown;
+			};
 		}>;
 		media?: MediaItem[];
 		targets?: TargetSnapshot[];
@@ -256,6 +268,11 @@
 			if (variant.optionsJson.poll) seededPoll = parsePollConfig(variant.optionsJson.poll);
 		}
 	}
+	function storedThreadsTopic(variants: EditorDraft['variants']): string {
+		const stored = variants?.find((v) => v.platform === 'threads')?.optionsJson?.topicTag;
+		return parseThreadsTopic(stored) ?? '';
+	}
+	const seededThreadsTopic = storedThreadsTopic(seededDraft?.variants);
 	const seededSelection = (() => {
 		const saved = seededDraft?.selectedConnectionIds;
 		if (Array.isArray(saved)) return saved;
@@ -326,6 +343,7 @@
 	let mastoVisibility = $state(seededVisibility);
 	let mastoCW = $state(seededCw);
 	let mastoPoll = $state<PollConfig | null>(seededPoll);
+	let threadsTopic = $state(seededThreadsTopic);
 	let focusedSegment = $state(0);
 	let uploadingSegment = $state<number | null>(null);
 	let videoJobs = $state<VideoJob[]>([]);
@@ -372,6 +390,7 @@
 	let publishNowBtn: HTMLButtonElement | null = $state(null);
 	let isAddOverrideOpen = $state(false);
 	let isMastoOptionsOpen = $state(false);
+	let isThreadsOptionsOpen = $state(false);
 	let fileRefs = $state<(HTMLInputElement | null)[]>([]);
 	let textareaRefs = $state<(HTMLTextAreaElement | null)[]>([]);
 	let altOpen = $state<Record<string, boolean>>({});
@@ -679,6 +698,27 @@
 	const showMastoOptions = $derived(
 		selectedPlatforms.has('mastodon') || isPlatformCustomized(overrides, 'mastodon')
 	);
+	const threadsTopicError = $derived.by(() => {
+		const v = validateThreadsTopic(threadsTopic);
+		return v.ok ? null : v.error;
+	});
+	const selectedThreadsAccounts = $derived(
+		selectedAccounts.filter((account) => account.platform === 'threads')
+	);
+	const zernioThreadsSelected = $derived(
+		selectedThreadsAccounts.some((account) => isZernioConnection(account.metaJson))
+	);
+	// A topic only reaches direct connections, so accounts on Zernio alone do
+	// not offer the field. One already typed stays reachable, or it could not
+	// be cleared.
+	const showThreadsOptions = $derived(
+		selectedThreadsAccounts.some((account) => !isZernioConnection(account.metaJson)) ||
+			(selectedThreadsAccounts.length > 0 && threadsTopic.trim() !== '')
+	);
+	const threadsTopicLength = $derived(countGraphemes(normalizeThreadsTopic(threadsTopic)));
+	const threadsPostCount = $derived(
+		splitThreadSegments(effectivePlatformBody(baseBody, overrides, 'threads')).length
+	);
 	// Auto-resize that prevents the page scroll jumping.
 	function autoResize(node: HTMLTextAreaElement, _value: string) {
 		const resize = () => {
@@ -709,6 +749,7 @@
 			v: mastoVisibility,
 			c: mastoCW,
 			p: mastoPoll,
+			t: threadsTopic,
 			s: [...selected].sort(),
 			m: media.map((m) => ({ i: m.id, a: m.altText || '', s: m.segmentIndex ?? 0 }))
 		});
@@ -790,6 +831,7 @@
 		mastoVisibility = initialSettings?.mastoVisibility ?? 'public';
 		mastoCW = '';
 		mastoPoll = null;
+		threadsTopic = '';
 		activeTab = 'global';
 		focusedSegment = 0;
 		scheduleOpen = false;
@@ -837,7 +879,8 @@
 					media,
 					visibility: mastoVisibility,
 					cw: mastoCW,
-					poll: mastoPoll
+					poll: mastoPoll,
+					threadsTopic
 				}
 			: null;
 		// A failure belongs to the draft the editor is on. Clear a stale one when
@@ -910,6 +953,7 @@
 					if (v.optionsJson.poll) loadedPoll = parsePollConfig(v.optionsJson.poll);
 				}
 			}
+			const loadedThreadsTopic = storedThreadsTopic(d.variants);
 			storedVariants = new Set(
 				((d.variants || []) as Array<{ platform: PlatformId }>).map((v) => v.platform)
 			);
@@ -922,6 +966,7 @@
 				const keepVisibility = mastoVisibility !== before.visibility;
 				const keepCw = mastoCW !== before.cw;
 				const keepPoll = mastoPoll !== before.poll;
+				const keepThreadsTopic = threadsTopic !== before.threadsTopic;
 				const keepSelection = selectionTouched;
 				mergedCleanly =
 					!keepBody &&
@@ -930,6 +975,7 @@
 					!keepVisibility &&
 					!keepCw &&
 					!keepPoll &&
+					!keepThreadsTopic &&
 					!keepSelection;
 				if (!keepBody) baseBody = main;
 				// Platform bodies the user did not touch still come from the
@@ -939,6 +985,7 @@
 				if (!keepVisibility) mastoVisibility = loadedVisibility;
 				if (!keepCw) mastoCW = loadedCw;
 				if (!keepPoll) mastoPoll = loadedPoll;
+				if (!keepThreadsTopic) threadsTopic = loadedThreadsTopic;
 			} else {
 				baseBody = main;
 				overrides = loadedOverrides;
@@ -946,6 +993,7 @@
 				mastoVisibility = loadedVisibility;
 				mastoCW = loadedCw;
 				mastoPoll = loadedPoll;
+				threadsTopic = loadedThreadsTopic;
 			}
 
 			// Selection precedence: the draft's own saved selection wins; older
@@ -1007,6 +1055,7 @@
 		mastoVisibility: string;
 		mastoCW: string;
 		mastoPoll: PollConfig | null;
+		threadsTopic: string;
 		selectedConnectionIds: string[];
 	};
 
@@ -1017,6 +1066,7 @@
 			mastoVisibility,
 			mastoCW,
 			mastoPoll,
+			threadsTopic,
 			selectedConnectionIds: [...selected]
 		},
 		navigate = true
@@ -1070,6 +1120,7 @@
 			mastoVisibility,
 			mastoCW,
 			mastoPoll,
+			threadsTopic,
 			selectedConnectionIds: [...selected]
 		},
 		// Which variants this post has stored, taken when its save began.
@@ -1082,6 +1133,9 @@
 		// Worker invocation.
 		const writes = PLATFORM_ORDER.map((platform) => {
 			const customized = isPlatformCustomized(snap.overrides, platform);
+			// A topic that is still wrong stays out of the save: the API would
+			// refuse the write and take the rest of the post down with it.
+			const topicTag = platform === 'threads' ? parseThreadsTopic(snap.threadsTopic) : null;
 			const options =
 				platform === 'mastodon'
 					? {
@@ -1089,11 +1143,13 @@
 							spoilerText: snap.mastoCW || undefined,
 							poll: snap.mastoPoll ?? undefined
 						}
-					: {};
+					: topicTag
+						? { topicTag }
+						: {};
 			const mastodonOptions =
 				platform === 'mastodon' &&
 				Boolean(snap.mastoCW || snap.mastoVisibility !== 'public' || snap.mastoPoll);
-			if (customized || mastodonOptions) {
+			if (customized || mastodonOptions || topicTag) {
 				// Mark at dispatch, not on response: if the write commits but
 				// the response is lost, a later save must still be allowed to
 				// DELETE the row instead of leaving a stale variant that would
@@ -1181,6 +1237,7 @@
 			mastoVisibility,
 			mastoCW,
 			mastoPoll,
+			threadsTopic,
 			selectedConnectionIds: [...selected]
 		};
 		try {
@@ -1256,6 +1313,12 @@
 		return true;
 	}
 
+	function topicBlocked(): boolean {
+		if (!threadsTopicError || selectedThreadsAccounts.length === 0) return false;
+		showToast(threadsTopicError, 'warn');
+		return true;
+	}
+
 	// saving=true while the pre-publish persist is in flight. The dialog opens
 	// synchronously (before any await) so the Publish button feels instant;
 	// the confirm button stays disabled until draftId lands.
@@ -1320,7 +1383,7 @@
 			showToast('A post is over the character limit', 'warn');
 			return;
 		}
-		if (pollBlocked()) return;
+		if (pollBlocked() || topicBlocked()) return;
 		// Skip-ask fast path: give instant button feedback (publishing=true)
 		// before the save round-trips, then publish without a dialog.
 		if (skipAsk) {
@@ -1819,7 +1882,7 @@
 			showToast('A post is over the character limit', 'warn');
 			return;
 		}
-		if (pollBlocked()) return;
+		if (pollBlocked() || topicBlocked()) return;
 		const runAt = scheduleValueToIso(scheduleCombined, now);
 		if (!runAt) {
 			showToast('Pick a time in the future', 'warn');
@@ -2869,6 +2932,9 @@
 		if (!target.closest('.masto-options-container')) {
 			isMastoOptionsOpen = false;
 		}
+		if (!target.closest('.threads-options-container')) {
+			isThreadsOptionsOpen = false;
+		}
 		if (!target.closest('.quote-picker-container')) {
 			quotePickerFor = null;
 		}
@@ -2942,6 +3008,7 @@
 		void mastoVisibility;
 		void mastoCW;
 		void mastoPoll;
+		void threadsTopic;
 		void media;
 		if (takeSnapshot() !== savedSnapshot) {
 			dirty = true;
@@ -3014,6 +3081,7 @@
 				isAddOverrideOpen = false;
 				isAccountsPopoverOpen = false;
 				if (isMastoOptionsOpen) isMastoOptionsOpen = false;
+				isThreadsOptionsOpen = false;
 				quotePickerFor = null;
 				return;
 			}
@@ -3237,6 +3305,7 @@
 					onclick={(e) => {
 						e.stopPropagation();
 						isMastoOptionsOpen = !isMastoOptionsOpen;
+						isThreadsOptionsOpen = false;
 					}}
 				>
 					<Settings class="h-3 w-3" /> Mastodon
@@ -3285,6 +3354,89 @@
 									class="w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-900 placeholder:text-stone-500 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 								/>
 							</label>
+						</div>
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		{#if showThreadsOptions && !editLocked}
+			{#if !showMastoOptions}
+				<div class="mx-1 hidden h-4 w-px bg-stone-200 sm:block"></div>
+			{/if}
+			<!-- Below sm the popover spans the toolbar, so a chip at the end of a row cannot push it off screen. -->
+			<div class="threads-options-container sm:relative" data-testid="threads-options">
+				<button
+					type="button"
+					data-testid="threads-settings-toggle"
+					aria-expanded={isThreadsOptionsOpen}
+					class="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-bold whitespace-nowrap transition-colors hover:border-stone-300 hover:bg-stone-100 hover:text-stone-900 {threadsTopicError
+						? 'border-red-300 text-red-600'
+						: 'border-stone-200 text-stone-500'}"
+					onclick={() => (isThreadsOptionsOpen = !isThreadsOptionsOpen)}
+				>
+					<Settings class="h-3 w-3" /> Threads
+					{#if parseThreadsTopic(threadsTopic)}
+						<span class="max-w-[9rem] truncate font-medium" data-testid="threads-topic-chip"
+							>· {parseThreadsTopic(threadsTopic)}</span
+						>
+					{/if}
+				</button>
+
+				{#if isThreadsOptionsOpen}
+					<div
+						class="absolute top-full right-0 left-0 z-40 mt-2 rounded-[1rem] border border-stone-200/80 bg-white p-3 shadow-[0_16px_40px_-12px_rgb(28_25_23/0.15)] sm:right-auto sm:w-64"
+						transition:slide={{ duration: 150 }}
+					>
+						<div class="mb-2">
+							<span class="text-[10px] font-bold tracking-widest text-stone-500 uppercase"
+								>Threads Options</span
+							>
+						</div>
+						<label class="flex flex-col gap-1.5 text-[11px] font-bold text-stone-500">
+							Topic Tag
+							<input
+								type="text"
+								data-testid="threads-topic"
+								value={threadsTopic}
+								placeholder="Optional"
+								aria-label="Topic tag (optional)"
+								aria-invalid={threadsTopicError !== null}
+								aria-describedby={threadsTopicError ? 'threads-topic-error' : undefined}
+								oninput={(e) => {
+									threadsTopic = e.currentTarget.value;
+									markDirty();
+								}}
+								class="w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-900 placeholder:text-stone-500 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+							/>
+						</label>
+						<div class="mt-1.5 flex flex-col gap-1 text-[11px] font-medium text-stone-500">
+							<p
+								class="self-end {threadsTopicLength > THREADS_TOPIC_MAX_CHARS
+									? 'text-red-600'
+									: ''}"
+								data-testid="threads-topic-count"
+							>
+								{threadsTopicLength}/{THREADS_TOPIC_MAX_CHARS}
+							</p>
+							{#if threadsTopicError}
+								<p
+									id="threads-topic-error"
+									data-testid="threads-topic-error"
+									class="text-red-600"
+									role="alert"
+								>
+									{threadsTopicError}
+								</p>
+							{/if}
+							{#if threadsPostCount > 1}
+								<p data-testid="threads-topic-first-post">Applies to the first post.</p>
+							{/if}
+							{#if zernioThreadsSelected}
+								<p data-testid="threads-topic-zernio">
+									Not sent to accounts connected through Zernio.
+								</p>
+							{/if}
 						</div>
 					</div>
 				{/if}

@@ -92,6 +92,8 @@ reset button re-syncs it to the Global text.
 With a Mastodon account selected, **Mastodon Options** sets the visibility
 (Public, Unlisted, Followers, Direct) and an optional content warning.
 
+With a Threads account selected, **Threads Options** sets an optional topic tag, the single clickable topic Threads shows on a post. It takes up to 50 characters, without `.` or `&`, and a `#` in front is dropped. In a thread it goes on the first post. Accounts connected through [Zernio](zernio.md) don't get it yet.
+
 ## Choosing destinations
 
 The accounts button in the dock (**N selected**) opens the list of connected

@@ -303,6 +303,21 @@ describe('MCP protocol client through the deployed route handler', () => {
 			})
 		);
 		expect(variant.variant).toMatchObject({ platform: 'mastodon', body: 'variant text' });
+		const tagged = structured(
+			await client.callTool({
+				name: 'set_draft_variant',
+				arguments: { draftId, platform: 'threads', options: { topicTag: 'AI Tools' } }
+			})
+		);
+		expect(tagged.variant).toMatchObject({
+			platform: 'threads',
+			optionsJson: { topicTag: 'AI Tools' }
+		});
+		const refused = await client.callTool({
+			name: 'set_draft_variant',
+			arguments: { draftId, platform: 'threads', options: { topicTag: 'a&b' } }
+		});
+		expect(refused.isError).toBe(true);
 		expect(
 			(
 				structured(await client.callTool({ name: 'get_draft', arguments: { draftId } }))

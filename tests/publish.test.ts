@@ -6,6 +6,7 @@ import {
 	connections,
 	draftMedia,
 	drafts,
+	draftVariants,
 	publishAttempts,
 	publishTargets,
 	users
@@ -312,6 +313,83 @@ describe('publishTarget integration', () => {
 		const [row] = await db.select().from(publishTargets).where(eq(publishTargets.id, targetId));
 		expect(row?.status).toBe('published');
 		expect(row?.remotePostId).toBeNull();
+	});
+
+	it('sends a saved topic tag to Threads and to no other platform', async () => {
+		const now = new Date();
+		const taggedDraft = await extraDraft('tagged post');
+		await db.insert(draftVariants).values({
+			id: newId(),
+			draftId: taggedDraft,
+			platform: 'threads',
+			body: null,
+			optionsJson: '{"topicTag":"  #AI Tools "}',
+			createdAt: now,
+			updatedAt: now
+		});
+		const connThreads = newId();
+		await db.insert(connections).values({
+			id: connThreads,
+			userId,
+			platform: 'threads',
+			handle: 'someone',
+			credentialsEncrypted: await encryptJson(
+				{ accessToken: 'tok', threadsUserId: '123' },
+				TEST_ENV.APP_ENCRYPTION_KEY
+			),
+			metaJson: '{}',
+			status: 'active',
+			createdAt: now,
+			updatedAt: now
+		});
+		const target = async (connectionId: string) => {
+			const id = newId();
+			await db.insert(publishTargets).values({
+				id,
+				draftId: taggedDraft,
+				connectionId,
+				status: 'pending',
+				attemptCount: 0,
+				createdAt: now,
+				updatedAt: now
+			});
+			return id;
+		};
+
+		let threadsBody = '';
+		const threads = await publishTarget(db, TEST_ENV, store, await target(connThreads), {
+			fetchImpl: mockFetch({
+				'/threads_publish': () => Response.json({ id: 'post-1' }),
+				'/123/threads': async (req) => {
+					threadsBody = await req.text();
+					return Response.json({ id: 'container-1' });
+				}
+			})
+		});
+		expect(threads.status).toBe('published');
+		const sent = new URLSearchParams(threadsBody);
+		expect(sent.get('text')).toBe('tagged post');
+		expect(sent.get('topic_tag')).toBe('AI Tools');
+
+		let blueskyBody = '';
+		const bluesky = await publishTarget(db, TEST_ENV, store, await target(connBsky), {
+			fetchImpl: mockFetch({
+				'com.atproto.server.createSession': () =>
+					Response.json({
+						accessJwt: 'a',
+						refreshJwt: 'r',
+						did: 'did:plc:test',
+						handle: 'test.bsky.social'
+					}),
+				'com.atproto.repo.createRecord': async (req) => {
+					blueskyBody = await req.text();
+					return Response.json({ uri: 'at://x/y/z', cid: 'c' });
+				}
+			})
+		});
+		expect(bluesky.status).toBe('published');
+		expect(blueskyBody).toContain('tagged post');
+		expect(blueskyBody).not.toContain('AI Tools');
 	});
 
 	it('publishes to bluesky with mocked HTTP', async () => {
@@ -897,6 +975,59 @@ describe('buildNormalizedPost per-segment media', () => {
 		expect(post.text).toBe('');
 		expect(post.media?.length).toBe(1);
 		expect(post.media![0].storageKey).toBe(key);
+	});
+
+	async function draftWithThreadsOptions(baseBody: string, optionsJson?: string) {
+		const now = new Date();
+		const draftId = newId();
+		await db.insert(drafts).values({
+			id: draftId,
+			userId,
+			baseBody,
+			status: 'draft',
+			createdAt: now,
+			updatedAt: now
+		});
+		if (optionsJson) {
+			await db.insert(draftVariants).values({
+				id: newId(),
+				draftId,
+				platform: 'threads',
+				body: null,
+				optionsJson,
+				createdAt: now,
+				updatedAt: now
+			});
+		}
+		return draftId;
+	}
+
+	it('publishes the main text with a tag-only Threads variant', async () => {
+		const draftId = await draftWithThreadsOptions('main text', '{"topicTag":"AI Tools"}');
+		const post = await buildNormalizedPost(db, draftId, 'threads');
+		expect(post.text).toBe('main text');
+		expect(post.options?.topicTag).toBe('AI Tools');
+	});
+
+	it('normalizes a topic the API stored as typed', async () => {
+		const draftId = await draftWithThreadsOptions('main text', '{"topicTag":"  #AI   Tools "}');
+		const post = await buildNormalizedPost(db, draftId, 'threads');
+		expect(post.options?.topicTag).toBe('AI Tools');
+	});
+
+	it('gives every segment the same options, leaving the first-post rule to Threads', async () => {
+		const draftId = await draftWithThreadsOptions('one\n---\ntwo', '{"topicTag":"Launch"}');
+		const post = await buildNormalizedPost(db, draftId, 'threads');
+		expect(post.thread).toHaveLength(2);
+		expect(post.options?.topicTag).toBe('Launch');
+	});
+
+	it('has no topic without one, or with a stored value Meta would refuse', async () => {
+		for (const optionsJson of [undefined, '{}', '{"topicTag":""}', '{"topicTag":"a.b"}']) {
+			const draftId = await draftWithThreadsOptions('main text', optionsJson);
+			const post = await buildNormalizedPost(db, draftId, 'threads');
+			expect(post.options?.topicTag).toBeUndefined();
+		}
 	});
 });
 

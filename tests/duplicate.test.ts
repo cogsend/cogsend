@@ -120,6 +120,29 @@ describe('POST /api/drafts/[id]/duplicate', () => {
 		return id;
 	}
 
+	it('keeps a Threads topic tag on the copy', async () => {
+		const sourceId = await seedSource();
+		const now = new Date();
+		await db.insert(draftVariants).values({
+			id: newId(),
+			draftId: sourceId,
+			platform: 'threads',
+			body: null,
+			optionsJson: '{"topicTag":"AI Tools"}',
+			createdAt: now,
+			updatedAt: now
+		});
+		const res = await call(sourceId);
+		expect(res.status).toBe(201);
+		const { draft } = (await res.json()) as {
+			draft: { variants: Array<{ platform: string; body: string | null; optionsJson: unknown }> };
+		};
+		expect(draft.variants.find((v) => v.platform === 'threads')).toMatchObject({
+			body: null,
+			optionsJson: { topicTag: 'AI Tools' }
+		});
+	});
+
 	it('copies content, variants, and media bytes without publishing state', async () => {
 		const sourceId = await seedSource({ withMedia: true, withTarget: true });
 		const res = await call(sourceId);

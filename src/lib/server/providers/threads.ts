@@ -731,13 +731,14 @@ export const threadsProvider: PlatformProvider = {
 		// One thread segment = one post. Segments after the first reply to the
 		// previously published post via reply_to_id, forming a thread chain
 		// (per POST /{threads-user-id}/threads: reply_to_id is required when
-		// replying). Carousel children are plain media items, never replies.
+		// replying). Carousel children are plain media items, never replies, so
+		// they never take postParams either.
 		// Signed URLs are minted inside this helper so every retry hands Meta
 		// a fresh, unexpired link instead of reusing a rejected one.
 		async function createMediaContainer(
 			text: string,
 			media: NonNullable<NormalizedPost['media']>,
-			reply: Record<string, string>
+			postParams: Record<string, string>
 		): Promise<string> {
 			if (!opts?.mediaUrlFor) throw new Error('Threads image posts need a media signer');
 			const urls: string[] = [];
@@ -749,7 +750,7 @@ export const threadsProvider: PlatformProvider = {
 				const params: Record<string, string> = {
 					media_type: 'IMAGE',
 					image_url: urls[0],
-					...reply
+					...postParams
 				};
 				if (text) params.text = text;
 				return createContainer(params);
@@ -770,7 +771,7 @@ export const threadsProvider: PlatformProvider = {
 			const params: Record<string, string> = {
 				media_type: 'CAROUSEL',
 				children: readyChildren.join(','),
-				...reply
+				...postParams
 			};
 			if (text) params.text = text;
 			return createContainer(params);
@@ -786,7 +787,7 @@ export const threadsProvider: PlatformProvider = {
 			segmentIndex: number,
 			text: string,
 			video: NonNullable<NormalizedPost['media']>[number],
-			reply: Record<string, string>,
+			postParams: Record<string, string>,
 			fresh = false
 		): Promise<string> {
 			if (!video.storageKey) throw new Error('Threads video is missing its storage key');
@@ -799,7 +800,7 @@ export const threadsProvider: PlatformProvider = {
 				const params: Record<string, string> = {
 					media_type: 'VIDEO',
 					video_url: await opts.mediaUrlFor(video.storageKey),
-					...reply
+					...postParams
 				};
 				if (text) params.text = text;
 				if (video.alt) params.alt_text = video.alt;
@@ -834,7 +835,7 @@ export const threadsProvider: PlatformProvider = {
 					return null;
 				}
 			);
-			if (expired) return readyVideoContainer(segmentIndex, text, video, reply, true);
+			if (expired) return readyVideoContainer(segmentIndex, text, video, postParams, true);
 			if (ready) return ready;
 			throw processingError('Threads', {
 				segment: segmentIndex,
@@ -849,20 +850,25 @@ export const threadsProvider: PlatformProvider = {
 			media: NonNullable<NormalizedPost['media']>,
 			replyToId: string | undefined
 		): Promise<string> {
-			const reply: Record<string, string> = replyToId ? { reply_to_id: replyToId } : {};
+			// A topic labels the whole post, so only the thread's root carries it.
+			const topicTag = segmentIndex === 0 ? content.options?.topicTag : undefined;
+			const postParams: Record<string, string> = {
+				...(replyToId ? { reply_to_id: replyToId } : {}),
+				...(topicTag ? { topic_tag: topicTag } : {})
+			};
 			const video = segmentVideo(media);
 			if (video) {
-				return publishContainer(await readyVideoContainer(segmentIndex, text, video, reply));
+				return publishContainer(await readyVideoContainer(segmentIndex, text, video, postParams));
 			}
 			let containerId: string;
 			if (media.length === 0) {
-				containerId = await createContainer({ media_type: 'TEXT', text, ...reply });
+				containerId = await createContainer({ media_type: 'TEXT', text, ...postParams });
 			} else {
 				let attempts = 0;
 				let lastError: unknown = null;
 				for (;;) {
 					try {
-						containerId = await createMediaContainer(text, media, reply);
+						containerId = await createMediaContainer(text, media, postParams);
 						break;
 					} catch (err) {
 						lastError = err;

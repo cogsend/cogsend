@@ -11,6 +11,7 @@ import {
 import { decodeImageDimensions } from './image-dimensions';
 import { coverKey, type StoredImageMeta, type StoredVideoMeta } from './media';
 import { parsePollConfig } from '#lib/domain/poll.js';
+import { parseThreadsTopic } from '#lib/domain/threads-topic.js';
 import { signPublicMediaUrl, type PublicMediaVariant } from './public-media';
 import { resolvePublishSegments } from '#lib/domain/thread-segments.js';
 import { targetRecordKey } from '#lib/domain/tid.js';
@@ -166,7 +167,8 @@ export async function buildNormalizedPost(
 				: 'public',
 		spoilerText: typeof options.spoilerText === 'string' ? options.spoilerText : undefined,
 		langs: Array.isArray(options.langs) ? (options.langs as string[]) : undefined,
-		poll: parsePollConfig(options.poll) ?? undefined
+		poll: parsePollConfig(options.poll) ?? undefined,
+		topicTag: parseThreadsTopic(options.topicTag) ?? undefined
 	};
 
 	const segmentsOpt = options.threadSegments as string[] | undefined;

@@ -73,6 +73,27 @@ describe('PUT /api/drafts/[id]/variants', () => {
 				.where(and(eq(draftVariants.draftId, draftId), eq(draftVariants.platform, platform)))
 		)[0];
 
+	it('keeps a topic tag with no custom text', async () => {
+		const res = await put({ platform: 'threads', body: null, options: { topicTag: 'AI Tools' } });
+		expect(res.status).toBe(200);
+		const row = await stored('threads');
+		expect(row?.body).toBeNull();
+		expect(JSON.parse(row?.optionsJson ?? '{}')).toEqual({ topicTag: 'AI Tools' });
+	});
+
+	it('refuses a topic tag Threads would refuse', async () => {
+		for (const topicTag of ['a.b', 'a&b', 'x'.repeat(51), 42]) {
+			const res = await put({ platform: 'threads', body: null, options: { topicTag } });
+			expect(res.status).toBe(400);
+		}
+	});
+
+	it('refuses a topic tag on another platform', async () => {
+		const res = await put({ platform: 'bluesky', body: null, options: { topicTag: 'AI' } });
+		expect(res.status).toBe(400);
+		expect(await res.json()).toMatchObject({ error: 'Topic tags are only for Threads' });
+	});
+
 	it('accepts a custom body', async () => {
 		const res = await put({ platform: 'bluesky', body: 'custom text', options: {} });
 		expect(res.status).toBe(200);

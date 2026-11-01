@@ -46,7 +46,7 @@ A failed request answers a JSON object with an `error` property.
 - `POST /api/drafts`: `{"title?", "baseBody?", "selectedConnectionIds?"}` answers `201` with `{draft}`.
 - `PATCH /api/drafts/:id`: edit the title, body or `selectedConnectionIds`. **409** while publishing.
 - `DELETE /api/drafts/:id`: delete a draft.
-- `PUT /api/drafts/:id/variants`: `{"platform", "body?", "options?"}` sets one platform's copy.
+- `PUT /api/drafts/:id/variants`: `{"platform", "body?", "options?"}` sets one platform's copy. For `threads`, `options.topicTag` sets the post's topic tag: up to 50 characters, without `.` or `&`. `options` replaces what was stored, so send everything you want kept.
 - `DELETE /api/drafts/:id/variants?platform=`: remove that copy.
 - `POST /api/drafts/:id/media`: upload files, see [Media](#media).
 - `PATCH /api/drafts/:id/media`: `{"mediaId", "altText?", "segmentIndex?"}` changes an attachment.

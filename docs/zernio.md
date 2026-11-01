@@ -43,6 +43,7 @@ Disconnecting an account in CogSend does not remove it from Zernio. Remove it th
 | Posts and retries | The same. A post is only marked published once Zernio confirms it, and a failure shows Zernio's reason.                                          |
 | Duplicates        | Zernio refuses the same text to the same account within 24 hours. The post fails with that reason and is not retried.                            |
 | Tokens            | Zernio keeps and refreshes them. If a platform revokes one, the account shows as expired here.                                                   |
+| Topic tags        | Not sent yet. A Threads topic tag only reaches accounts connected directly.                                                                      |
 
 ## Troubleshooting
 
