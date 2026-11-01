@@ -23,7 +23,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const user = locals.user;
 	return ok({
 		user: isFullyVerified(user)
-			? { id: user!.id, email: user!.email, timezone: user!.timezone }
+			? { id: user!.id, email: user!.email, timezone: user!.timezone, role: user!.role }
 			: null,
 		needsEnroll: needsTotpEnroll(user),
 		totpEnabled: Boolean(user?.totpEnabled)

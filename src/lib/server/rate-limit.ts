@@ -46,6 +46,10 @@ export function isRateLimitedPath(path: string): boolean {
  */
 export function rateLimitBucket(path: string): string | null {
 	if (isRateLimitedPath(path)) return '';
+	// Sign-up has a bucket of its own, so a burst of registrations from one
+	// network cannot spend the sign-in attempts of the people already on it.
+	const trimmed = path.length > 1 ? path.replace(/\/+$/, '') : path;
+	if (trimmed === '/api/auth/signup' || trimmed === '/api/auth/signup/verify') return 'signup:';
 	if (path.startsWith('/p/')) return path.includes('/media/') ? 'share-media:' : 'share:';
 	return null;
 }

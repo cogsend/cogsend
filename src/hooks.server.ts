@@ -16,6 +16,7 @@ import {
 	cookieSecureFlag,
 	getAdminUser,
 	getSessionUser,
+	isAdmin,
 	isFullyVerified,
 	needsTotpEnroll
 } from '#lib/server/auth.js';
@@ -47,6 +48,9 @@ import {
 
 export function isPublicPath(path: string): boolean {
 	if (path === '/login' || path === '/login/setup-2fa' || path === '/login/verify') return true;
+	// Sign-up answers 404 by itself while REGISTRATION is off (see
+	// #lib/server/registration), so listing it here opens nothing by default.
+	if (path === '/signup' || path === '/signup/verify') return true;
 	if (
 		path === '/api/health' ||
 		path.startsWith('/api/media/public/') ||
@@ -62,6 +66,8 @@ export function isPublicPath(path: string): boolean {
 	if (
 		path === '/api/auth/login' ||
 		path === '/api/auth/claim' ||
+		path === '/api/auth/signup' ||
+		path === '/api/auth/signup/verify' ||
 		path === '/api/auth/logout' ||
 		path === '/api/auth/me'
 	)
@@ -69,6 +75,15 @@ export function isPublicPath(path: string): boolean {
 	if (path.startsWith('/api/auth/totp/enroll') || path.startsWith('/api/auth/totp/verify'))
 		return true;
 	return false;
+}
+
+export function isAdminPath(path: string): boolean {
+	return (
+		path === '/admin' ||
+		path.startsWith('/admin/') ||
+		path === '/api/admin' ||
+		path.startsWith('/api/admin/')
+	);
 }
 
 function withPageSecurity(path: string, response: Response, secure: boolean): Response {
@@ -260,7 +275,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 					: verified
 						? await first(db.select().from(users).where(eq(users.id, verified.userId)))
 						: null;
-			if (verified && userRow) {
+			// A suspended or waiting account's keys stop working without being
+			// revoked, so approving it again brings them back.
+			if (verified && userRow && userRow.status === 'active') {
 				event.locals.user = asMachineUser(userRow);
 				event.locals.authMethod = 'bearer';
 				event.locals.authCredential = 'personal_api_key';
@@ -383,6 +400,14 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (!isFullyVerified(user) && !isPublicPath(path)) {
 		if (path.startsWith('/api/')) return deny(path, 401, { error: 'Unauthorized' }, secureRequest);
 		return deny(path, 303, { error: 'Unauthorized' }, secureRequest, '/login');
+	}
+
+	// The routes check the role themselves too; this keeps a member from even
+	// loading the admin pages.
+	if (isAdminPath(path) && !isAdmin(user)) {
+		if (path.startsWith('/api/'))
+			return deny(path, 403, { error: 'Only an admin can do that' }, secureRequest);
+		return deny(path, 303, { error: 'Forbidden' }, secureRequest, '/');
 	}
 
 	return withPageSecurity(path, await resolve(event), secureRequest);

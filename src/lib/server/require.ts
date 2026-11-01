@@ -1,6 +1,6 @@
 import { hasApiScope, type ApiScope } from '#lib/domain/api-scopes.js';
 import { anySecretMatches, extractBearerToken } from '#lib/domain/bearer.js';
-import { isFullyVerified, type SessionUser } from './auth';
+import { isAdmin, isFullyVerified, type SessionUser } from './auth';
 import { unauthorized } from './http';
 import { verifyTickToken } from './tick-token';
 import type { AppDb } from './db/client';
@@ -20,6 +20,28 @@ export function requireSession(
 ): SessionUser {
 	if (authMethod !== 'session' || !isFullyVerified(user)) unauthorized();
 	return user!;
+}
+
+function forbidden(): never {
+	throw Object.assign(new Error('Only an admin can do that'), { status: 403 });
+}
+
+/** Instance-wide controls: settings, OAuth app credentials, the scheduler's
+ *  admin actions, the updater and user management. Members get 403. */
+export function requireAdmin(user: SessionUser | null): SessionUser {
+	const verified = requireUser(user);
+	if (!isAdmin(verified)) forbidden();
+	return verified;
+}
+
+/** requireAdmin plus requireSession: no bearer credential, even the admin's. */
+export function requireAdminSession(
+	user: SessionUser | null,
+	authMethod: 'session' | 'bearer' | null
+): SessionUser {
+	const verified = requireSession(user, authMethod);
+	if (!isAdmin(verified)) forbidden();
+	return verified;
 }
 
 export function assertScheduler(

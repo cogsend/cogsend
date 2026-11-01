@@ -78,3 +78,9 @@ APP_ENCRYPTION_KEY=
 # the randomness in the object key, so keep the origin unlisted and treat a
 # leaked URL as permanent. Unset it to go back to short-lived signed URLs.
 # MEDIA_PUBLIC_BASE_URL=https://media.example.com
+# Optional. Public sign-up, off unless set: `waitlist` (every new account waits
+# for an admin's approval) or `open` (new accounts are active until
+# MAX_ACTIVE_USERS active accounts exist, then they wait). Unset or `off` keeps
+# the instance single-user. See docs/multi-user.md.
+# REGISTRATION=waitlist
+# MAX_ACTIVE_USERS=10

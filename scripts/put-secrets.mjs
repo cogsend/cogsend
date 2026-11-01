@@ -51,7 +51,9 @@ const wanted = keys.length
 			'RESEND_API_KEY',
 			'NOTIFY_EMAIL',
 			'NOTIFY_FROM',
-			'SUBREQUEST_LIMIT'
+			'SUBREQUEST_LIMIT',
+			'REGISTRATION',
+			'MAX_ACTIVE_USERS'
 		];
 
 // One read, one parser: `parseDevVars` answers "what would the Worker load",

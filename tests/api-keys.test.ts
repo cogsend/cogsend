@@ -201,7 +201,8 @@ describe('api keys', () => {
 			email: 'e',
 			timezone: 'UTC',
 			totpEnabled: true,
-			mfaVerified: true
+			mfaVerified: true,
+			role: 'admin' as const
 		};
 		expect(requireSession(verified, 'session')).toBe(verified);
 		expect(() => requireSession(verified, 'bearer')).toThrowError();

@@ -130,13 +130,26 @@ export function clientAddressBucket(ip: string | null | undefined): string | und
 	return `${groups.slice(0, 4).join(':')}::/64`;
 }
 
+/**
+ * `addressUserId` is the row the per-address count is kept on. The sign-in form
+ * passes the instance owner's id for every account, so one address gets eight
+ * wrong passwords across the whole instance rather than eight per account:
+ * otherwise a guesser locked out on one address could probe a second email and
+ * read "not locked" as "that account exists". On a single-user instance it is
+ * the same row either way.
+ */
+export type PasswordGateOptions = { addressUserId?: string };
+
 export async function assertPasswordGateOpen(
 	db: AppDb,
 	env: AppEnv,
 	userId: string,
-	ip: string | null | undefined
+	ip: string | null | undefined,
+	opts: PasswordGateOptions = {}
 ) {
-	await assertAuthGateOpen(db, env, userId, 'password', { scope: clientAddressBucket(ip) });
+	await assertAuthGateOpen(db, env, opts.addressUserId ?? userId, 'password', {
+		scope: clientAddressBucket(ip)
+	});
 	await assertAuthGateOpen(db, env, userId, 'password-all', { max: PASSWORD_GATE_GLOBAL_MAX });
 }
 
@@ -154,12 +167,14 @@ export async function recordPasswordFailure(
 	env: AppEnv,
 	userId: string,
 	ip: string | null | undefined,
-	opts: { knownEmail?: boolean } = {}
+	opts: { knownEmail?: boolean } & PasswordGateOptions = {}
 ): Promise<{ locked: boolean }> {
 	const knownEmail = opts.knownEmail ?? true;
 	const scope = clientAddressBucket(ip);
 	if (!knownEmail && !scope) return { locked: false };
-	const own = await recordAuthGateFailure(db, env, userId, 'password', { scope });
+	const own = await recordAuthGateFailure(db, env, opts.addressUserId ?? userId, 'password', {
+		scope
+	});
 	const all = await recordAuthGateFailure(db, env, userId, 'password-all', {
 		max: PASSWORD_GATE_GLOBAL_MAX,
 		scope: knownEmail ? undefined : 'unknown-email'
@@ -172,9 +187,12 @@ export async function clearPasswordGate(
 	db: AppDb,
 	env: AppEnv,
 	userId: string,
-	ip: string | null | undefined
+	ip: string | null | undefined,
+	opts: PasswordGateOptions = {}
 ) {
-	await clearAuthGate(db, env, userId, 'password', { scope: clientAddressBucket(ip) });
+	await clearAuthGate(db, env, opts.addressUserId ?? userId, 'password', {
+		scope: clientAddressBucket(ip)
+	});
 	await clearAuthGate(db, env, userId, 'password-all');
 }
 

@@ -1,4 +1,4 @@
-import { and, eq, lt, ne } from 'drizzle-orm';
+import { and, asc, eq, lt, ne } from 'drizzle-orm';
 import {
 	isSessionIdle,
 	nextSessionExpiry,
@@ -9,6 +9,7 @@ import {
 } from '#lib/domain/session-cookie.js';
 import { randomHex } from '#lib/domain/bytes.js';
 import { parseProfileSettings } from '#lib/domain/profile-settings.js';
+import type { UserRole } from '#lib/domain/registration.js';
 import { hmacHex, verifyPassword } from './crypto';
 import { first, newId, type AppDb } from './db/client';
 import { sessions, users } from './db/schema';
@@ -22,6 +23,8 @@ export type SessionUser = {
 	timezone: string;
 	totpEnabled: boolean;
 	mfaVerified: boolean;
+	/** Only `admin` reaches instance settings, the updater and the Users page. */
+	role: UserRole;
 	/** Filled by the session read. Omitted on hand-built callers (tests, machine stubs). */
 	displayName?: string | null;
 	profilePictureUrl?: string;
@@ -31,11 +34,17 @@ export function isFullyVerified(user: SessionUser | null): boolean {
 	return Boolean(user && user.totpEnabled && user.mfaVerified);
 }
 
-/** Session-shaped admin for Bearer API_TOKEN requests. Does not change the D1 user row. */
+export function isAdmin(user: SessionUser | null | undefined): boolean {
+	return user?.role === 'admin';
+}
+
+/** Session-shaped user for Bearer requests (API_TOKEN, personal keys). Does not
+ *  change the D1 user row. */
 export function asMachineUser(admin: {
 	id: string;
 	email: string;
 	timezone: string;
+	role: string;
 	displayName?: string | null;
 	settingsJson?: string | null;
 }): SessionUser {
@@ -45,6 +54,7 @@ export function asMachineUser(admin: {
 		timezone: admin.timezone,
 		totpEnabled: true,
 		mfaVerified: true,
+		role: admin.role === 'admin' ? 'admin' : 'member',
 		displayName: admin.displayName ?? null,
 		profilePictureUrl: parseProfileSettings(admin.settingsJson).profilePictureUrl
 	};
@@ -85,9 +95,35 @@ export async function needsSetup(db: AppDb): Promise<boolean> {
 	return !row;
 }
 
-/** The single account, or null before `npm run setup` created it. */
+/**
+ * The instance's owner: the oldest admin, or null before `npm run setup`
+ * created the account. On a single-user instance that is the only row. The
+ * env API_TOKEN acts as this account, and the sign-in lockout keeps its
+ * per-address counters on it (see api/auth/login).
+ */
 export async function getAdminUser(db: AppDb) {
-	return (await first(db.select().from(users).limit(1))) ?? null;
+	return (
+		(await first(
+			db
+				.select()
+				.from(users)
+				.where(eq(users.role, 'admin'))
+				.orderBy(asc(users.createdAt), asc(users.id))
+				.limit(1)
+		)) ?? null
+	);
+}
+
+export async function getUserById(db: AppDb, id: string) {
+	return (await first(db.select().from(users).where(eq(users.id, id)))) ?? null;
+}
+
+/** Sessions are only ever minted for, and only ever honoured for, an active
+ *  account: a pending, unverified or suspended one cannot use the app. */
+export function assertActiveAccount(user: { status?: string | null }) {
+	if (user.status && user.status !== 'active') {
+		throw Object.assign(new Error('Unauthorized'), { status: 401 });
+	}
 }
 
 export async function createSession(
@@ -113,6 +149,7 @@ export async function createSession(
 		pwdFp: await passwordFingerprint(env, passwordHash),
 		lastSeenAt: now
 	});
+	await db.update(users).set({ lastLoginAt: now }).where(eq(users.id, userId));
 	return { raw, maxAge };
 }
 
@@ -162,7 +199,9 @@ export async function getSessionUser(
 				mfaVerified: sessions.mfaVerified,
 				passwordHash: users.passwordHash,
 				displayName: users.displayName,
-				settingsJson: users.settingsJson
+				settingsJson: users.settingsJson,
+				role: users.role,
+				status: users.status
 			})
 			.from(sessions)
 			.innerJoin(users, eq(sessions.userId, users.id))
@@ -188,6 +227,12 @@ export async function getSessionUser(
 		await db.delete(sessions).where(eq(sessions.id, row.sessionId));
 		return null;
 	}
+	// Suspending an account revokes its sessions too; this catches one minted
+	// in the moment between the two.
+	if (row.status && row.status !== 'active') {
+		await db.delete(sessions).where(eq(sessions.id, row.sessionId));
+		return null;
+	}
 
 	const user: SessionUser = {
 		id: row.userId,
@@ -195,6 +240,7 @@ export async function getSessionUser(
 		timezone: row.timezone,
 		totpEnabled: Boolean(row.totpEnabled),
 		mfaVerified: Boolean(row.mfaVerified),
+		role: row.role === 'admin' ? 'admin' : 'member',
 		displayName: row.displayName ?? null,
 		profilePictureUrl: parseProfileSettings(row.settingsJson).profilePictureUrl
 	};

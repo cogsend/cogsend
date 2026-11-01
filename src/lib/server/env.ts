@@ -45,7 +45,12 @@ const envSchema = z.object({
 	// crawler fetch. Deliberately not schema-validated: a bad value degrades
 	// to the signed route (publicMediaUrlFor) instead of 500ing every
 	// request over an optional optimization.
-	MEDIA_PUBLIC_BASE_URL: z.string().optional()
+	MEDIA_PUBLIC_BASE_URL: z.string().optional(),
+	// Public sign-up: `off` (the default, a single-user instance), `waitlist` or
+	// `open`, and the active-account cap for `open`. Read through
+	// #lib/domain/registration, which treats anything unrecognised as `off`.
+	REGISTRATION: z.string().optional(),
+	MAX_ACTIVE_USERS: z.string().optional()
 });
 
 export type AppEnv = z.infer<typeof envSchema> & {
@@ -163,7 +168,9 @@ export async function envFromPlatform(
 		NOTIFY_FROM: asString(platformEnv?.NOTIFY_FROM) ?? fallback.NOTIFY_FROM,
 		MEDIA_PUBLIC_BASE_URL:
 			asString(platformEnv?.MEDIA_PUBLIC_BASE_URL) ?? fallback.MEDIA_PUBLIC_BASE_URL,
-		SKIP_TOTP: asString(platformEnv?.SKIP_TOTP) ?? fallback.SKIP_TOTP
+		SKIP_TOTP: asString(platformEnv?.SKIP_TOTP) ?? fallback.SKIP_TOTP,
+		REGISTRATION: asString(platformEnv?.REGISTRATION) ?? fallback.REGISTRATION,
+		MAX_ACTIVE_USERS: asString(platformEnv?.MAX_ACTIVE_USERS) ?? fallback.MAX_ACTIVE_USERS
 	};
 	// AUTH_SECRET and SCHEDULER_SECRET come from the master key unless they were
 	// provided: that leaves APP_ENCRYPTION_KEY as the only secret a deployment

@@ -10,7 +10,8 @@ const verifiedUser = (id: string) => ({
 	email: 'mcp@localhost',
 	timezone: 'UTC',
 	totpEnabled: true,
-	mfaVerified: true
+	mfaVerified: true,
+	role: 'admin' as const
 });
 
 describe('MCP authentication', () => {

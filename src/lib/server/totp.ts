@@ -8,7 +8,7 @@ import {
 	secretFromBase32,
 	verifyTotp
 } from '#lib/domain/totp.js';
-import { createSession, revokeOtherSessions, type SessionUser } from './auth';
+import { assertActiveAccount, createSession, revokeOtherSessions, type SessionUser } from './auth';
 import { timingSafeEqual, utf8Bytes } from '#lib/domain/bytes.js';
 import { decryptSecret, encryptSecret, hmacHex } from './crypto';
 import { first, newId, type AppDb } from './db/client';
@@ -183,6 +183,7 @@ export async function enrollConfirm(db: AppDb, env: AppEnv, rawToken: string, co
 
 	const user = await first(db.select().from(users).where(eq(users.id, challenge.userId)));
 	if (!user) throw Object.assign(new Error('Unauthorized'), { status: 401 });
+	assertActiveAccount(user);
 	// Cross-challenge throttle: per-challenge bumpFailure resets when a fresh
 	// challenge is minted, so count TOTP guesses globally per user too.
 	await assertAuthGateOpen(db, env, user.id, 'totp-gate');
@@ -328,6 +329,7 @@ export async function verifyMfa(db: AppDb, env: AppEnv, rawToken: string, code: 
 	if (!user?.totpEnabled || !user.totpSecretEnc) {
 		throw Object.assign(new Error('Unauthorized'), { status: 401 });
 	}
+	assertActiveAccount(user);
 	// Cross-challenge throttle (see enrollConfirm): fresh login challenges must
 	// not reset the global TOTP guess budget.
 	await assertAuthGateOpen(db, env, user.id, 'totp-gate');
