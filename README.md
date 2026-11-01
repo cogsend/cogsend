@@ -123,6 +123,7 @@ Also published, with search, at [cogsend.com/docs](https://cogsend.com/docs/).
 - [Scheduling](docs/scheduling.md): the cron trigger, the free-plan trigger limit, external pingers, failure emails
 - [Domains and URLs](docs/domains.md): the workers.dev URL, a custom domain, changing the hostname
 - [Cloudflare Access](docs/access.md): putting an extra gate in front of an instance
+- [Multi-user](docs/multi-user.md): opt-in public sign-up with a waitlist, a cap and invites, roles, and what an operator takes on
 - [Backups](docs/backups.md): D1 Time Travel, exporting the database, copying the bucket
 - [Troubleshooting](docs/troubleshooting.md): the errors people actually hit, and what fixes each
 - [Development](docs/development.md): local setup, the checks that must pass, code expectations

@@ -32,6 +32,7 @@ cannot reach anything except the tick (see [Scheduling](scheduling.md)).
 | `RESEND_API_KEY`, `NOTIFY_EMAIL`, `NOTIFY_FROM` | failure digests by email                                      |
 | `MEDIA_PUBLIC_BASE_URL`                         | serving Meta's crawler from a public media origin (see below) |
 | `SUBREQUEST_LIMIT`                              | publishing more per tick on a paid Workers plan (see below)   |
+| `REGISTRATION`, `MAX_ACTIVE_USERS`              | public sign-up and its cap ([Multi-user](multi-user.md))      |
 
 The OAuth client ids and secrets can also be entered in the accounts dialog instead, where they are stored in D1, encrypted with `APP_ENCRYPTION_KEY`; a Worker secret, when set, takes precedence over the dialog's value ([OAuth apps](oauth-apps.md)).
 
@@ -148,17 +149,19 @@ Each deploy records the account it went to in `.wrangler/deployed-accounts.json`
 
 ## The login
 
-There is one account, created one of two ways: `npm run setup` writes it into D1 from the terminal, before the deployment answers its first request, or, on an instance that has no account yet, the login page creates it once you enter the deployment's `APP_ENCRYPTION_KEY`. Only someone holding that key can do the second, so a fresh instance cannot be claimed by whoever finds its URL first, and once the account exists the form is gone. Only a PBKDF2-SHA256 hash is stored, and the password never becomes a Worker secret.
+There is one account (unless you opt into [public sign-up](multi-user.md), in which case this one is the admin), created one of two ways: `npm run setup` writes it into D1 from the terminal, before the deployment answers its first request, or, on an instance that has no account yet, the login page creates it once you enter the deployment's `APP_ENCRYPTION_KEY`. Only someone holding that key can do the second, so a fresh instance cannot be claimed by whoever finds its URL first, and once the account exists the form is gone. Only a PBKDF2-SHA256 hash is stored, and the password never becomes a Worker secret.
 
 **Settings → Login** changes the email or the password. The current password is
 required, and a new password signs every device out.
 
 Forgot the password? `npm run admin:reset` from your checkout writes a new one and
 revokes every session, leaving the account, its drafts, connections and keys
-untouched. Add `--all` when the authenticator is gone too: that clears the
-enrolled device, and the next sign-in walks through enrollment again with a fresh
-QR and fresh backup codes. `npm run setup -- --reset-login` does the same thing as
-the default case while it is re-checking the resources.
+untouched. On an instance with members, `--email someone@example.com` picks the
+account to reset; without it the script resets the oldest account, yours. Add
+`--all` when the authenticator is gone too: that clears the enrolled device, and
+the next sign-in walks through enrollment again with a fresh QR and fresh backup
+codes. `npm run setup -- --reset-login` does the same thing as the default case
+while it is re-checking the resources.
 
 There is no emailed reset link and no reset route in the app. Recovery needs the
 same thing installing needs: your Cloudflare account, which is also where the

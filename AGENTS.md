@@ -2,7 +2,7 @@
 
 > Self-hosted social scheduler for Mastodon, Bluesky, LinkedIn, Threads, Instagram and X. SvelteKit 3 and Svelte 5 on Cloudflare Workers, D1 via Drizzle, R2 for media.
 
-CogSend is single-tenant: one admin account on the operator's own Cloudflare account, with their own provider credentials. Every instance is somebody's personal deployment, so nothing may assume the maintainer's account, domain or data.
+CogSend is single-tenant by default: one admin account on the operator's own Cloudflare account, with their own provider credentials. Every instance is somebody's personal deployment, so nothing may assume the maintainer's account, domain or data. An operator can opt into public sign-up (`REGISTRATION`, [docs/multi-user.md](docs/multi-user.md)), which adds `member` accounts: every query on user data stays scoped to the caller's `user_id`, instance-wide controls check `requireAdmin`/`requireAdminSession`, and `tests/multi-user-isolation.test.ts` is where a new route's cross-account test belongs. With `REGISTRATION` unset, the app must behave exactly as a single-user instance.
 
 ## Commands
 
