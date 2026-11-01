@@ -10,6 +10,7 @@
 		PenLine,
 		Calendar,
 		Users,
+		UserCog,
 		ChartColumn
 	} from '@lucide/svelte';
 	import { onMount } from 'svelte';
@@ -89,7 +90,8 @@
 	$effect(() => {
 		const user = data.user;
 		// Keyed on verification too: finishing 2FA does not reload the layout either.
-		const key = user ? `${user.id}:${user.mfaVerified}` : null;
+		// Updates are an admin's business; members are not asked.
+		const key = user && user.role === 'admin' ? `${user.id}:${user.mfaVerified}` : null;
 		if (!key || key === releaseAskedFor) return;
 		releaseAskedFor = key;
 		void fetch('/api/release')
@@ -277,6 +279,24 @@
 									: 'text-stone-500'}"
 							/> Accounts
 						</a>
+						{#if data.showUsers}
+							<a
+								href="/admin/users"
+								class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-bold transition-colors {page
+									.url.pathname === '/admin/users'
+									? 'bg-stone-900 text-white shadow-md'
+									: 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'}"
+								onclick={() => (showWorkspaceDropdown = false)}
+								role="menuitem"
+								data-testid="nav-users"
+							>
+								<UserCog
+									class="h-4 w-4 {page.url.pathname === '/admin/users'
+										? 'text-white'
+										: 'text-stone-500'}"
+								/> Users
+							</a>
+						{/if}
 					</div>
 				{/if}
 			</nav>

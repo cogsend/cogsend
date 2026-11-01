@@ -20,6 +20,7 @@
 	import { tickAdvice, type TickAdvice } from '#lib/domain/scheduler-status.js';
 
 	let { data } = $props();
+	const isAdmin = $derived(data.user?.role === 'admin');
 	let msg = $state<string | null>(null);
 	let err = $state<string | null>(null);
 	let totpOn = $state(false);
@@ -335,6 +336,7 @@
 			totpOn = Boolean(t.enabled);
 			backupRemaining = t.backupRemaining ?? 0;
 		});
+		if (data.user?.role !== 'admin') return;
 		track(fetch('/api/scheduler/health'), async (res) => {
 			if (!res.ok || gen !== loadGen) return;
 			const h = await res.json();
@@ -451,6 +453,37 @@
 			err = humanizeError(e instanceof Error ? e.message : 'Could not save');
 		} finally {
 			accountBusy = false;
+		}
+	}
+
+	let deletePassword = $state('');
+	let deleteCode = $state('');
+	let deleteBusy = $state(false);
+
+	async function deleteMyAccount(e: Event) {
+		e.preventDefault();
+		err = null;
+		if (!confirm('Delete your account and everything in it? This cannot be undone.')) return;
+		deleteBusy = true;
+		try {
+			const res = await fetch('/api/auth/me', {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ password: deletePassword, code: deleteCode })
+			});
+			const payload = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(payload.error || 'Could not delete the account');
+			if (res.status === 202) {
+				// A large library goes in installments, each re-checked with a fresh code.
+				deleteCode = '';
+				err = payload.message ?? 'Still deleting — enter a new code and try again';
+				return;
+			}
+			await goto('/login');
+		} catch (e) {
+			err = humanizeError(e instanceof Error ? e.message : 'Could not delete the account');
+		} finally {
+			deleteBusy = false;
 		}
 	}
 
@@ -1439,253 +1472,265 @@
 			{/if}
 		</div>
 
-		<div
-			class="rounded-[2rem] border border-stone-200/80 bg-white p-6 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] sm:p-8"
-			aria-label="Scheduled publishing"
-			data-testid="scheduler-section"
-		>
-			<h2 class="mb-2 text-[17px] font-extrabold tracking-tight text-stone-900">
-				Scheduled publishing
-			</h2>
-			<p class="mb-6 max-w-md text-[13px] leading-relaxed font-medium text-stone-500">
-				Posts whose time has come are published by a <em>tick</em>. The Worker's own cron trigger
-				does that every minute and needs nothing from you; an external cron — any service that can
-				send one POST per minute — does the same thing, which is useful when the account has no cron
-				trigger left (the free plan allows five per account).
-			</p>
-
+		<!-- The scheduler and the instance belong to the admin: one cron ticks every
+		     account's posts, and the updater replaces the code everyone runs. -->
+		{#if isAdmin}
 			<div
-				class="mb-5 flex flex-col justify-between gap-3 rounded-xl border border-stone-200/80 bg-stone-50/50 p-4 sm:flex-row sm:items-center"
-				data-testid="scheduler-status"
+				class="rounded-[2rem] border border-stone-200/80 bg-white p-6 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] sm:p-8"
+				aria-label="Scheduled publishing"
+				data-testid="scheduler-section"
 			>
-				<div>
-					<p class="text-[13px] font-extrabold text-stone-900" data-testid="scheduler-status-line">
-						{tickStatusLine}
-					</p>
-					{#if schedulerMessage}
-						<p class="mt-1 text-[11px] font-medium text-stone-500">{schedulerMessage}</p>
-					{/if}
-				</div>
-				<button
-					type="button"
-					onclick={() => void testTick()}
-					disabled={tickTestBusy}
-					class="shrink-0 rounded-full bg-stone-100 px-5 py-2 text-[13px] font-bold text-stone-700 transition-all hover:bg-stone-200 disabled:opacity-50"
-				>
-					{tickTestBusy ? 'Ticking…' : 'Tick now'}
-				</button>
-			</div>
-			{#if tickTestMessage}
-				<p class="mb-5 text-[12px] font-medium text-emerald-700" role="status">{tickTestMessage}</p>
-			{/if}
+				<h2 class="mb-2 text-[17px] font-extrabold tracking-tight text-stone-900">
+					Scheduled publishing
+				</h2>
+				<p class="mb-6 max-w-md text-[13px] leading-relaxed font-medium text-stone-500">
+					Posts whose time has come are published by a <em>tick</em>. The Worker's own cron trigger
+					does that every minute and needs nothing from you; an external cron — any service that can
+					send one POST per minute — does the same thing, which is useful when the account has no
+					cron trigger left (the free plan allows five per account).
+				</p>
 
-			{#if tickState.level !== 'ok'}
 				<div
-					class="mb-5 rounded-xl border p-4 text-[13px] leading-relaxed font-medium {tickState.level ===
-					'warn'
-						? 'border-amber-200/60 bg-amber-50/60 text-amber-900'
-						: 'border-stone-200/80 bg-stone-50/50 text-stone-600'}"
-					data-testid="scheduler-advice"
+					class="mb-5 flex flex-col justify-between gap-3 rounded-xl border border-stone-200/80 bg-stone-50/50 p-4 sm:flex-row sm:items-center"
+					data-testid="scheduler-status"
 				>
-					{tickState.message}
-				</div>
-			{/if}
-
-			{#if tickTokenRevealed}
-				<div class="space-y-4" data-testid="tick-token-reveal">
-					<div class="rounded-xl border border-amber-200/50 bg-amber-50/50 p-4">
-						<p class="text-[13px] font-bold text-amber-900">New tick token</p>
-						<p class="mt-1 text-[13px] font-medium text-amber-700">
-							Paste it into your cron service now: it is never shown again.
+					<div>
+						<p
+							class="text-[13px] font-extrabold text-stone-900"
+							data-testid="scheduler-status-line"
+						>
+							{tickStatusLine}
 						</p>
+						{#if schedulerMessage}
+							<p class="mt-1 text-[11px] font-medium text-stone-500">{schedulerMessage}</p>
+						{/if}
 					</div>
-					<code
-						class="block rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-3 font-mono text-[13px] break-all text-stone-900 shadow-sm select-all"
-						data-testid="tick-token-value">{tickTokenRevealed}</code
-					>
-					<div class="flex flex-wrap items-center gap-2">
-						<button
-							type="button"
-							onclick={() => void copyTickValue(tickTokenRevealed ?? '', 'token')}
-							class="rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800"
-							>{tickTokenCopied ? 'Copied' : 'Copy token'}</button
-						>
-						<button
-							type="button"
-							onclick={() => {
-								tickTokenRevealed = null;
-								tickTokenCopied = false;
-							}}
-							class="rounded-full bg-stone-100 px-6 py-2.5 text-[13px] font-bold text-stone-700 transition-all hover:bg-stone-200"
-							>I have saved it</button
-						>
-					</div>
-				</div>
-			{:else}
-				<div
-					class="mb-5 rounded-xl border border-stone-200/80 bg-stone-50/50 p-4"
-					data-testid="tick-token-status"
-				>
-					{#if tickToken?.configured}
-						<p class="flex flex-wrap items-center gap-2 text-[13px] font-extrabold text-stone-900">
-							Tick token
-							<code
-								class="rounded bg-emerald-100/50 px-1.5 py-0.5 font-mono text-[12px] text-emerald-700"
-							>
-								{tickToken.prefix}…
-							</code>
-						</p>
-						<p class="mt-1 text-[11px] font-medium text-stone-500">
-							Created {keyDate(tickToken.createdAt)} · shown once when generated
-						</p>
-					{:else}
-						<p class="text-[13px] font-medium text-stone-500">
-							No tick token. Generate one to let an external cron publish scheduled posts.
-						</p>
-					{/if}
-				</div>
-				<div class="flex flex-wrap gap-2">
-					{#if tickToken?.configured}
-						<button
-							type="button"
-							onclick={() => (tickConfirm = 'rotate')}
-							disabled={tickTokenBusy}
-							class="rounded-full bg-stone-100 px-6 py-2.5 text-[13px] font-bold text-stone-700 transition-all hover:bg-stone-200 disabled:opacity-50"
-						>
-							Generate replacement
-						</button>
-						<button
-							type="button"
-							onclick={() => (tickConfirm = 'revoke')}
-							disabled={tickTokenBusy}
-							class="rounded-full bg-red-50 px-6 py-2.5 text-[13px] font-bold text-red-600 transition-all hover:bg-red-100 disabled:opacity-50"
-						>
-							Revoke
-						</button>
-					{:else}
-						<button
-							type="button"
-							onclick={() => (tickConfirm = 'rotate')}
-							disabled={tickTokenBusy}
-							class="rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800 disabled:opacity-50"
-							data-testid="tick-token-generate"
-						>
-							Generate tick token
-						</button>
-					{/if}
-				</div>
-			{/if}
-
-			<details class="mt-6">
-				<summary class="cursor-pointer text-[13px] font-bold text-stone-900">
-					How to call the tick from another service
-				</summary>
-				<div class="mt-3 space-y-3 text-[13px] leading-relaxed font-medium text-stone-600">
-					<p>Send a POST with the token as a bearer credential:</p>
-					<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-						<code
-							class="min-w-0 flex-1 rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 font-mono text-[12px] break-all text-stone-900 select-all"
-							data-testid="tick-url">{tickUrl}</code
-						>
-						<button
-							type="button"
-							onclick={() => void copyTickValue(tickUrl, 'url')}
-							class="shrink-0 rounded-full bg-stone-100 px-5 py-2 text-[13px] font-bold text-stone-700 transition-all hover:bg-stone-200"
-						>
-							Copy URL
-						</button>
-					</div>
-					<pre
-						class="overflow-x-auto rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-3 font-mono text-[12px] text-stone-900">curl -X POST {tickUrl} \
-  -H "Authorization: Bearer &lt;tick token&gt;"</pre>
-					<p>
-						In cron-job.org: create a job, method <strong>POST</strong>, schedule every minute, and
-						add the header <code>Authorization: Bearer &lt;tick token&gt;</code>. UptimeRobot's free
-						plan can do the same every five minutes; the repository also ships a GitHub Actions
-						workflow for it. Ticks are idempotent, so a slow or duplicated caller is harmless.
-					</p>
-				</div>
-			</details>
-		</div>
-
-		<div
-			id="instance"
-			class="scroll-mt-24 rounded-[2rem] border border-stone-200/80 bg-white p-6 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] sm:p-8"
-		>
-			<h2 class="mb-2 text-[17px] font-extrabold tracking-tight text-stone-900">Instance</h2>
-			<p class="mb-6 max-w-md text-[13px] leading-relaxed font-medium text-stone-500">
-				Shown in the page title, the header and the login screen. Leave it empty for the default.
-			</p>
-			<form
-				class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center"
-				onsubmit={saveInstanceName}
-			>
-				<input
-					type="text"
-					bind:value={instanceName}
-					maxlength={INSTANCE_NAME_MAX}
-					placeholder="CogSend"
-					aria-label="Instance name"
-					class="w-full flex-1 rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
-				/>
-				<button
-					type="submit"
-					disabled={instanceBusy || instanceName.trim() === savedInstanceName}
-					class="w-full shrink-0 rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800 disabled:opacity-50 sm:w-auto"
-					>Save</button
-				>
-			</form>
-			<p class="mb-2 text-[12px] font-medium text-stone-500">
-				Version {__APP_VERSION__}{schedulerMessage ? ` · ${schedulerMessage}` : ''}
-			</p>
-			<p class="mb-5 text-[12px] font-medium text-stone-500" data-testid="version-line">
-				{#if release?.updateAvailable && release.latest}
-					<a
-						href={release.latest.url}
-						class="font-bold text-stone-900 underline underline-offset-2 hover:text-stone-700"
-						>Version {release.latest.version} is available</a
-					>
-					<span class="text-stone-500">
-						— you run {release.current}. Update from here below, or from a checkout (<a
-							href="https://github.com/cogsend/cogsend/blob/main/docs/updates.md"
-							class="font-bold text-stone-900 underline underline-offset-2 hover:text-stone-700"
-							>Updating</a
-						>)</span
-					>
-				{:else}
 					<button
 						type="button"
-						onclick={() => void checkForUpdates()}
-						disabled={releaseBusy}
-						class="font-bold underline underline-offset-2 hover:text-stone-700 disabled:opacity-50"
-						>Check for updates</button
+						onclick={() => void testTick()}
+						disabled={tickTestBusy}
+						class="shrink-0 rounded-full bg-stone-100 px-5 py-2 text-[13px] font-bold text-stone-700 transition-all hover:bg-stone-200 disabled:opacity-50"
 					>
-					{#if release?.checkedAt}
-						<span class="text-stone-400"> · checked {tickDate(release.checkedAt)}</span>
-					{/if}
-					{#if release?.error && !release.latest}
-						<span class="block text-stone-500" data-testid="release-check-error"
-							>Could not reach GitHub to check ({release.error}). Try again later, or install a
-							release by its tag below.</span
-						>
-					{/if}
+						{tickTestBusy ? 'Ticking…' : 'Tick now'}
+					</button>
+				</div>
+				{#if tickTestMessage}
+					<p class="mb-5 text-[12px] font-medium text-emerald-700" role="status">
+						{tickTestMessage}
+					</p>
 				{/if}
-			</p>
-			<UpdatePanel latestTag={release?.updateAvailable ? (release.latest?.tag ?? null) : null} />
-			<label class="mt-4 flex items-start gap-2 text-[12px] font-medium text-stone-500">
-				<input
-					type="checkbox"
-					bind:checked={offerPrereleases}
-					onchange={() => void saveOfferPrereleases(offerPrereleases)}
-					class="mt-0.5"
-					data-testid="offer-prereleases"
-				/>
-				<span
-					>Offer pre-releases too: release candidates, for testing a release before it is published.
-					Not for an instance you rely on.</span
+
+				{#if tickState.level !== 'ok'}
+					<div
+						class="mb-5 rounded-xl border p-4 text-[13px] leading-relaxed font-medium {tickState.level ===
+						'warn'
+							? 'border-amber-200/60 bg-amber-50/60 text-amber-900'
+							: 'border-stone-200/80 bg-stone-50/50 text-stone-600'}"
+						data-testid="scheduler-advice"
+					>
+						{tickState.message}
+					</div>
+				{/if}
+
+				{#if tickTokenRevealed}
+					<div class="space-y-4" data-testid="tick-token-reveal">
+						<div class="rounded-xl border border-amber-200/50 bg-amber-50/50 p-4">
+							<p class="text-[13px] font-bold text-amber-900">New tick token</p>
+							<p class="mt-1 text-[13px] font-medium text-amber-700">
+								Paste it into your cron service now: it is never shown again.
+							</p>
+						</div>
+						<code
+							class="block rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-3 font-mono text-[13px] break-all text-stone-900 shadow-sm select-all"
+							data-testid="tick-token-value">{tickTokenRevealed}</code
+						>
+						<div class="flex flex-wrap items-center gap-2">
+							<button
+								type="button"
+								onclick={() => void copyTickValue(tickTokenRevealed ?? '', 'token')}
+								class="rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800"
+								>{tickTokenCopied ? 'Copied' : 'Copy token'}</button
+							>
+							<button
+								type="button"
+								onclick={() => {
+									tickTokenRevealed = null;
+									tickTokenCopied = false;
+								}}
+								class="rounded-full bg-stone-100 px-6 py-2.5 text-[13px] font-bold text-stone-700 transition-all hover:bg-stone-200"
+								>I have saved it</button
+							>
+						</div>
+					</div>
+				{:else}
+					<div
+						class="mb-5 rounded-xl border border-stone-200/80 bg-stone-50/50 p-4"
+						data-testid="tick-token-status"
+					>
+						{#if tickToken?.configured}
+							<p
+								class="flex flex-wrap items-center gap-2 text-[13px] font-extrabold text-stone-900"
+							>
+								Tick token
+								<code
+									class="rounded bg-emerald-100/50 px-1.5 py-0.5 font-mono text-[12px] text-emerald-700"
+								>
+									{tickToken.prefix}…
+								</code>
+							</p>
+							<p class="mt-1 text-[11px] font-medium text-stone-500">
+								Created {keyDate(tickToken.createdAt)} · shown once when generated
+							</p>
+						{:else}
+							<p class="text-[13px] font-medium text-stone-500">
+								No tick token. Generate one to let an external cron publish scheduled posts.
+							</p>
+						{/if}
+					</div>
+					<div class="flex flex-wrap gap-2">
+						{#if tickToken?.configured}
+							<button
+								type="button"
+								onclick={() => (tickConfirm = 'rotate')}
+								disabled={tickTokenBusy}
+								class="rounded-full bg-stone-100 px-6 py-2.5 text-[13px] font-bold text-stone-700 transition-all hover:bg-stone-200 disabled:opacity-50"
+							>
+								Generate replacement
+							</button>
+							<button
+								type="button"
+								onclick={() => (tickConfirm = 'revoke')}
+								disabled={tickTokenBusy}
+								class="rounded-full bg-red-50 px-6 py-2.5 text-[13px] font-bold text-red-600 transition-all hover:bg-red-100 disabled:opacity-50"
+							>
+								Revoke
+							</button>
+						{:else}
+							<button
+								type="button"
+								onclick={() => (tickConfirm = 'rotate')}
+								disabled={tickTokenBusy}
+								class="rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800 disabled:opacity-50"
+								data-testid="tick-token-generate"
+							>
+								Generate tick token
+							</button>
+						{/if}
+					</div>
+				{/if}
+
+				<details class="mt-6">
+					<summary class="cursor-pointer text-[13px] font-bold text-stone-900">
+						How to call the tick from another service
+					</summary>
+					<div class="mt-3 space-y-3 text-[13px] leading-relaxed font-medium text-stone-600">
+						<p>Send a POST with the token as a bearer credential:</p>
+						<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+							<code
+								class="min-w-0 flex-1 rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 font-mono text-[12px] break-all text-stone-900 select-all"
+								data-testid="tick-url">{tickUrl}</code
+							>
+							<button
+								type="button"
+								onclick={() => void copyTickValue(tickUrl, 'url')}
+								class="shrink-0 rounded-full bg-stone-100 px-5 py-2 text-[13px] font-bold text-stone-700 transition-all hover:bg-stone-200"
+							>
+								Copy URL
+							</button>
+						</div>
+						<pre
+							class="overflow-x-auto rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-3 font-mono text-[12px] text-stone-900">curl -X POST {tickUrl} \
+  -H "Authorization: Bearer &lt;tick token&gt;"</pre>
+						<p>
+							In cron-job.org: create a job, method <strong>POST</strong>, schedule every minute,
+							and add the header <code>Authorization: Bearer &lt;tick token&gt;</code>.
+							UptimeRobot's free plan can do the same every five minutes; the repository also ships
+							a GitHub Actions workflow for it. Ticks are idempotent, so a slow or duplicated caller
+							is harmless.
+						</p>
+					</div>
+				</details>
+			</div>
+
+			<div
+				id="instance"
+				class="scroll-mt-24 rounded-[2rem] border border-stone-200/80 bg-white p-6 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] sm:p-8"
+			>
+				<h2 class="mb-2 text-[17px] font-extrabold tracking-tight text-stone-900">Instance</h2>
+				<p class="mb-6 max-w-md text-[13px] leading-relaxed font-medium text-stone-500">
+					Shown in the page title, the header and the login screen. Leave it empty for the default.
+				</p>
+				<form
+					class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center"
+					onsubmit={saveInstanceName}
 				>
-			</label>
-		</div>
+					<input
+						type="text"
+						bind:value={instanceName}
+						maxlength={INSTANCE_NAME_MAX}
+						placeholder="CogSend"
+						aria-label="Instance name"
+						class="w-full flex-1 rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+					/>
+					<button
+						type="submit"
+						disabled={instanceBusy || instanceName.trim() === savedInstanceName}
+						class="w-full shrink-0 rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800 disabled:opacity-50 sm:w-auto"
+						>Save</button
+					>
+				</form>
+				<p class="mb-2 text-[12px] font-medium text-stone-500">
+					Version {__APP_VERSION__}{schedulerMessage ? ` · ${schedulerMessage}` : ''}
+				</p>
+				<p class="mb-5 text-[12px] font-medium text-stone-500" data-testid="version-line">
+					{#if release?.updateAvailable && release.latest}
+						<a
+							href={release.latest.url}
+							class="font-bold text-stone-900 underline underline-offset-2 hover:text-stone-700"
+							>Version {release.latest.version} is available</a
+						>
+						<span class="text-stone-500">
+							— you run {release.current}. Update from here below, or from a checkout (<a
+								href="https://github.com/cogsend/cogsend/blob/main/docs/updates.md"
+								class="font-bold text-stone-900 underline underline-offset-2 hover:text-stone-700"
+								>Updating</a
+							>)</span
+						>
+					{:else}
+						<button
+							type="button"
+							onclick={() => void checkForUpdates()}
+							disabled={releaseBusy}
+							class="font-bold underline underline-offset-2 hover:text-stone-700 disabled:opacity-50"
+							>Check for updates</button
+						>
+						{#if release?.checkedAt}
+							<span class="text-stone-400"> · checked {tickDate(release.checkedAt)}</span>
+						{/if}
+						{#if release?.error && !release.latest}
+							<span class="block text-stone-500" data-testid="release-check-error"
+								>Could not reach GitHub to check ({release.error}). Try again later, or install a
+								release by its tag below.</span
+							>
+						{/if}
+					{/if}
+				</p>
+				<UpdatePanel latestTag={release?.updateAvailable ? (release.latest?.tag ?? null) : null} />
+				<label class="mt-4 flex items-start gap-2 text-[12px] font-medium text-stone-500">
+					<input
+						type="checkbox"
+						bind:checked={offerPrereleases}
+						onchange={() => void saveOfferPrereleases(offerPrereleases)}
+						class="mt-0.5"
+						data-testid="offer-prereleases"
+					/>
+					<span
+						>Offer pre-releases too: release candidates, for testing a release before it is
+						published. Not for an instance you rely on.</span
+					>
+				</label>
+			</div>
+		{/if}
 
 		<div
 			class="rounded-[2rem] border border-stone-200/80 bg-white p-6 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] sm:p-8"
@@ -1756,6 +1801,54 @@
 				</form>
 			{/if}
 		</div>
+
+		{#if data.user?.role === 'member'}
+			<div
+				class="rounded-[2rem] border border-red-200/80 bg-white p-6 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] sm:p-8"
+				data-testid="delete-account"
+			>
+				<h2 class="mb-2 text-[17px] font-extrabold tracking-tight text-stone-900">
+					Delete my account
+				</h2>
+				<p class="mb-6 max-w-md text-[13px] leading-relaxed font-medium text-stone-500">
+					Removes your account with every post, schedule, uploaded file, connected account, preview
+					link and API key. It cannot be undone. The posts already published on the platforms stay
+					there.
+				</p>
+				<form class="flex flex-col gap-4 sm:flex-row sm:items-end" onsubmit={deleteMyAccount}>
+					<label class="block flex-1 text-sm">
+						<span class="text-[11px] font-bold tracking-widest text-stone-500 uppercase"
+							>Password</span
+						>
+						<input
+							type="password"
+							autocomplete="current-password"
+							bind:value={deletePassword}
+							required
+							class="mt-1.5 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+						/>
+					</label>
+					<label class="block flex-1 text-sm">
+						<span class="text-[11px] font-bold tracking-widest text-stone-500 uppercase"
+							>Authenticator code</span
+						>
+						<input
+							type="text"
+							inputmode="numeric"
+							autocomplete="one-time-code"
+							bind:value={deleteCode}
+							class="mt-1.5 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-[13px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+						/>
+					</label>
+					<button
+						type="submit"
+						disabled={deleteBusy}
+						class="self-start rounded-full bg-red-600 px-6 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-red-700 disabled:opacity-50 sm:self-end"
+						>Delete</button
+					>
+				</form>
+			</div>
+		{/if}
 	</div>
 </div>
 
