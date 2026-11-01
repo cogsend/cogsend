@@ -8,7 +8,7 @@ import {
 	platformCredentialStatus,
 	savePlatformCredentials
 } from '#lib/server/platform-credentials.js';
-import { requireSession } from '#lib/server/require.js';
+import { requireAdminSession } from '#lib/server/require.js';
 
 /**
  * The accounts dialog's form for an OAuth app's credentials.
@@ -35,7 +35,7 @@ function platformFrom(param: string | undefined): OAuthPlatformId | null {
 
 export const PUT: RequestHandler = async ({ locals, params, request }) => {
 	try {
-		requireSession(locals.user, locals.authMethod);
+		requireAdminSession(locals.user, locals.authMethod);
 		const id = platformFrom(params.platform);
 		if (!id) return fail('Unknown platform', 404);
 		if (configuredByEnv(locals.env, id)) {
@@ -57,7 +57,7 @@ export const PUT: RequestHandler = async ({ locals, params, request }) => {
 
 export const DELETE: RequestHandler = async ({ locals, params }) => {
 	try {
-		requireSession(locals.user, locals.authMethod);
+		requireAdminSession(locals.user, locals.authMethod);
 		const id = platformFrom(params.platform);
 		if (!id) return fail('Unknown platform', 404);
 		await deletePlatformCredentials(locals.db, id);

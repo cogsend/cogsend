@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { githubUpdateTarget } from '#lib/domain/github-update.js';
 import { handleError, ok } from '#lib/server/http.js';
-import { requireSession } from '#lib/server/require.js';
+import { requireAdminSession } from '#lib/server/require.js';
 import { savedTokenStatus } from '#lib/server/updater/saved-token.js';
 import { jobExpired, readJob, readPrevious, readTarget } from '#lib/server/updater/state.js';
 
@@ -11,7 +11,7 @@ import { jobExpired, readJob, readPrevious, readTarget } from '#lib/server/updat
  */
 export const GET: RequestHandler = async ({ locals }) => {
 	try {
-		requireSession(locals.user, locals.authMethod);
+		requireAdminSession(locals.user, locals.authMethod);
 		const [job, previous, target, savedToken] = await Promise.all([
 			readJob(locals.db),
 			readPrevious(locals.db),

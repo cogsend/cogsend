@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { hashPassword, verifyPassword } from '#lib/server/crypto.js';
 import { users } from '#lib/server/db/schema.js';
@@ -9,7 +9,8 @@ import {
 	recordPasswordFailure
 } from '#lib/server/auth-gate.js';
 import { rateLimitKey } from '#lib/server/rate-limit.js';
-import { getAdminUser, revokeOtherSessions } from '#lib/server/auth.js';
+import { getUserById, isAdmin, revokeOtherSessions } from '#lib/server/auth.js';
+import { first } from '#lib/server/db/client.js';
 import { requireSession } from '#lib/server/require.js';
 import { forgetToken } from '#lib/server/updater/saved-token.js';
 import { emailProblem, normalizeEmail, passwordProblem } from '#lib/domain/credentials.js';
@@ -40,8 +41,8 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 		const currentPassword = String(payload.currentPassword ?? '');
 		if (!currentPassword) return fail('Enter your current password', 400);
 
-		const row = await getAdminUser(locals.db);
-		if (!row) return fail('This instance has no account yet', 409);
+		const row = await getUserById(locals.db, user.id);
+		if (!row) return fail('Not found', 404);
 		// Same gate as the login form: a live session must not become an
 		// unlimited oracle for the password (25k PBKDF2 is cheap to repeat), and
 		// it is the same secret, so the counters are shared.
@@ -74,6 +75,15 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 			}
 		}
 		if (!wantEmail && !wantPassword) return fail('Nothing to change', 400);
+		if (wantEmail) {
+			const taken = await first(
+				locals.db
+					.select({ id: users.id })
+					.from(users)
+					.where(and(eq(users.email, email), ne(users.id, row.id)))
+			);
+			if (taken) return fail('That email address is already in use', 409);
+		}
 
 		await locals.db
 			.update(users)
@@ -89,9 +99,11 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 		// token saved under the old one; re-locking it here would add two more
 		// password derivations to a request that already runs three, past the
 		// Workers Free CPU budget.
+		// Only an admin can have saved that token, so a member's new password
+		// leaves it alone.
 		if (wantPassword) {
 			await revokeOtherSessions(locals.db, row.id, undefined);
-			await forgetToken(locals.db);
+			if (isAdmin(user)) await forgetToken(locals.db);
 		}
 		return ok({ email: wantEmail ? email : user.email, reauth: wantPassword });
 	} catch (err) {

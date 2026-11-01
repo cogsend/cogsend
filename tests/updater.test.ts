@@ -581,7 +581,14 @@ describe('in-app updater', () => {
 				},
 				url: new URL('http://localhost/api/update/target')
 			} as never) as Promise<Response>;
-		const user = { id: 'u', email: 'a@b', timezone: 'UTC', totpEnabled: true, mfaVerified: true };
+		const user = {
+			id: 'u',
+			email: 'a@b',
+			timezone: 'UTC',
+			totpEnabled: true,
+			mfaVerified: true,
+			role: 'admin' as const
+		};
 		expect((await call({ user, authMethod: 'bearer' }, { token: TOKEN })).status).toBe(401);
 		expect(
 			(
@@ -603,7 +610,14 @@ describe('in-app updater', () => {
 describe('update status', () => {
 	it('offers Roll back only while the version the update installed still serves', async () => {
 		const test = await createTestDb();
-		const user = { id: 'u', email: 'a@b', timezone: 'UTC', totpEnabled: true, mfaVerified: true };
+		const user = {
+			id: 'u',
+			email: 'a@b',
+			timezone: 'UTC',
+			totpEnabled: true,
+			mfaVerified: true,
+			role: 'admin' as const
+		};
 		const status = async (running: string | null) => {
 			const res = (await statusGET({
 				locals: {
@@ -639,7 +653,14 @@ describe('update status', () => {
 describe('update status for a Deploy-button install', () => {
 	it('names the GitHub repository to update through, for button installs only', async () => {
 		const test = await createTestDb();
-		const user = { id: 'u', email: 'a@b', timezone: 'UTC', totpEnabled: true, mfaVerified: true };
+		const user = {
+			id: 'u',
+			email: 'a@b',
+			timezone: 'UTC',
+			totpEnabled: true,
+			mfaVerified: true,
+			role: 'admin' as const
+		};
 		const github = async (env: Record<string, string>) => {
 			const res = (await statusGET({
 				locals: { db: test.db, env: TEST_ENV, user, authMethod: 'session', bindings: env }

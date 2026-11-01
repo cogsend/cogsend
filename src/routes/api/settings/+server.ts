@@ -11,6 +11,7 @@ import { first } from '#lib/server/db/client.js';
 import { users } from '#lib/server/db/schema.js';
 import { fail, handleError, ok } from '#lib/server/http.js';
 import { requireScope, requireUser } from '#lib/server/require.js';
+import { isAdmin } from '#lib/server/auth.js';
 import { readStoredAppName, rememberAppName } from '#lib/server/app-settings.js';
 import { readOfferPrereleases, setOfferPrereleases } from '#lib/server/release.js';
 
@@ -88,6 +89,11 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 		if (hasInstanceName && !instanceName.ok) return fail('Invalid instance name', 400);
 		if (hasTimeZone && !timeZone) return fail('Invalid time zone', 400);
 		const hasPrereleases = Object.hasOwn(body as Record<string, unknown>, 'offerPrereleases');
+		// The instance's name and its release channel belong to the admin; the
+		// rest of this body is the caller's own profile.
+		if ((hasInstanceName || hasPrereleases) && !isAdmin(user)) {
+			return fail('Only an admin can change instance settings', 403);
+		}
 		const offerPrereleases = (body as Record<string, unknown>).offerPrereleases;
 		if (hasPrereleases && typeof offerPrereleases !== 'boolean') {
 			return fail('Invalid offerPrereleases', 400);

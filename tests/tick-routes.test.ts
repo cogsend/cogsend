@@ -33,7 +33,8 @@ describe('tick token routes', () => {
 			email: 'scheduler@localhost',
 			timezone: 'UTC',
 			totpEnabled: true,
-			mfaVerified: true
+			mfaVerified: true,
+			role: 'admin' as const
 		},
 		...extra
 	});

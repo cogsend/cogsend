@@ -26,7 +26,8 @@ import {
 	notificationState,
 	oauthPending,
 	publishTargets,
-	schedulerHeartbeats
+	schedulerHeartbeats,
+	users
 } from './db/schema';
 import type { AppEnv } from './env';
 import type { MediaStore } from './media';
@@ -205,6 +206,9 @@ export async function maybeSendFailureDigest(
 		})
 		.from(publishTargets)
 		.innerJoin(drafts, eq(publishTargets.draftId, drafts.id))
+		// NOTIFY_EMAIL is the operator's address, so on an instance with members
+		// it hears about the admins' posts only: a member's drafts are theirs.
+		.innerJoin(users, and(eq(drafts.userId, users.id), eq(users.role, 'admin')))
 		.leftJoin(connections, eq(publishTargets.connectionId, connections.id))
 		.where(
 			and(

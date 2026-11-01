@@ -12,7 +12,14 @@ describe('settings api', () => {
 	const localsFor = (id: string) => ({
 		db,
 		env: TEST_ENV,
-		user: { id, email: 'settings@localhost', timezone: 'UTC', totpEnabled: true, mfaVerified: true }
+		user: {
+			id,
+			email: 'settings@localhost',
+			timezone: 'UTC',
+			totpEnabled: true,
+			mfaVerified: true,
+			role: 'admin' as const
+		}
 	});
 
 	beforeAll(async () => {
@@ -239,7 +246,8 @@ describe('settings api: time zone', () => {
 			email: 'tz@localhost',
 			timezone: 'UTC',
 			totpEnabled: true,
-			mfaVerified: true
+			mfaVerified: true,
+			role: 'admin' as const
 		}
 	});
 	const patch = (body: unknown) =>

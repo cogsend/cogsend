@@ -50,7 +50,8 @@ describe('OAuth app credentials stored in the app', () => {
 			email: 'apps@localhost',
 			timezone: 'UTC',
 			totpEnabled: true,
-			mfaVerified: true
+			mfaVerified: true,
+			role: 'admin' as const
 		},
 		authMethod
 	});

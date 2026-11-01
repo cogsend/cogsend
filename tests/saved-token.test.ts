@@ -39,7 +39,8 @@ describe('the saved update token', () => {
 			email: 'owner@localhost',
 			timezone: 'UTC',
 			totpEnabled: true,
-			mfaVerified: true
+			mfaVerified: true,
+			role: 'admin' as const
 		}
 	});
 	const json = (url: string, method: string, body?: unknown) =>

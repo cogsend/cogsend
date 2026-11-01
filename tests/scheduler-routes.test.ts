@@ -27,7 +27,8 @@ describe('scheduler routes', () => {
 		email: 'scheduler@localhost',
 		timezone: 'UTC',
 		totpEnabled: true,
-		mfaVerified: true
+		mfaVerified: true,
+		role: 'admin' as const
 	};
 
 	beforeAll(async () => {

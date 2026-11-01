@@ -178,7 +178,14 @@ describe('rotate start', () => {
 		await rotateStart(
 			db,
 			TEST_ENV,
-			{ id: user!.id, email: user!.email, timezone: 'UTC', totpEnabled: true, mfaVerified: true, role: 'admin' },
+			{
+				id: user!.id,
+				email: user!.email,
+				timezone: 'UTC',
+				totpEnabled: true,
+				mfaVerified: true,
+				role: 'admin'
+			},
 			backup
 		);
 		const rows = await db
@@ -233,7 +240,14 @@ describe('rotate confirm cycle', () => {
 		const rotated = await rotateStart(
 			db,
 			TEST_ENV,
-			{ id: user!.id, email: user!.email, timezone: 'UTC', totpEnabled: true, mfaVerified: true, role: 'admin' },
+			{
+				id: user!.id,
+				email: user!.email,
+				timezone: 'UTC',
+				totpEnabled: true,
+				mfaVerified: true,
+				role: 'admin'
+			},
 			oldBackup
 		);
 		const newSecret = rotated.secret.replace(/\s+/g, '');

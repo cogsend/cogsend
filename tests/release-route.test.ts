@@ -16,7 +16,14 @@ describe('release check', () => {
 	const session = () => ({
 		db,
 		env: TEST_ENV,
-		user: { id: 'u1', email: 'a@localhost', timezone: 'UTC', totpEnabled: true, mfaVerified: true }
+		user: {
+			id: 'u1',
+			email: 'a@localhost',
+			timezone: 'UTC',
+			totpEnabled: true,
+			mfaVerified: true,
+			role: 'admin' as const
+		}
 	});
 
 	const releaseBody = (tag: string) =>

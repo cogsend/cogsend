@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { fail, handleError, ok } from '#lib/server/http.js';
-import { requireSession } from '#lib/server/require.js';
+import { requireAdminSession } from '#lib/server/require.js';
 import { CloudflareApiError } from '#lib/server/updater/cloudflare-api.js';
 import { updaterContext } from '#lib/server/updater/context.js';
 import { SavedTokenError, tokenFromUnlockKey } from '#lib/server/updater/saved-token.js';
@@ -46,7 +46,7 @@ const STEPS: Record<
 
 export const POST: RequestHandler = async (event) => {
 	try {
-		requireSession(event.locals.user, event.locals.authMethod);
+		requireAdminSession(event.locals.user, event.locals.authMethod);
 		const run = Object.hasOwn(STEPS, event.params.step) ? STEPS[event.params.step] : null;
 		if (!run) return fail('Unknown update step', 404);
 		const body = (await event.request.json().catch(() => null)) as Record<string, unknown> | null;

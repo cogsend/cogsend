@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { handleError, ok } from '#lib/server/http.js';
 import { checkForRelease } from '#lib/server/release.js';
-import { requireScope, requireUser } from '#lib/server/require.js';
+import { requireAdmin, requireScope } from '#lib/server/require.js';
 
 /**
  * "Is a newer release out?" — asked by the Settings page so the operator does
@@ -13,7 +13,7 @@ import { requireScope, requireUser } from '#lib/server/require.js';
  */
 export const GET: RequestHandler = async ({ locals, url }) => {
 	try {
-		requireUser(locals.user);
+		requireAdmin(locals.user);
 		requireScope(locals, 'read');
 		const refresh = url.searchParams.get('refresh') === '1';
 		return ok(await checkForRelease(locals.db, { refresh }));

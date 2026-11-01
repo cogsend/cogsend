@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { handleError, ok } from '#lib/server/http.js';
-import { requireScope, requireUser } from '#lib/server/require.js';
+import { requireAdmin, requireScope } from '#lib/server/require.js';
 import { runSchedulerTick } from '#lib/server/scheduler.js';
 
 /**
@@ -12,7 +12,7 @@ import { runSchedulerTick } from '#lib/server/scheduler.js';
  */
 export const POST: RequestHandler = async ({ locals }) => {
 	try {
-		requireUser(locals.user);
+		requireAdmin(locals.user);
 		requireScope(locals, 'write');
 		const result = await runSchedulerTick(locals.db, locals.env, {
 			store: locals.media,
