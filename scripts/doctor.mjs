@@ -508,6 +508,34 @@ function checkNode() {
 }
 
 /**
+ * Whether the deployment opted into public sign-up (docs/multi-user.md). Only
+ * the secret's name is visible from here, not its value, so this says that one
+ * is set rather than which mode it picks. Null on a single-user deployment, so
+ * those see no new line at all.
+ *
+ * @param {string[]} secretNames
+ * @returns {Check | null}
+ */
+export function registrationVerdict(secretNames) {
+	if (!secretNames.includes('REGISTRATION')) return null;
+	if (!secretNames.includes('RESEND_API_KEY') || !secretNames.includes('NOTIFY_FROM')) {
+		return {
+			id: 'registration',
+			status: 'warn',
+			label: 'REGISTRATION is set, but sign-ups cannot be confirmed by email',
+			detail: 'without RESEND_API_KEY and NOTIFY_FROM, approve each account by hand',
+			fix: 'Set both to confirm addresses, or keep REGISTRATION=waitlist'
+		};
+	}
+	return {
+		id: 'registration',
+		status: 'ok',
+		label: 'REGISTRATION is set: this instance takes sign-ups',
+		detail: 'new addresses are confirmed by email; manage accounts under Users'
+	};
+}
+
+/**
  * Which of the platforms that need an app registered at the provider
  * (LinkedIn, Threads, Instagram, X) this deployment could connect. Presence, not
  * validity: a wrong id still counts as set up and is rejected by the provider
@@ -1031,6 +1059,8 @@ async function main() {
 						}
 			);
 			checks.push(platformVerdict(names));
+			const registration = registrationVerdict(names);
+			if (registration) checks.push(registration);
 			if (!names.includes('SCHEDULER_SECRET') && !names.includes('API_TOKEN')) {
 				checks.push({
 					id: 'tick-credential',

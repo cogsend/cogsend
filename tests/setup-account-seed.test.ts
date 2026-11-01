@@ -211,7 +211,7 @@ describe('what the CLI refuses to do', () => {
 				email: 'mine@example.com',
 				password: 'long enough password'
 			})
-		).rejects.toThrow('no account to reset');
+		).rejects.toThrow('no account for mine@example.com');
 		expect(calls.filter((command) => !command.startsWith('SELECT'))).toEqual([]);
 	});
 });
@@ -231,7 +231,10 @@ describe('resetting a login', () => {
 		expect(update).toBeDefined();
 		expect(update).toContain('password_hash =');
 		expect(update).not.toContain('totp_secret_enc = NULL');
-		expect(calls).toContain('DELETE FROM sessions;');
+		expect(update).toMatch(/ WHERE email = 'me@example.com';$/);
+		expect(calls).toContain(
+			"DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email = 'me@example.com');"
+		);
 	});
 
 	it('throws the authenticator away only when asked', async () => {

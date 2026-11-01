@@ -20,8 +20,12 @@
  *   npm run admin:reset                    # new password (prompted, or generated once and printed)
  *   npm run admin:reset -- --all           # also throw the authenticator away
  *   npm run admin:reset -- --password '…'  # no prompt (which puts it in shell history: prefer the prompt)
- *   npm run admin:reset -- --email you@example.com
+ *   npm run admin:reset -- --email someone@example.com   # a specific account
  *   npm run admin:reset -- --dry-run       # read-only: says what it would do
+ *
+ * Without --email it resets the owner, the account `npm run setup` created. On
+ * an instance with members (docs/multi-user.md), --email picks which account;
+ * no other account is touched.
  *
  * `npm run setup -- --reset-login` does the same thing as the default case while
  * it is creating or re-checking the resources; this script exists for the day
@@ -97,26 +101,28 @@ async function main() {
 		refuse: (headline, notes) => fail([headline, ...notes.map((line) => `  ${line}`)].join('\n'))
 	});
 
-	const account = await readAccount({ wrangler });
+	const wanted = value('--email', null);
+	const account = await readAccount({ wrangler, email: wanted ?? undefined });
 	if (!account.ok) {
 		fail(
 			`could not read the account: ${account.error}\n` +
 				'Run `npm run setup` first — it creates the database, the migrations and the account.'
 		);
 	}
-	if (!account.exists) {
-		fail('this instance has no account yet. Run `npm run setup` to create one.');
+	if (wanted) {
+		const emailIssue = emailProblem(normalizeEmail(wanted));
+		if (emailIssue) fail(`${wanted}: ${emailIssue}`);
 	}
-
-	const email = normalizeEmail(value('--email', account.email));
-	const emailIssue = emailProblem(email);
-	if (emailIssue) fail(`${email}: ${emailIssue}`);
-	if (email !== account.email) {
+	if (!account.exists) {
 		fail(
-			`the account is ${account.email}; this script rewrites it rather than moving it.\n` +
-				'Sign in and change the address in Settings → Login if you want a different one.'
+			wanted
+				? `there is no account for ${normalizeEmail(wanted)} on this instance.\n` +
+						'The script resets an existing login; it never creates or moves one.'
+				: 'this instance has no account yet. Run `npm run setup` to create one.'
 		);
 	}
+
+	const email = normalizeEmail(account.email ?? '');
 
 	const interactive = !DRY && !ASSUME_YES && Boolean(process.stdin.isTTY);
 	if (ROTATE_TOTP) {

@@ -88,7 +88,14 @@ process.exit(0);
 		const update = statements(root).find((sql) => sql.startsWith('UPDATE users SET'));
 		expect(update).toContain(`email = 'me@example.com'`);
 		expect(update).not.toContain('totp_enabled = 0');
-		expect(statements(root)).toContain('DELETE FROM sessions;');
+		expect(statements(root)).toContain(
+			"DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email = 'me@example.com');"
+		);
+		// Only that account: a reset must never rewrite every row on an instance
+		// with members.
+		expect(statements(root).find((sql) => sql.startsWith('UPDATE users SET'))).toMatch(
+			/ WHERE email = 'me@example.com';$/
+		);
 		// The lockout lives in mfa_challenges, keyed by a hash of the user id —
 		// which a reset does not change, so a reset that skipped this table would
 		// answer "Too many attempts" to the operator who ran it *because* they
@@ -177,18 +184,32 @@ process.exit(0);
 		expect(result.stderr).toContain('could not read the account');
 	});
 
-	it('will not silently move the account to another address', () => {
-		const { root, bin } = scratch('me@example.com');
-		const result = runReset(bin, [
+	it('resets the account --email names, and refuses one that does not exist', () => {
+		const named = scratch('member@example.com');
+		const result = runReset(named.bin, [
+			'--email',
+			'Member@Example.com',
+			'--password',
+			'a brand new password'
+		]);
+		expect(result.status).toBe(0);
+		expect(calls(named.root)).toContain(
+			"SELECT email, totp_enabled FROM users WHERE email = 'member@example.com' LIMIT 1;"
+		);
+		expect(statements(named.root).find((sql) => sql.startsWith('UPDATE users SET'))).toMatch(
+			/ WHERE email = 'member@example.com';$/
+		);
+
+		const missing = scratch(null);
+		const refused = runReset(missing.bin, [
 			'--email',
 			'other@example.com',
 			'--password',
 			'a brand new password'
 		]);
-
-		expect(result.status).toBe(1);
-		expect(result.stderr).toContain('the account is me@example.com');
-		expect(statements(root)).toEqual([]);
+		expect(refused.status).toBe(1);
+		expect(refused.stderr).toContain('no account for other@example.com');
+		expect(statements(missing.root)).toEqual([]);
 	});
 
 	it('refuses the removed --strong-kdf flag', () => {

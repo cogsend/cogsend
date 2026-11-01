@@ -1,5 +1,6 @@
 /**
- * Creating the single account from the terminal.
+ * Creating the instance's first account (its admin) from the terminal, and
+ * resetting any account's login.
  *
  * The account is seeded into D1 *before* the Worker is reachable. The browser
  * can also claim a fresh instance (api/auth/claim), but only with
@@ -157,7 +158,9 @@ export function sqlQuote(value) {
 /**
  * The insert that creates the account, and only while the table is empty. The
  * guard is what makes two concurrent seeds impossible, which matters because the
- * account is the whole instance: a second row would mean a second owner.
+ * first account is the instance's owner. The row takes the schema's defaults,
+ * `role = 'admin'` and `status = 'active'`; members only ever arrive through
+ * the app's sign-up.
  *
  * @param {{ id: string, email: string, passwordHash: string, now: number }} row
  * @returns {string}
@@ -172,10 +175,16 @@ export function seedUserSql({ id, email, passwordHash, now }) {
 	);
 }
 
-/** The one row this instance is allowed to have.
- *  @returns {string} */
-export function readAccountSql() {
-	return 'SELECT email, totp_enabled FROM users LIMIT 1;';
+/**
+ * The account a script acts on: the one with `email` when given, otherwise the
+ * oldest, which is the owner `npm run setup` created (and the only row on a
+ * single-user instance). Ordered by `created_at` rather than `role` so it also
+ * reads a database that predates the role column.
+ *  @param {string} [email] @returns {string} */
+export function readAccountSql(email) {
+	return email
+		? `SELECT email, totp_enabled FROM users WHERE email = ${sqlQuote(email)} LIMIT 1;`
+		: 'SELECT email, totp_enabled FROM users ORDER BY created_at, id LIMIT 1;';
 }
 
 /**
@@ -189,7 +198,6 @@ export function readAccountSql() {
  */
 export function resetAccountSql({ email, passwordHash, now, rotateTotp = false }) {
 	const sets = [
-		`email = ${sqlQuote(email)}`,
 		`password_hash = ${sqlQuote(passwordHash)}`,
 		`updated_at = ${Math.trunc(now)}`,
 		...(rotateTotp
@@ -201,13 +209,13 @@ export function resetAccountSql({ email, passwordHash, now, rotateTotp = false }
 				]
 			: [])
 	];
-	return `UPDATE users SET ${sets.join(', ')};`;
+	return `UPDATE users SET ${sets.join(', ')} WHERE email = ${sqlQuote(email)};`;
 }
 
-/** Every session dies with a password change, on every device.
- *  @returns {string} */
-export function clearSessionsSql() {
-	return 'DELETE FROM sessions;';
+/** Every session of that account dies with a password change, on every device.
+ *  @param {string} email @returns {string} */
+export function clearSessionsSql(email) {
+	return `DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email = ${sqlQuote(email)});`;
 }
 
 /**
@@ -216,7 +224,10 @@ export function clearSessionsSql() {
  * they are locked out would otherwise be told "Too many attempts — try again in
  * 15 minutes" with the new password in hand. Every row in that table is
  * transient (a login challenge, an enrollment challenge, a lockout counter), so
- * a reset clears the table rather than picking rows apart.
+ * a reset clears the table rather than picking rows apart. On an instance with
+ * several accounts the sign-in lockout per client address is kept on the
+ * owner's row whichever account was guessed at, which is one more reason not to
+ * filter by user here; the cost is that anyone mid-sign-in starts again.
  *  @returns {string} */
 export function clearAuthGatesSql() {
 	return 'DELETE FROM mfa_challenges;';
@@ -279,15 +290,15 @@ async function d1(wrangler, statement, { remote = true, extraArgs = [], ...optio
  * than thrown: the caller can still try the guarded insert, which refuses to
  * create a second account on its own.
  *
- * @param {{ wrangler: WranglerRunner, remote?: boolean, extraArgs?: string[] }} options
+ * @param {{ wrangler: WranglerRunner, remote?: boolean, extraArgs?: string[], email?: string }} options
  * @returns {Promise<{ ok: boolean, exists: boolean, email: string | null, totpEnrolled?: boolean, error?: string }>}
  */
-export async function readAccount({ wrangler, remote = true, extraArgs = [] }) {
+export async function readAccount({ wrangler, remote = true, extraArgs = [], email }) {
 	let stdout;
 	try {
 		// `allowFailure`: a database that does not exist yet is a normal answer
 		// ("no account"), not a reason to abort the run.
-		stdout = await d1(wrangler, readAccountSql(), {
+		stdout = await d1(wrangler, readAccountSql(email ? normalizeEmail(email) : undefined), {
 			remote,
 			extraArgs,
 			readOnly: true,
@@ -298,11 +309,11 @@ export async function readAccount({ wrangler, remote = true, extraArgs = [] }) {
 	}
 	try {
 		const rows = parseD1Rows(stdout);
-		const email = rows.length ? String(rows[0].email ?? '') : '';
+		const found = rows.length ? String(rows[0].email ?? '') : '';
 		// D1 hands SQLite integers back as numbers; a NULL column (an account
 		// that never enrolled) is falsy either way.
 		const totpEnrolled = rows.length ? Number(rows[0].totp_enabled ?? 0) === 1 : false;
-		return { ok: true, exists: Boolean(email), email: email || null, totpEnrolled };
+		return { ok: true, exists: Boolean(found), email: found || null, totpEnrolled };
 	} catch (err) {
 		return { ok: false, exists: false, email: null, error: messageOf(err) };
 	}
@@ -357,9 +368,9 @@ export async function seedAccount({
 }
 
 /**
- * Give the existing account a new password (and optionally a new second
- * factor). Throws when there is no account to reset, so a mistyped command
- * never silently invents one.
+ * Give the account with this email a new password (and optionally a new second
+ * factor). Throws when there is no such account, so a mistyped command never
+ * silently invents one, and touches no other account.
  *
  * @param {{ wrangler: WranglerRunner, email: string, password: string, iterations?: number, rotateTotp?: boolean, now?: number, remote?: boolean, extraArgs?: string[] }} options
  * @returns {Promise<{ email: string, iterations: number, rotateTotp: boolean }>}
@@ -381,10 +392,10 @@ export async function resetAccount({
 		throw new Error(`refusing to reset the login: ${iterations} is not a sane iteration count`);
 	}
 
-	const before = await readAccount({ wrangler, remote, extraArgs });
+	const before = await readAccount({ wrangler, remote, extraArgs, email: address });
 	if (!before.ok) throw new Error(before.error ?? 'could not read the account');
 	if (!before.exists)
-		throw new Error('there is no account to reset yet — run `npm run setup` first');
+		throw new Error(`there is no account for ${address} — run \`npm run setup\` first`);
 
 	const passwordHash = await hashPassword(password, iterations);
 	if (!(await verifyPassword(password, passwordHash))) {
@@ -395,10 +406,10 @@ export async function resetAccount({
 		extraArgs,
 		allowFailure: true
 	});
-	await d1(wrangler, clearSessionsSql(), { remote, extraArgs, allowFailure: true });
+	await d1(wrangler, clearSessionsSql(address), { remote, extraArgs, allowFailure: true });
 	await d1(wrangler, clearAuthGatesSql(), { remote, extraArgs, allowFailure: true });
 
-	const after = await readAccount({ wrangler, remote, extraArgs });
+	const after = await readAccount({ wrangler, remote, extraArgs, email: address });
 	if (!after.ok) throw new Error(after.error ?? 'could not confirm the reset');
 	if (after.email !== address)
 		throw new Error('the reset did not land — check the database by hand');

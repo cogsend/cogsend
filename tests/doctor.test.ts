@@ -14,6 +14,7 @@ import {
 	healthVerdict,
 	parseD1List,
 	platformVerdict,
+	registrationVerdict,
 	highestVersionTag,
 	accountVerdict,
 	installShape,
@@ -536,5 +537,18 @@ describe('config drift', () => {
 
 	it('stays quiet without a personal config', () => {
 		expect(configDriftVerdict(committed, null)).toBeNull();
+	});
+});
+
+describe('registrationVerdict', () => {
+	it('adds nothing for a single-user deployment', () => {
+		expect(registrationVerdict(['APP_ENCRYPTION_KEY'])).toBeNull();
+	});
+
+	it('warns when sign-up is on but addresses cannot be confirmed', () => {
+		expect(registrationVerdict(['REGISTRATION', 'RESEND_API_KEY'])?.status).toBe('warn');
+		expect(registrationVerdict(['REGISTRATION', 'RESEND_API_KEY', 'NOTIFY_FROM'])?.status).toBe(
+			'ok'
+		);
 	});
 });
