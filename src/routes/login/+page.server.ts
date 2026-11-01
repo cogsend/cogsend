@@ -1,5 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { isFullyVerified, needsSetup, needsTotpEnroll } from '#lib/server/auth.js';
+import { registrationConfig } from '#lib/server/registration.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -8,5 +9,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 	if (await needsSetup(locals.db)) return { notConfigured: true };
 	if (isFullyVerified(locals.user)) redirect(303, '/');
 	if (needsTotpEnroll(locals.user)) redirect(303, '/login/setup-2fa');
-	return {};
+	const registration = await registrationConfig(locals.db, locals.env);
+	return { signup: registration.enabled && registration.mode !== 'off' };
 };

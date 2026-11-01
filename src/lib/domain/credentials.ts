@@ -9,7 +9,8 @@
  * implementations case by case: a rule can only change in both at once.
  *
  * Delivery is deliberately not checked (no dot required, no DNS): the address
- * is only an identifier, never a place mail is sent.
+ * is an identifier. The only mail ever sent to it is the confirmation link of
+ * public sign-up, on an instance that opted into it with a sender configured.
  */
 export const EMAIL_MAX = 254;
 export const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+$/;

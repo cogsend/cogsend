@@ -25,6 +25,8 @@
 				needEnroll?: boolean;
 				needTotp?: boolean;
 			};
+			// A 403 here carries the account's state (waitlist, suspended), which
+			// the server only reveals once the password was right.
 			if (!res.ok) throw new Error(data.error || 'Login failed');
 			if (data.needEnroll) {
 				await goto('/login/setup-2fa');
@@ -213,9 +215,17 @@
 					{loading ? 'Signing in…' : 'Sign in'}
 				</button>
 			</form>
-			<p class="mt-4 text-center text-xs font-medium text-stone-500">
-				Use the email and password you set when you ran <code>npm run setup</code>
-			</p>
+			{#if data.signup}
+				<p class="mt-4 text-center text-xs font-medium text-stone-500">
+					New here? <a href="/signup" class="font-bold text-stone-700 underline"
+						>Create an account</a
+					>
+				</p>
+			{:else}
+				<p class="mt-4 text-center text-xs font-medium text-stone-500">
+					Use the email and password you set when you ran <code>npm run setup</code>
+				</p>
+			{/if}
 		{/if}
 	</div>
 </div>

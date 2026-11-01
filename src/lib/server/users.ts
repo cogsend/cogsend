@@ -82,9 +82,7 @@ export async function listUsers(db: AppDb): Promise<UserSummary[]> {
 }
 
 export async function countActiveUsers(db: AppDb): Promise<number> {
-	const row = await first(
-		db.select({ n: count() }).from(users).where(eq(users.status, 'active'))
-	);
+	const row = await first(db.select({ n: count() }).from(users).where(eq(users.status, 'active')));
 	return toNumber(row?.n);
 }
 
