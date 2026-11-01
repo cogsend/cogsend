@@ -846,7 +846,23 @@
 				</button>
 			</div>
 
-			{#if setupPanel}
+			{#if setupPanel && !isAdmin}
+				<div class="space-y-4" data-testid="platform-setup-member">
+					<button
+						type="button"
+						onclick={backToPlatforms}
+						class="text-[13px] font-bold text-stone-500 hover:text-stone-900"
+						>← All platforms</button
+					>
+					<h3 class="text-[17px] font-extrabold tracking-tight text-stone-900">
+						{platformName(setupPanel)} isn't enabled on this instance yet
+					</h3>
+					<p class="text-[13px] font-medium text-stone-500">
+						Connecting it needs an app the instance admin sets up once for everyone. Ask them to add
+						it; your other platforms work in the meantime.
+					</p>
+				</div>
+			{:else if setupPanel}
 				{#key setupPanel}
 					{@const setup = PLATFORM_SETUP[setupPanel]}
 					{@const secretNames = platformSecretNames(setupPanel)}
@@ -860,231 +876,212 @@
 						appUrl || page.url.origin,
 						page.data.appName ?? 'CogSend'
 					)}
-					{#if isAdmin}
-						<div class="space-y-4" data-testid="platform-setup-panel">
-							<button
-								type="button"
-								onclick={backToPlatforms}
-								class="text-[13px] font-bold text-stone-500 hover:text-stone-900"
-								>← All platforms</button
-							>
-							<h3 class="text-[17px] font-extrabold tracking-tight text-stone-900">
-								{savedHere
-									? `${platformName(setupPanel)} app credentials`
-									: `${platformName(setupPanel)} isn't enabled yet`}
-							</h3>
-							<p class="text-xs font-medium text-stone-500">
-								{#if savedHere}
-									Saved on this instance{savedClientIds[setupPanel]
-										? ` (client ID ending ${savedClientIds[setupPanel]})`
-										: ''}. Enter new ones to replace them, or remove them.
-								{:else}
-									{platformName(setupPanel)} needs an app of your own. Create it, then enter its credentials
-									here.
-								{/if}
-							</p>
-							<div
-								class="divide-y divide-stone-200/80 overflow-hidden rounded-xl border border-stone-200/80"
-							>
-								<details class="group">
-									<summary
-										data-testid="setup-step-1"
-										class="flex cursor-pointer list-none items-center gap-2.5 p-3 text-xs font-bold text-stone-900 hover:bg-stone-50 [&::-webkit-details-marker]:hidden"
-									>
-										<span
-											class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white"
-											>1</span
-										>
-										Create the app
-										<ChevronDown
-											class="ml-auto h-4 w-4 shrink-0 text-stone-400 transition-transform group-open:rotate-180"
-										/>
-									</summary>
-									<div class="space-y-2 px-3 pb-3 text-xs font-medium text-stone-600">
-										<p>
-											In the <a
-												href={setup.consoleUrl}
-												target="_blank"
-												rel="noreferrer"
-												class="font-bold text-stone-900 underline">{setup.consoleName}</a
-											>. {setup.consoleRequirement}
-										</p>
-										<p>Register this redirect URI in {setup.redirectField}:</p>
-										<div
-											class="flex items-center gap-1 rounded-xl border border-stone-200/80 bg-stone-50 py-1 pr-1 pl-3"
-										>
-											<code
-												class="min-w-0 flex-1 overflow-x-auto font-mono text-[11px] whitespace-nowrap text-stone-900 select-all"
-												data-testid="setup-callback-uri">{redirectUri}</code
-											>
-											<CopyButton value={redirectUri} ariaLabel="Copy the redirect URI" />
-										</div>
-										<p class="pt-1">
-											Or let a browser agent such as Claude in Chrome do it: copy this prompt and
-											paste it into the agent. It stops whenever a step needs you.
-										</p>
-										<div
-											class="flex items-center gap-1 rounded-xl border border-stone-200/80 bg-stone-50 py-1 pr-1 pl-3"
-										>
-											<span class="min-w-0 flex-1 truncate text-[11px] font-bold text-stone-900"
-												>Agent prompt for {platformName(setupPanel)}</span
-											>
-											<CopyButton value={agentPrompt} ariaLabel="Copy the agent prompt" />
-										</div>
-									</div>
-								</details>
-								<details class="group" open={savedHere}>
-									<summary
-										data-testid="setup-step-2"
-										class="flex cursor-pointer list-none items-center gap-2.5 p-3 text-xs font-bold text-stone-900 hover:bg-stone-50 [&::-webkit-details-marker]:hidden"
-									>
-										<span
-											class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white"
-											>2</span
-										>
-										Enter the app's credentials
-										<ChevronDown
-											class="ml-auto h-4 w-4 shrink-0 text-stone-400 transition-transform group-open:rotate-180"
-										/>
-									</summary>
-									<form
-										class="space-y-2 px-3 pb-3"
-										data-testid="setup-app-form"
-										onsubmit={(e) => saveAppCredentials(setupPanel!, e)}
-									>
-										{#each secretNames as secret (secret)}
-											{@const optional = setup.optionalSecrets?.includes(secret)}
-											<label class="block">
-												<span class="text-[11px] font-bold text-stone-600"
-													>{secretLabel(secret)}{optional ? ' (optional)' : ''}</span
-												>
-												<input
-													type={secret.endsWith('_ID') ? 'text' : 'password'}
-													autocomplete="off"
-													spellcheck="false"
-													required={!optional}
-													bind:value={appForm[secret]}
-													class="mt-1 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2 font-mono text-xs text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
-												/>
-											</label>
-										{/each}
-										<p class="text-[11px] font-medium text-stone-500">
-											Stored encrypted on this instance, and never shown again.
-										</p>
-										{#if appFormError}
-											<p class="text-xs font-bold text-red-600" role="alert">{appFormError}</p>
-										{/if}
-										<div class="flex items-center gap-3">
-											<button
-												type="submit"
-												disabled={appFormBusy}
-												class="rounded-full bg-stone-900 px-4 py-2 text-xs font-bold text-white hover:bg-stone-800 disabled:opacity-50"
-												>{appFormBusy ? 'Saving…' : 'Save and connect'}</button
-											>
-											{#if savedHere}
-												<button
-													type="button"
-													disabled={appFormBusy}
-													onclick={() => removeAppCredentials(setupPanel!)}
-													class="text-xs font-bold text-stone-500 underline-offset-2 hover:text-red-700 hover:underline"
-													>Remove</button
-												>
-											{/if}
-										</div>
-									</form>
-								</details>
-								<details class="group">
-									<summary
-										data-testid="setup-step-3"
-										class="flex cursor-pointer list-none items-center gap-2.5 p-3 text-xs font-bold text-stone-900 hover:bg-stone-50 [&::-webkit-details-marker]:hidden"
-									>
-										<span
-											class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white"
-											>3</span
-										>
-										Or set them as Worker secrets
-										<ChevronDown
-											class="ml-auto h-4 w-4 shrink-0 text-stone-400 transition-transform group-open:rotate-180"
-										/>
-									</summary>
-									<div class="space-y-2 px-3 pb-3 text-xs font-medium text-stone-600">
-										<p>
-											Put {#each missing as secret, index (secret)}{index > 0 ? ' and ' : ''}<code
-													class="font-mono text-[11px] text-stone-900">{secret}</code
-												>{/each} in
-											<code class="font-mono text-[11px] text-stone-900">.dev.vars</code> — uncomment
-											the line if it is already there, otherwise add it — then run
-										</p>
-										{#if alreadySet.length}
-											<p>
-												Already set on the Worker:
-												{#each alreadySet as secret, index (secret)}{index > 0 ? ', ' : ''}<code
-														class="font-mono text-[11px] text-stone-900">{secret}</code
-													>{/each}.
-											</p>
-										{/if}
-										<div
-											class="flex items-center gap-1 rounded-xl border border-stone-200/80 bg-stone-50 py-1 pr-1 pl-3"
-										>
-											<code
-												class="min-w-0 flex-1 overflow-x-auto font-mono text-[11px] whitespace-nowrap text-stone-900 select-all"
-												data-testid="setup-command">{command}</code
-											>
-											<CopyButton value={command} ariaLabel="Copy the secrets command" />
-										</div>
-										<p class="text-[11px] text-stone-500">
-											No checkout on this machine? Add them in the Cloudflare dashboard instead:
-											Workers → your Worker → Settings → Variables and Secrets, then press Deploy.
-										</p>
-										<p class="text-[11px] text-stone-500">
-											Then reload this page: secrets go live as soon as the command finishes, with
-											no redeploy step. Worker secrets take precedence over credentials entered
-											above.
-										</p>
-									</div>
-								</details>
-							</div>
-							{#if setup.note}
-								<p class="text-xs font-medium text-stone-500">{setup.note}</p>
+					<div class="space-y-4" data-testid="platform-setup-panel">
+						<button
+							type="button"
+							onclick={backToPlatforms}
+							class="text-[13px] font-bold text-stone-500 hover:text-stone-900"
+							>← All platforms</button
+						>
+						<h3 class="text-[17px] font-extrabold tracking-tight text-stone-900">
+							{savedHere
+								? `${platformName(setupPanel)} app credentials`
+								: `${platformName(setupPanel)} isn't enabled yet`}
+						</h3>
+						<p class="text-xs font-medium text-stone-500">
+							{#if savedHere}
+								Saved on this instance{savedClientIds[setupPanel]
+									? ` (client ID ending ${savedClientIds[setupPanel]})`
+									: ''}. Enter new ones to replace them, or remove them.
+							{:else}
+								{platformName(setupPanel)} needs an app of your own. Create it, then enter its credentials
+								here.
 							{/if}
-							<a
-								href={setupGuideUrl(setupPanel)}
-								target="_blank"
-								rel="noreferrer"
-								class="inline-block text-[13px] font-bold text-stone-900 underline"
-								>Full {platformName(setupPanel)} steps</a
-							>
-							<p
-								class="rounded-xl border border-dashed border-stone-300 px-3 py-2.5 text-xs font-medium text-stone-600"
-								data-testid="setup-zernio-callout"
-							>
-								Don't want to set up an app?
-								<button
-									type="button"
-									onclick={() => openZernioForm(setupPanel ?? undefined)}
-									class="font-bold text-stone-900 underline"
-									>Connect {platformName(setupPanel)} through Zernio</button
+						</p>
+						<div
+							class="divide-y divide-stone-200/80 overflow-hidden rounded-xl border border-stone-200/80"
+						>
+							<details class="group">
+								<summary
+									data-testid="setup-step-1"
+									class="flex cursor-pointer list-none items-center gap-2.5 p-3 text-xs font-bold text-stone-900 hover:bg-stone-50 [&::-webkit-details-marker]:hidden"
 								>
-								instead.{setupPanel === 'x' ? '' : ' Free plan available.'}
-							</p>
+									<span
+										class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white"
+										>1</span
+									>
+									Create the app
+									<ChevronDown
+										class="ml-auto h-4 w-4 shrink-0 text-stone-400 transition-transform group-open:rotate-180"
+									/>
+								</summary>
+								<div class="space-y-2 px-3 pb-3 text-xs font-medium text-stone-600">
+									<p>
+										In the <a
+											href={setup.consoleUrl}
+											target="_blank"
+											rel="noreferrer"
+											class="font-bold text-stone-900 underline">{setup.consoleName}</a
+										>. {setup.consoleRequirement}
+									</p>
+									<p>Register this redirect URI in {setup.redirectField}:</p>
+									<div
+										class="flex items-center gap-1 rounded-xl border border-stone-200/80 bg-stone-50 py-1 pr-1 pl-3"
+									>
+										<code
+											class="min-w-0 flex-1 overflow-x-auto font-mono text-[11px] whitespace-nowrap text-stone-900 select-all"
+											data-testid="setup-callback-uri">{redirectUri}</code
+										>
+										<CopyButton value={redirectUri} ariaLabel="Copy the redirect URI" />
+									</div>
+									<p class="pt-1">
+										Or let a browser agent such as Claude in Chrome do it: copy this prompt and
+										paste it into the agent. It stops whenever a step needs you.
+									</p>
+									<div
+										class="flex items-center gap-1 rounded-xl border border-stone-200/80 bg-stone-50 py-1 pr-1 pl-3"
+									>
+										<span class="min-w-0 flex-1 truncate text-[11px] font-bold text-stone-900"
+											>Agent prompt for {platformName(setupPanel)}</span
+										>
+										<CopyButton value={agentPrompt} ariaLabel="Copy the agent prompt" />
+									</div>
+								</div>
+							</details>
+							<details class="group" open={savedHere}>
+								<summary
+									data-testid="setup-step-2"
+									class="flex cursor-pointer list-none items-center gap-2.5 p-3 text-xs font-bold text-stone-900 hover:bg-stone-50 [&::-webkit-details-marker]:hidden"
+								>
+									<span
+										class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white"
+										>2</span
+									>
+									Enter the app's credentials
+									<ChevronDown
+										class="ml-auto h-4 w-4 shrink-0 text-stone-400 transition-transform group-open:rotate-180"
+									/>
+								</summary>
+								<form
+									class="space-y-2 px-3 pb-3"
+									data-testid="setup-app-form"
+									onsubmit={(e) => saveAppCredentials(setupPanel!, e)}
+								>
+									{#each secretNames as secret (secret)}
+										{@const optional = setup.optionalSecrets?.includes(secret)}
+										<label class="block">
+											<span class="text-[11px] font-bold text-stone-600"
+												>{secretLabel(secret)}{optional ? ' (optional)' : ''}</span
+											>
+											<input
+												type={secret.endsWith('_ID') ? 'text' : 'password'}
+												autocomplete="off"
+												spellcheck="false"
+												required={!optional}
+												bind:value={appForm[secret]}
+												class="mt-1 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2 font-mono text-xs text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+											/>
+										</label>
+									{/each}
+									<p class="text-[11px] font-medium text-stone-500">
+										Stored encrypted on this instance, and never shown again.
+									</p>
+									{#if appFormError}
+										<p class="text-xs font-bold text-red-600" role="alert">{appFormError}</p>
+									{/if}
+									<div class="flex items-center gap-3">
+										<button
+											type="submit"
+											disabled={appFormBusy}
+											class="rounded-full bg-stone-900 px-4 py-2 text-xs font-bold text-white hover:bg-stone-800 disabled:opacity-50"
+											>{appFormBusy ? 'Saving…' : 'Save and connect'}</button
+										>
+										{#if savedHere}
+											<button
+												type="button"
+												disabled={appFormBusy}
+												onclick={() => removeAppCredentials(setupPanel!)}
+												class="text-xs font-bold text-stone-500 underline-offset-2 hover:text-red-700 hover:underline"
+												>Remove</button
+											>
+										{/if}
+									</div>
+								</form>
+							</details>
+							<details class="group">
+								<summary
+									data-testid="setup-step-3"
+									class="flex cursor-pointer list-none items-center gap-2.5 p-3 text-xs font-bold text-stone-900 hover:bg-stone-50 [&::-webkit-details-marker]:hidden"
+								>
+									<span
+										class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white"
+										>3</span
+									>
+									Or set them as Worker secrets
+									<ChevronDown
+										class="ml-auto h-4 w-4 shrink-0 text-stone-400 transition-transform group-open:rotate-180"
+									/>
+								</summary>
+								<div class="space-y-2 px-3 pb-3 text-xs font-medium text-stone-600">
+									<p>
+										Put {#each missing as secret, index (secret)}{index > 0 ? ' and ' : ''}<code
+												class="font-mono text-[11px] text-stone-900">{secret}</code
+											>{/each} in
+										<code class="font-mono text-[11px] text-stone-900">.dev.vars</code> — uncomment the
+										line if it is already there, otherwise add it — then run
+									</p>
+									{#if alreadySet.length}
+										<p>
+											Already set on the Worker:
+											{#each alreadySet as secret, index (secret)}{index > 0 ? ', ' : ''}<code
+													class="font-mono text-[11px] text-stone-900">{secret}</code
+												>{/each}.
+										</p>
+									{/if}
+									<div
+										class="flex items-center gap-1 rounded-xl border border-stone-200/80 bg-stone-50 py-1 pr-1 pl-3"
+									>
+										<code
+											class="min-w-0 flex-1 overflow-x-auto font-mono text-[11px] whitespace-nowrap text-stone-900 select-all"
+											data-testid="setup-command">{command}</code
+										>
+										<CopyButton value={command} ariaLabel="Copy the secrets command" />
+									</div>
+									<p class="text-[11px] text-stone-500">
+										No checkout on this machine? Add them in the Cloudflare dashboard instead:
+										Workers → your Worker → Settings → Variables and Secrets, then press Deploy.
+									</p>
+									<p class="text-[11px] text-stone-500">
+										Then reload this page: secrets go live as soon as the command finishes, with no
+										redeploy step. Worker secrets take precedence over credentials entered above.
+									</p>
+								</div>
+							</details>
 						</div>
-					{:else}
-						<div class="space-y-4" data-testid="platform-setup-member">
+						{#if setup.note}
+							<p class="text-xs font-medium text-stone-500">{setup.note}</p>
+						{/if}
+						<a
+							href={setupGuideUrl(setupPanel)}
+							target="_blank"
+							rel="noreferrer"
+							class="inline-block text-[13px] font-bold text-stone-900 underline"
+							>Full {platformName(setupPanel)} steps</a
+						>
+						<p
+							class="rounded-xl border border-dashed border-stone-300 px-3 py-2.5 text-xs font-medium text-stone-600"
+							data-testid="setup-zernio-callout"
+						>
+							Don't want to set up an app?
 							<button
 								type="button"
-								onclick={backToPlatforms}
-								class="text-[13px] font-bold text-stone-500 hover:text-stone-900"
-								>← All platforms</button
+								onclick={() => openZernioForm(setupPanel ?? undefined)}
+								class="font-bold text-stone-900 underline"
+								>Connect {platformName(setupPanel)} through Zernio</button
 							>
-							<h3 class="text-[17px] font-extrabold tracking-tight text-stone-900">
-								{platformName(setupPanel)} isn't enabled on this instance yet
-							</h3>
-							<p class="text-[13px] font-medium text-stone-500">
-								Connecting it needs an app the instance admin sets up once for everyone. Ask them to
-								add it; your other platforms work in the meantime.
-							</p>
-						</div>
-					{/if}
+							instead.{setupPanel === 'x' ? '' : ' Free plan available.'}
+						</p>
+					</div>
 				{/key}
 			{:else if modalForm === 'none'}
 				<div class="grid gap-3">
