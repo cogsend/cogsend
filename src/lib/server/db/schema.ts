@@ -14,11 +14,35 @@ export const users = sqliteTable(
 		totpSecretEnc: text('totp_secret_enc'),
 		totpEnrolledAt: integer('totp_enrolled_at', { mode: 'timestamp_ms' }),
 		totpLastStep: integer('totp_last_step'),
-		settingsJson: text('settings_json')
+		settingsJson: text('settings_json'),
+		// The defaults are what every pre-0020 row already was: the one active
+		// admin. Sign-up always writes both explicitly (#lib/server/signup).
+		role: text('role', { enum: ['admin', 'member'] })
+			.notNull()
+			.default('admin'),
+		status: text('status', { enum: ['active', 'pending', 'unverified', 'suspended'] })
+			.notNull()
+			.default('active'),
+		lastLoginAt: integer('last_login_at', { mode: 'timestamp_ms' })
 	},
 	// Explicit name matches drizzle/0001_init.sql + init-sql.ts (users_email_uq).
 	// Inline .unique() generates a different auto name and drifts tooling diffs.
 	(t) => [uniqueIndex('users_email_uq').on(t.email)]
+);
+
+export const invites = sqliteTable(
+	'invites',
+	{
+		id: text('id').primaryKey(),
+		codeHash: text('code_hash').notNull(),
+		note: text('note'),
+		createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		usedAt: integer('used_at', { mode: 'timestamp_ms' }),
+		usedBy: text('used_by').references(() => users.id, { onDelete: 'set null' })
+	},
+	(t) => [uniqueIndex('invites_code_uq').on(t.codeHash)]
 );
 
 export const sessions = sqliteTable(

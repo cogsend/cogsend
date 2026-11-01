@@ -1,7 +1,7 @@
 import { fnv1a } from '#lib/domain/hash.js';
 import { rawBinding } from '../budget';
 
-/** Bootstrap DDL for first request. Squashed to latest: 0001 + 0002 + 0004-final + 0005 + 0007 + 0008 + 0009 + 0010 + 0012 + 0014 + 0015 + 0016 + 0017 + 0018 + 0019 (+ 0003 transient). Keep in lockstep with drizzle/*.sql; `tests/schema-bootstrap.test.ts` fails when an index a migration creates is missing here. */
+/** Bootstrap DDL for first request. Squashed to latest: 0001 + 0002 + 0004-final + 0005 + 0007 + 0008 + 0009 + 0010 + 0012 + 0014 + 0015 + 0016 + 0017 + 0018 + 0019 + 0020 + 0021 (+ 0003 transient). Keep in lockstep with drizzle/*.sql; `tests/schema-bootstrap.test.ts` fails when an index a migration creates is missing here. */
 export const INIT_SQL = `
 CREATE TABLE IF NOT EXISTS \`users\` (
 	\`id\` text PRIMARY KEY NOT NULL,
@@ -15,9 +15,24 @@ CREATE TABLE IF NOT EXISTS \`users\` (
 	\`totp_enrolled_at\` integer,
 	\`totp_last_step\` integer,
 	\`settings_json\` text,
-	\`display_name\` text
+	\`display_name\` text,
+	\`role\` text NOT NULL DEFAULT 'admin',
+	\`status\` text NOT NULL DEFAULT 'active',
+	\`last_login_at\` integer
 );
 CREATE UNIQUE INDEX IF NOT EXISTS \`users_email_uq\` ON \`users\` (\`email\`);
+
+CREATE TABLE IF NOT EXISTS \`invites\` (
+	\`id\` text PRIMARY KEY NOT NULL,
+	\`code_hash\` text NOT NULL,
+	\`note\` text,
+	\`created_by\` text REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+	\`created_at\` integer NOT NULL,
+	\`expires_at\` integer NOT NULL,
+	\`used_at\` integer,
+	\`used_by\` text REFERENCES \`users\`(\`id\`) ON DELETE SET NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`invites_code_uq\` ON \`invites\` (\`code_hash\`);
 
 CREATE TABLE IF NOT EXISTS \`sessions\` (
 	\`id\` text PRIMARY KEY NOT NULL,
@@ -298,7 +313,10 @@ const COLUMN_BACKFILLS: Array<{ table: string; columns: { name: string; ddl: str
 			{ name: 'totp_enrolled_at', ddl: 'totp_enrolled_at integer' },
 			{ name: 'totp_last_step', ddl: 'totp_last_step integer' },
 			{ name: 'settings_json', ddl: 'settings_json text' },
-			{ name: 'display_name', ddl: 'display_name text' }
+			{ name: 'display_name', ddl: 'display_name text' },
+			{ name: 'role', ddl: "role text NOT NULL DEFAULT 'admin'" },
+			{ name: 'status', ddl: "status text NOT NULL DEFAULT 'active'" },
+			{ name: 'last_login_at', ddl: 'last_login_at integer' }
 		]
 	},
 	{
@@ -371,6 +389,17 @@ CREATE TABLE IF NOT EXISTS draft_shares (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS draft_shares_token_uq ON draft_shares (token_hash);
 CREATE UNIQUE INDEX IF NOT EXISTS draft_shares_draft_uq ON draft_shares (draft_id);
+CREATE TABLE IF NOT EXISTS invites (
+	id text PRIMARY KEY NOT NULL,
+	code_hash text NOT NULL,
+	note text,
+	created_by text REFERENCES users(id) ON DELETE SET NULL,
+	created_at integer NOT NULL,
+	expires_at integer NOT NULL,
+	used_at integer,
+	used_by text REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS invites_code_uq ON invites (code_hash);
 `;
 
 /**
