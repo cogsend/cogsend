@@ -67,6 +67,13 @@ describe('which paths are rate limited', () => {
 		expect(rateLimitBucket('/api/drafts/x/share')).toBeNull();
 	});
 
+	it('limits public sign-up in a bucket of its own', () => {
+		expect(rateLimitBucket('/api/auth/signup')).toBe('signup:');
+		expect(rateLimitBucket('/api/auth/signup/')).toBe('signup:');
+		expect(rateLimitBucket('/api/auth/signup/verify')).toBe('signup:');
+		expect(rateLimitBucket('/signup')).toBeNull();
+	});
+
 	it('keys on the client address Cloudflare reports', () => {
 		expect(rateLimitKey(new Headers({ 'cf-connecting-ip': '203.0.113.9' }))).toBe('203.0.113.9');
 		// No edge header: a local server, a test, or a script on the machine that

@@ -338,3 +338,31 @@ describe('the failure digest on an instance with members', () => {
 		expect(mail).not.toContain('member private post');
 	});
 });
+
+describe('a single-user instance', () => {
+	it('shows no Users page and no sign-up link while it has one account and REGISTRATION is off', async () => {
+		const { load: layoutLoad } = await import('../src/routes/+layout.server');
+		const { load: loginLoad } = await import('../src/routes/login/+page.server');
+		await db.delete(users).where(eq(users.id, memberId));
+		const layout = (await layoutLoad({ locals: { db, env: TEST_ENV, user: owner } } as never)) as {
+			showUsers: boolean;
+		};
+		expect(layout.showUsers).toBe(false);
+		const login = (await loginLoad({ locals: { db, env: TEST_ENV, user: null } } as never)) as {
+			signup?: boolean;
+		};
+		expect(login.signup).toBe(false);
+	});
+
+	it('shows the Users page again once a second account exists, even with REGISTRATION off', async () => {
+		const { load: layoutLoad } = await import('../src/routes/+layout.server');
+		const asOwner = (await layoutLoad({ locals: { db, env: TEST_ENV, user: owner } } as never)) as {
+			showUsers: boolean;
+		};
+		expect(asOwner.showUsers).toBe(true);
+		const asMember = (await layoutLoad({
+			locals: { db, env: TEST_ENV, user: asUser({ id: memberId, email: 'm' }, 'member') }
+		} as never)) as { showUsers: boolean };
+		expect(asMember.showUsers).toBe(false);
+	});
+});
