@@ -67,7 +67,7 @@ On the Users page you can make another account an admin, or a member again. The 
 **Users** in the workspace menu lists every account with its role, state, when it joined and was last seen, and how many posts and connected accounts it has.
 
 - **Approve** a waiting account to make it active.
-- **Suspend** signs an account out everywhere at once. Its API key stops working without being revoked, so **Reinstate** brings everything back.
+- **Suspend** signs an account out everywhere at once. Its API key stops working without being revoked, and its scheduled posts wait instead of going out, so **Reinstate** brings everything back (posts that came due in the meantime go out on the next tick). Preview links it already shared keep working until they expire or it is deleted.
 - **Delete** removes the account and everything it owns: posts, schedules, uploaded media in R2 (and the previews and covers made from it), connected accounts, preview links, its API key, sessions and backup codes. It asks for your password. A very large media library is removed over several requests; the page keeps going until it is done.
 
 Members delete their own account from **Settings → Delete my account**, with their password and a current authenticator code, and the same cleanup runs. Posts already published on the platforms stay there: deleting an account in CogSend does not delete posts from Mastodon, LinkedIn or anywhere else.

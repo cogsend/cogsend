@@ -16,7 +16,7 @@ import { createTestAdmin, createTestDb, TEST_ADMIN, TEST_ENV } from '#lib/server
 import type { AppEnv } from '#lib/server/env.js';
 import { memoryMediaStore, previewKey } from '#lib/server/media.js';
 import { registrationConfig } from '#lib/server/registration.js';
-import { maybeSendFailureDigest } from '#lib/server/scheduler.js';
+import { claimDueTargets, maybeSendFailureDigest } from '#lib/server/scheduler.js';
 import { wouldOrphanInstance } from '#lib/server/users.js';
 import * as usersRoute from '../src/routes/api/admin/users/+server';
 import * as userRoute from '../src/routes/api/admin/users/[id]/+server';
@@ -364,5 +364,37 @@ describe('a single-user instance', () => {
 			locals: { db, env: TEST_ENV, user: asUser({ id: memberId, email: 'm' }, 'member') }
 		} as never)) as { showUsers: boolean };
 		expect(asMember.showUsers).toBe(false);
+	});
+});
+
+describe('the scheduler and suspended accounts', () => {
+	it('holds a suspended account’s due posts until it is reinstated', async () => {
+		const now = new Date();
+		const draft = newId();
+		const connection = newId();
+		await db.insert(drafts).values({ id: draft, userId: memberId, createdAt: now, updatedAt: now });
+		await db.insert(connections).values({
+			id: connection,
+			userId: memberId,
+			platform: 'bluesky',
+			credentialsEncrypted: '{}',
+			createdAt: now,
+			updatedAt: now
+		});
+		const target = newId();
+		await db.insert(publishTargets).values({
+			id: target,
+			draftId: draft,
+			connectionId: connection,
+			status: 'scheduled',
+			scheduledFor: new Date(now.getTime() - 60_000),
+			createdAt: now,
+			updatedAt: now
+		});
+		expect((await claimDueTargets(db, now)).map((t) => t.id)).toEqual([target]);
+		await db.update(users).set({ status: 'suspended' }).where(eq(users.id, memberId));
+		expect(await claimDueTargets(db, now)).toEqual([]);
+		await db.update(users).set({ status: 'active' }).where(eq(users.id, memberId));
+		expect((await claimDueTargets(db, now)).map((t) => t.id)).toEqual([target]);
 	});
 });
