@@ -423,7 +423,13 @@ test('profile picture dialog saves on its own and validates the URL', async () =
 	const before = await page.request.get('/api/settings').then((r) => r.json());
 	const originalPicture: string = before.settings?.profilePictureUrl ?? '';
 
-	await page.getByRole('button', { name: 'Add profile picture' }).click();
+	// Retried: a click that lands before the page hydrates is lost, and the
+	// dialog never opens.
+	await clickUntilVisible(
+		page,
+		page.getByRole('button', { name: 'Add profile picture' }),
+		page.locator('#profile-picture-url')
+	);
 	// A primary confirm focuses the button that continues, not Cancel: the
 	// dialog is a form, and the user came here to save. (The danger tone is the
 	// other way round — see ConfirmDialog.)
