@@ -89,10 +89,10 @@ text for that platform alone — shorter for X, longer for LinkedIn — without
 touching the others. An override tab is unlinked from Global from then on; its
 reset button re-syncs it to the Global text.
 
-With a Mastodon account selected, **Mastodon Options** sets the visibility
-(Public, Unlisted, Followers, Direct) and an optional content warning.
+**Options**, next to the tabs, holds the settings only some platforms have, with a section for each selected platform that has any. The chip lists what is set, such as `Options · Unlisted · AI Tools`, and turns red while a setting is wrong.
 
-With a Threads account selected, **Threads Options** sets an optional topic tag, the single clickable topic Threads shows on a post. It takes up to 50 characters, without `.` or `&`, and a `#` in front is dropped. In a thread it goes on the first post.
+- **Mastodon:** the visibility (Public, Unlisted, Followers, Direct) and an optional content warning.
+- **Threads:** an optional topic tag, the single clickable topic Threads shows on a post. It takes up to 50 characters, without `.` or `&`, and a `#` in front is dropped. In a thread it goes on the first post.
 
 ## Choosing destinations
 

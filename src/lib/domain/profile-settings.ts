@@ -1,6 +1,13 @@
 export const MASTO_VISIBILITIES = ['public', 'unlisted', 'private', 'direct'] as const;
 export type MastoVisibility = (typeof MASTO_VISIBILITIES)[number];
 
+export const MASTO_VISIBILITY_LABELS: Record<MastoVisibility, string> = {
+	public: 'Public',
+	unlisted: 'Unlisted',
+	private: 'Followers',
+	direct: 'Direct'
+};
+
 export interface ProfileSettings {
 	/** Default Mastodon visibility for new drafts. */
 	mastoVisibility: MastoVisibility;

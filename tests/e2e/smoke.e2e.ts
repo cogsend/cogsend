@@ -845,16 +845,16 @@ test('mastodon options follow the selected destinations', async () => {
 	// The settings test leaves visibility=private; a stored default alone must
 	// not surface the Mastodon strip while only Bluesky is selected.
 	await page.goto('/compose');
-	await expect(page.getByTestId('masto-options')).toHaveCount(0);
+	await expect(page.getByTestId('post-options')).toHaveCount(0);
 
 	const mastoId = await seedMastodon(page, 'masto@test');
 	try {
 		// The fresh composer selects every active account, Mastodon included.
 		await page.goto('/compose');
-		await expect(page.getByTestId('masto-options')).toBeVisible({ timeout: 15000 });
+		await expect(page.getByTestId('post-options')).toBeVisible({ timeout: 15000 });
 		await clickUntilVisible(
 			page,
-			page.getByTestId('masto-settings-toggle'),
+			page.getByTestId('post-options-toggle'),
 			page.getByTestId('masto-visibility')
 		);
 		await expect(page.getByTestId('masto-visibility')).toBeVisible();
@@ -866,7 +866,7 @@ test('mastodon options follow the selected destinations', async () => {
 		await page.getByRole('button', { name: 'Clear all' }).click();
 		await page.locator('button[title="Bluesky: test.bsky.social"]').click();
 		await page.keyboard.press('Escape');
-		await expect(page.getByTestId('masto-options')).toHaveCount(0);
+		await expect(page.getByTestId('post-options')).toHaveCount(0);
 	} finally {
 		// Keep the shared connection list stable for the tests that follow.
 		await deleteConnection(mastoId);
@@ -1281,7 +1281,7 @@ test('single-destination composer hides thread, override and mastodon chrome', a
 	await page.keyboard.press('Escape');
 	await expect(page.getByTestId('add-thread-post')).toHaveCount(0);
 	await expect(page.getByTestId('add-override-toggle')).toHaveCount(0);
-	await expect(page.getByTestId('masto-options')).toHaveCount(0);
+	await expect(page.getByTestId('post-options')).toHaveCount(0);
 
 	// A second, thread-capable destination brings both affordances back.
 	await page.getByTestId('destinations-toggle').click();

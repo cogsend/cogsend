@@ -87,7 +87,11 @@
 		parseThreadsTopic,
 		validateThreadsTopic
 	} from '#lib/domain/threads-topic.js';
-	import type { ProfileSettings } from '#lib/domain/profile-settings.js';
+	import {
+		MASTO_VISIBILITIES,
+		MASTO_VISIBILITY_LABELS,
+		type ProfileSettings
+	} from '#lib/domain/profile-settings.js';
 	import {
 		DEFAULT_SCHEDULE_OFFSET,
 		earliestFutureScheduleValue,
@@ -388,8 +392,7 @@
 	let isPostConfirmOpen = $state(false);
 	let publishNowBtn: HTMLButtonElement | null = $state(null);
 	let isAddOverrideOpen = $state(false);
-	let isMastoOptionsOpen = $state(false);
-	let isThreadsOptionsOpen = $state(false);
+	let isPostOptionsOpen = $state(false);
 	let fileRefs = $state<(HTMLInputElement | null)[]>([]);
 	let textareaRefs = $state<(HTMLTextAreaElement | null)[]>([]);
 	let altOpen = $state<Record<string, boolean>>({});
@@ -705,6 +708,19 @@
 		selectedAccounts.filter((account) => account.platform === 'threads')
 	);
 	const showThreadsOptions = $derived(selectedThreadsAccounts.length > 0);
+	const showPostOptions = $derived(showMastoOptions || showThreadsOptions);
+	const postOptionsError = $derived(showThreadsOptions && threadsTopicError !== null);
+	// What differs from a plain post, so the closed chip still says what is set.
+	const postOptionsSummary = $derived.by(() => {
+		const parts: string[] = [];
+		if (showMastoOptions) {
+			if (mastoVisibility !== 'public') parts.push(MASTO_VISIBILITY_LABELS[mastoVisibility]);
+			if (mastoCW.trim()) parts.push('CW');
+		}
+		const topic = showThreadsOptions ? parseThreadsTopic(threadsTopic) : null;
+		if (topic) parts.push(topic);
+		return parts.join(' · ');
+	});
 	const threadsTopicLength = $derived(countGraphemes(normalizeThreadsTopic(threadsTopic)));
 	const threadsPostCount = $derived(
 		splitThreadSegments(effectivePlatformBody(baseBody, overrides, 'threads')).length
@@ -2919,11 +2935,8 @@
 		if (!target.closest('.override-dropdown-container')) {
 			isAddOverrideOpen = false;
 		}
-		if (!target.closest('.masto-options-container')) {
-			isMastoOptionsOpen = false;
-		}
-		if (!target.closest('.threads-options-container')) {
-			isThreadsOptionsOpen = false;
+		if (!target.closest('.post-options-container')) {
+			isPostOptionsOpen = false;
 		}
 		if (!target.closest('.quote-picker-container')) {
 			quotePickerFor = null;
@@ -3070,8 +3083,7 @@
 				if (isPostConfirmOpen) dismissPostConfirm();
 				isAddOverrideOpen = false;
 				isAccountsPopoverOpen = false;
-				if (isMastoOptionsOpen) isMastoOptionsOpen = false;
-				isThreadsOptionsOpen = false;
+				isPostOptionsOpen = false;
 				quotePickerFor = null;
 				return;
 			}
@@ -3284,145 +3296,122 @@
 			</div>
 		{/if}
 
-		<!-- Mastodon Options Popover Button -->
-		{#if showMastoOptions && !editLocked}
+		{#if showPostOptions && !editLocked}
 			<div class="mx-1 hidden h-4 w-px bg-stone-200 sm:block"></div>
-			<div class="masto-options-container relative" data-testid="masto-options">
-				<button
-					type="button"
-					data-testid="masto-settings-toggle"
-					class="flex items-center gap-1.5 rounded-full border border-stone-200 px-3 py-1.5 text-[12px] font-bold whitespace-nowrap text-stone-500 transition-colors hover:border-stone-300 hover:bg-stone-100 hover:text-stone-900"
-					onclick={(e) => {
-						e.stopPropagation();
-						isMastoOptionsOpen = !isMastoOptionsOpen;
-						isThreadsOptionsOpen = false;
-					}}
-				>
-					<Settings class="h-3 w-3" /> Mastodon
-				</button>
-
-				{#if isMastoOptionsOpen}
-					<div
-						class="absolute top-full left-0 z-40 mt-2 w-64 rounded-[1rem] border border-stone-200/80 bg-white p-3 shadow-[0_16px_40px_-12px_rgb(28_25_23/0.15)]"
-						transition:slide={{ duration: 150 }}
-					>
-						<div class="mb-2">
-							<span class="text-[10px] font-bold tracking-widest text-stone-500 uppercase"
-								>Mastodon Options</span
-							>
-						</div>
-						<div class="flex flex-col gap-3">
-							<label class="flex flex-col gap-1.5 text-[11px] font-bold text-stone-500">
-								Visibility
-								<select
-									data-testid="masto-visibility"
-									value={mastoVisibility}
-									onchange={(e) => {
-										mastoVisibility = e.currentTarget.value as typeof mastoVisibility;
-										markDirty();
-									}}
-									class="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 text-[12px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
-								>
-									<option value="public">Public</option>
-									<option value="unlisted">Unlisted</option>
-									<option value="private">Followers</option>
-									<option value="direct">Direct</option>
-								</select>
-							</label>
-							<label class="flex flex-col gap-1.5 text-[11px] font-bold text-stone-500">
-								Content Warning
-								<input
-									type="text"
-									data-testid="masto-cw"
-									value={mastoCW}
-									placeholder="Optional"
-									aria-label="Content warning (optional)"
-									oninput={(e) => {
-										mastoCW = e.currentTarget.value;
-										markDirty();
-									}}
-									class="w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-900 placeholder:text-stone-500 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
-								/>
-							</label>
-						</div>
-					</div>
-				{/if}
-			</div>
-		{/if}
-
-		{#if showThreadsOptions && !editLocked}
-			{#if !showMastoOptions}
-				<div class="mx-1 hidden h-4 w-px bg-stone-200 sm:block"></div>
-			{/if}
 			<!-- Below sm the popover spans the toolbar, so a chip at the end of a row cannot push it off screen. -->
-			<div class="threads-options-container sm:relative" data-testid="threads-options">
+			<div class="post-options-container min-w-0 sm:relative" data-testid="post-options">
 				<button
 					type="button"
-					data-testid="threads-settings-toggle"
-					aria-expanded={isThreadsOptionsOpen}
-					class="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-bold whitespace-nowrap transition-colors hover:border-stone-300 hover:bg-stone-100 hover:text-stone-900 {threadsTopicError
+					data-testid="post-options-toggle"
+					aria-expanded={isPostOptionsOpen}
+					class="flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-bold whitespace-nowrap transition-colors hover:border-stone-300 hover:bg-stone-100 hover:text-stone-900 {postOptionsError
 						? 'border-red-300 text-red-600'
 						: 'border-stone-200 text-stone-500'}"
-					onclick={() => (isThreadsOptionsOpen = !isThreadsOptionsOpen)}
+					onclick={() => (isPostOptionsOpen = !isPostOptionsOpen)}
 				>
-					<Settings class="h-3 w-3" /> Threads
-					{#if parseThreadsTopic(threadsTopic)}
-						<span class="max-w-[9rem] truncate font-medium" data-testid="threads-topic-chip"
-							>· {parseThreadsTopic(threadsTopic)}</span
+					<Settings class="h-3 w-3 shrink-0" /> Options
+					{#if postOptionsSummary}
+						<span class="max-w-[12rem] truncate font-medium" data-testid="post-options-summary"
+							>· {postOptionsSummary}</span
 						>
 					{/if}
 				</button>
 
-				{#if isThreadsOptionsOpen}
+				{#if isPostOptionsOpen}
 					<div
-						class="absolute top-full right-0 left-0 z-40 mt-2 rounded-[1rem] border border-stone-200/80 bg-white p-3 shadow-[0_16px_40px_-12px_rgb(28_25_23/0.15)] sm:right-auto sm:w-64"
+						class="absolute top-full right-0 left-0 z-40 mt-2 flex flex-col gap-3 rounded-[1rem] border border-stone-200/80 bg-white p-3 shadow-[0_16px_40px_-12px_rgb(28_25_23/0.15)] sm:right-auto sm:w-64"
 						transition:slide={{ duration: 150 }}
 					>
-						<div class="mb-2">
-							<span class="text-[10px] font-bold tracking-widest text-stone-500 uppercase"
-								>Threads Options</span
-							>
-						</div>
-						<label class="flex flex-col gap-1.5 text-[11px] font-bold text-stone-500">
-							Topic Tag
-							<input
-								type="text"
-								data-testid="threads-topic"
-								value={threadsTopic}
-								placeholder="Optional"
-								aria-label="Topic tag (optional)"
-								aria-invalid={threadsTopicError !== null}
-								aria-describedby={threadsTopicError ? 'threads-topic-error' : undefined}
-								oninput={(e) => {
-									threadsTopic = e.currentTarget.value;
-									markDirty();
-								}}
-								class="w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-900 placeholder:text-stone-500 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
-							/>
-						</label>
-						<div class="mt-1.5 flex flex-col gap-1 text-[11px] font-medium text-stone-500">
-							<p
-								class="self-end {threadsTopicLength > THREADS_TOPIC_MAX_CHARS
-									? 'text-red-600'
-									: ''}"
-								data-testid="threads-topic-count"
-							>
-								{threadsTopicLength}/{THREADS_TOPIC_MAX_CHARS}
-							</p>
-							{#if threadsTopicError}
-								<p
-									id="threads-topic-error"
-									data-testid="threads-topic-error"
-									class="text-red-600"
-									role="alert"
-								>
-									{threadsTopicError}
-								</p>
-							{/if}
-							{#if threadsPostCount > 1}
-								<p data-testid="threads-topic-first-post">Applies to the first post.</p>
-							{/if}
-						</div>
+						{#if showMastoOptions}
+							<section class="flex flex-col gap-3" data-testid="masto-options">
+								<h3 class="text-[10px] font-bold tracking-widest text-stone-500 uppercase">
+									Mastodon
+								</h3>
+								<label class="flex flex-col gap-1.5 text-[11px] font-bold text-stone-500">
+									Visibility
+									<select
+										data-testid="masto-visibility"
+										value={mastoVisibility}
+										onchange={(e) => {
+											mastoVisibility = e.currentTarget.value as typeof mastoVisibility;
+											markDirty();
+										}}
+										class="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 text-[12px] font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+									>
+										{#each MASTO_VISIBILITIES as visibility (visibility)}
+											<option value={visibility}>{MASTO_VISIBILITY_LABELS[visibility]}</option>
+										{/each}
+									</select>
+								</label>
+								<label class="flex flex-col gap-1.5 text-[11px] font-bold text-stone-500">
+									Content Warning
+									<input
+										type="text"
+										data-testid="masto-cw"
+										value={mastoCW}
+										placeholder="Optional"
+										aria-label="Content warning (optional)"
+										oninput={(e) => {
+											mastoCW = e.currentTarget.value;
+											markDirty();
+										}}
+										class="w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-900 placeholder:text-stone-500 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+									/>
+								</label>
+							</section>
+						{/if}
+
+						{#if showMastoOptions && showThreadsOptions}
+							<hr class="border-stone-100" />
+						{/if}
+
+						{#if showThreadsOptions}
+							<section data-testid="threads-options">
+								<h3 class="mb-3 text-[10px] font-bold tracking-widest text-stone-500 uppercase">
+									Threads
+								</h3>
+								<label class="flex flex-col gap-1.5 text-[11px] font-bold text-stone-500">
+									Topic Tag
+									<input
+										type="text"
+										data-testid="threads-topic"
+										value={threadsTopic}
+										placeholder="Optional"
+										aria-label="Topic tag (optional)"
+										aria-invalid={threadsTopicError !== null}
+										aria-describedby={threadsTopicError ? 'threads-topic-error' : undefined}
+										oninput={(e) => {
+											threadsTopic = e.currentTarget.value;
+											markDirty();
+										}}
+										class="w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-900 placeholder:text-stone-500 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+									/>
+								</label>
+								<div class="mt-1.5 flex flex-col gap-1 text-[11px] font-medium text-stone-500">
+									<p
+										class="self-end {threadsTopicLength > THREADS_TOPIC_MAX_CHARS
+											? 'text-red-600'
+											: ''}"
+										data-testid="threads-topic-count"
+									>
+										{threadsTopicLength}/{THREADS_TOPIC_MAX_CHARS}
+									</p>
+									{#if threadsTopicError}
+										<p
+											id="threads-topic-error"
+											data-testid="threads-topic-error"
+											class="text-red-600"
+											role="alert"
+										>
+											{threadsTopicError}
+										</p>
+									{/if}
+									{#if threadsPostCount > 1}
+										<p data-testid="threads-topic-first-post">Applies to the first post.</p>
+									{/if}
+								</div>
+							</section>
+						{/if}
 					</div>
 				{/if}
 			</div>

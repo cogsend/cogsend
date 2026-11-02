@@ -73,7 +73,7 @@ async function openDraft(page: Page, draftId: string, body: string) {
 async function openTopic(page: Page) {
 	await clickUntilVisible(
 		page,
-		page.getByTestId('threads-settings-toggle'),
+		page.getByTestId('post-options-toggle'),
 		page.getByTestId('threads-topic')
 	);
 }
@@ -91,20 +91,20 @@ async function threadsVariant(page: Page, draftId: string) {
 	return variants.find((v) => v.platform === 'threads') ?? null;
 }
 
-test('the field appears for a Threads account, direct or through Zernio', async ({ page }) => {
+test('options appear for a Threads account, direct or through Zernio', async ({ page }) => {
 	const bluesky = await seedDraft(page, ['bluesky']);
 	await openDraft(page, bluesky.draftId, bluesky.body);
-	await expect(page.getByTestId('threads-options')).toHaveCount(0);
+	await expect(page.getByTestId('post-options')).toHaveCount(0);
 
 	const direct = await seedDraft(page, ['threads']);
 	await openDraft(page, direct.draftId, direct.body);
-	await expect(page.getByTestId('threads-options')).toBeVisible();
+	await expect(page.getByTestId('post-options')).toBeVisible();
 	await openTopic(page);
 	await expect(page.getByTestId('threads-topic-count')).toHaveText('0/50');
 
 	const zernio = await seedDraft(page, ['zernio-threads']);
 	await openDraft(page, zernio.draftId, zernio.body);
-	await expect(page.getByTestId('threads-options')).toBeVisible();
+	await expect(page.getByTestId('post-options')).toBeVisible();
 });
 
 test('a tag on a Zernio account saves, and clearing it removes it', async ({ page }) => {
@@ -124,7 +124,7 @@ test('a tag on a Zernio account saves, and clearing it removes it', async ({ pag
 		.toBe('Fresh');
 
 	await page.getByTestId('threads-topic').fill('');
-	await expect(page.getByTestId('threads-options')).toBeVisible();
+	await expect(page.getByTestId('post-options')).toBeVisible();
 	await expect.poll(() => threadsVariant(page, draftId), { timeout: 15000 }).toBeNull();
 });
 
@@ -136,7 +136,7 @@ test('a tag saves, reloads and leaves the post following Global', async ({ page 
 	await page.getByTestId('threads-topic').click();
 	await page.keyboard.type('  #AI Tools ');
 	await expect(page.getByTestId('threads-topic')).toHaveValue('  #AI Tools ');
-	await expect(page.getByTestId('threads-topic-chip')).toHaveText('· AI Tools');
+	await expect(page.getByTestId('post-options-summary')).toHaveText('· AI Tools');
 	await expect(page.getByTestId('threads-topic-count')).toHaveText('8/50');
 
 	await expect
@@ -144,7 +144,7 @@ test('a tag saves, reloads and leaves the post following Global', async ({ page 
 		.toMatchObject({ body: null, optionsJson: { topicTag: 'AI Tools' } });
 
 	await openDraft(page, draftId, body);
-	await expect(page.getByTestId('threads-topic-chip')).toHaveText('· AI Tools');
+	await expect(page.getByTestId('post-options-summary')).toHaveText('· AI Tools');
 	await expect(page.getByTestId('editor-tab-threads')).toHaveCount(0);
 
 	// Editing Global still reaches Threads: the tag is not an override.
@@ -167,7 +167,7 @@ test('clearing the tag removes it', async ({ page }) => {
 	await openTopic(page);
 	await expect(page.getByTestId('threads-topic')).toHaveValue('AI Tools');
 	await fillUntilKept(page.getByTestId('threads-topic'), '');
-	await expect(page.getByTestId('threads-topic-chip')).toHaveCount(0);
+	await expect(page.getByTestId('post-options-summary')).toHaveCount(0);
 	await expect.poll(() => threadsVariant(page, draftId), { timeout: 15000 }).toBeNull();
 });
 
@@ -192,7 +192,7 @@ test('custom Threads text keeps the tag, and so does resetting it', async ({ pag
 	await expect
 		.poll(() => threadsVariant(page, draftId), { timeout: 15000 })
 		.toMatchObject({ body: null, optionsJson: { topicTag: 'AI Tools' } });
-	await expect(page.getByTestId('threads-topic-chip')).toHaveText('· AI Tools');
+	await expect(page.getByTestId('post-options-summary')).toHaveText('· AI Tools');
 });
 
 test('a thread is told the tag goes on its first post', async ({ page }) => {
@@ -269,7 +269,7 @@ test('scheduling keeps the tag and the next post starts without it', async ({ pa
 	await page.getByTestId('schedule-confirm').click();
 	await expect(page.getByTestId('publish-toast')).toContainText('Scheduled for');
 	await expect(page.getByTestId('segment-input-0')).toHaveValue('');
-	await expect(page.getByTestId('threads-topic-chip')).toHaveCount(0);
+	await expect(page.getByTestId('post-options-summary')).toHaveCount(0);
 
 	expect(await threadsVariant(page, draftId)).toMatchObject({
 		body: null,
@@ -277,17 +277,36 @@ test('scheduling keeps the tag and the next post starts without it', async ({ pa
 	});
 });
 
-test('opening one options popover closes the other', async ({ page }) => {
-	const { draftId, body } = await seedDraft(page, ['threads', 'mastodon']);
+test('Mastodon and Threads share one options panel, summed up on its chip', async ({ page }) => {
+	const { draftId, body } = await seedDraft(page, ['threads', 'mastodon'], {
+		body: null,
+		options: { topicTag: 'AI Tools' }
+	});
+	await openDraft(page, draftId, body);
+	await expect(page.getByTestId('post-options')).toHaveCount(1);
+	await openTopic(page);
+	await expect(page.getByTestId('masto-visibility')).toBeVisible();
+	await expect(page.getByTestId('threads-topic')).toHaveValue('AI Tools');
+
+	await fillUntilKept(page.getByTestId('masto-cw'), 'spoilers');
+	await expect(page.getByTestId('post-options-summary')).toContainText('CW · AI Tools');
+
+	await page.keyboard.press('Escape');
+	await expect(page.getByTestId('masto-visibility')).toHaveCount(0);
+	await expect(page.getByTestId('threads-topic')).toHaveCount(0);
+});
+
+test('a wrong tag turns the chip red until it is fixed', async ({ page }) => {
+	const { draftId, body } = await seedDraft(page, ['threads']);
 	await openDraft(page, draftId, body);
 	await openTopic(page);
-	await page.getByTestId('masto-settings-toggle').click();
-	await expect(page.getByTestId('masto-visibility')).toBeVisible();
-	await expect(page.getByTestId('threads-topic')).toHaveCount(0);
+	await fillUntilKept(page.getByTestId('threads-topic'), 'a&b');
+	await page.keyboard.press('Escape');
+	await expect(page.getByTestId('post-options-toggle')).toHaveClass(/border-red-300/);
 
-	await page.getByTestId('threads-settings-toggle').click();
-	await expect(page.getByTestId('threads-topic')).toBeVisible();
-	await expect(page.getByTestId('masto-visibility')).toHaveCount(0);
+	await openTopic(page);
+	await fillUntilKept(page.getByTestId('threads-topic'), 'ab');
+	await expect(page.getByTestId('post-options-toggle')).not.toHaveClass(/border-red-300/);
 });
 
 test('moving between drafts in the composer brings each its own tag', async ({ page }) => {
@@ -297,7 +316,7 @@ test('moving between drafts in the composer brings each its own tag', async ({ p
 	});
 	const plain = await seedDraft(page, ['threads']);
 	await openDraft(page, tagged.draftId, tagged.body);
-	await expect(page.getByTestId('threads-topic-chip')).toHaveText('· AI Tools');
+	await expect(page.getByTestId('post-options-summary')).toHaveText('· AI Tools');
 
 	// A link, not page.goto: the composer stays mounted and loads the other draft itself.
 	const followLink = async (id: string) => {
@@ -312,11 +331,11 @@ test('moving between drafts in the composer brings each its own tag', async ({ p
 	};
 	await followLink(plain.draftId);
 	await expect(page.getByTestId('segment-input-0')).toHaveValue(plain.body, { timeout: 15000 });
-	await expect(page.getByTestId('threads-topic-chip')).toHaveCount(0);
+	await expect(page.getByTestId('post-options-summary')).toHaveCount(0);
 
 	await followLink(tagged.draftId);
 	await expect(page.getByTestId('segment-input-0')).toHaveValue(tagged.body, { timeout: 15000 });
-	await expect(page.getByTestId('threads-topic-chip')).toHaveText('· AI Tools');
+	await expect(page.getByTestId('post-options-summary')).toHaveText('· AI Tools');
 	expect(await threadsVariant(page, plain.draftId)).toBeNull();
 });
 
