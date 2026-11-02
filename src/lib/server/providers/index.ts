@@ -47,7 +47,7 @@ export function estimateKeyFor(conn: ConnectionLike): string {
 export * from './types';
 export { zernioProviderFor, buildZernioPostBody, ZERNIO_MAX_POLLS } from './zernio';
 export { providerFetch, timedFetch } from './timed-fetch';
-export { blueskyProvider, blueskyCreateSession, buildLinkFacets } from './bluesky';
+export { blueskyProvider, blueskyCreateSession } from './bluesky';
 export {
 	mastodonProvider,
 	mastodonRegisterApp,

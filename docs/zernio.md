@@ -44,6 +44,7 @@ Disconnecting an account in CogSend does not remove it from Zernio. Remove it th
 | Duplicates        | Zernio refuses the same text to the same account within 24 hours. The post fails with that reason and is not retried.                            |
 | Tokens            | Zernio keeps and refreshes them. If a platform revokes one, the account shows as expired here.                                                   |
 | Topic tags        | The same. A Threads topic tag is sent with the post.                                                                                             |
+| Links on Bluesky  | Sent as typed, so the counter counts them in full. A direct connection posts them shortened, the way Bluesky's app does.                         |
 
 ## Troubleshooting
 

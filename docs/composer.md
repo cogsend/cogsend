@@ -17,10 +17,9 @@ To start another post mid-thought, press **Write** at the top right. It saves th
 
 ## A thread is a list of cards
 
-Each card is one post, with its own character counter and its own images. The
-counter uses the strictest limit among the accounts you picked, counted the way
-that platform counts: graphemes for most, while Mastodon and X count every link
-as 23 characters, and X also counts CJK characters and each emoji as 2.
+Each card is one post, with its own character counter and its own images. The counter uses the strictest limit among the accounts you picked, counted the way that platform counts: graphemes for most, while Mastodon and X count every link as 23 characters, and X also counts CJK characters and each emoji as 2.
+
+Bluesky posts a link the way its own app does: the post shows the site and the start of the path, such as `example.com/blog/2026/11...`, and the link still opens the full address. The counter counts that shorter text, so a long link no longer uses up most of Bluesky's 300 characters. A Bluesky account connected through [Zernio](zernio.md) gets the link as typed, and counts it in full.
 
 - **+ Thread** adds a card; the × on a card removes it.
 - Type `---` in a card to split it there. The text after the marker moves into a

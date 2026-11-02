@@ -1,9 +1,9 @@
-import { utf8ByteLength } from '#lib/domain/bytes.js';
 import { extractFirstUrl } from '#lib/domain/links.js';
 import { fetchOgImage } from '../opengraph';
 import { fetchLinkCard } from '../x-post-preview';
 import { isBlockedInstanceHost } from '#lib/domain/instance-host.js';
 import { validateBlueskyText } from '#lib/domain/validation/text.js';
+import { blueskyRichText, type BlueskyLinkFacet } from '#lib/domain/bluesky-links.js';
 import { BLUESKY_MAX_IMAGE_BYTES } from '#lib/domain/media-limits.js';
 import type {
 	ConnectionCredentials,
@@ -65,28 +65,6 @@ function upstreamError(prefix: string, status: number, body: string): ProviderEr
 function pds(creds: ConnectionCredentials): string {
 	// Stored rows predate validation; re-check on every use (fail closed).
 	return sanitizeBlueskyPdsHost(creds.pdsHost || DEFAULT_PDS);
-}
-
-export function buildLinkFacets(text: string): Array<{
-	index: { byteStart: number; byteEnd: number };
-	features: Array<{ $type: string; uri: string }>;
-}> {
-	const facets: Array<{
-		index: { byteStart: number; byteEnd: number };
-		features: Array<{ $type: string; uri: string }>;
-	}> = [];
-	const re = /https?:\/\/[^\s]+/gi;
-	let match: RegExpExecArray | null;
-	while ((match = re.exec(text)) !== null) {
-		const url = match[0].replace(/[.,);:!?]+$/, '');
-		const byteStart = utf8ByteLength(text.slice(0, match.index));
-		const byteEnd = byteStart + utf8ByteLength(url);
-		facets.push({
-			index: { byteStart, byteEnd },
-			features: [{ $type: 'app.bsky.richtext.facet#link', uri: url }]
-		});
-	}
-	return facets;
 }
 
 /** Refresh when an access token has less than this left. */
@@ -189,7 +167,7 @@ async function createPostRecord(
 	post: {
 		text: string;
 		createdAt: string;
-		facets?: ReturnType<typeof buildLinkFacets>;
+		facets?: BlueskyLinkFacet[];
 		embed?: unknown;
 		reply?: { root: { uri: string; cid: string }; parent: { uri: string; cid: string } };
 	},
@@ -535,12 +513,13 @@ async function publishOne(
 			embed = undefined;
 		}
 	}
-	const facets = buildLinkFacets(content.text);
+	// The link card above reads the full URL; the record gets the short text.
+	const { text, facets } = blueskyRichText(content.text || '', { shortenLinks: true });
 	try {
 		return await createPostRecord(
 			session,
 			{
-				text: content.text,
+				text,
 				createdAt: new Date().toISOString(),
 				facets: facets.length ? facets : undefined,
 				embed,
@@ -558,7 +537,7 @@ async function publishOne(
 		return createPostRecord(
 			session,
 			{
-				text: content.text,
+				text,
 				createdAt: new Date().toISOString(),
 				facets: facets.length ? facets : undefined,
 				embed,
@@ -568,6 +547,55 @@ async function publishOne(
 			rkey
 		);
 	}
+}
+
+/** `shortenLinks` says whether the links will be posted short, as publishOne does. */
+export function validateBlueskyPost(
+	content: NormalizedPost,
+	meta: ConnectionMeta | undefined,
+	{ shortenLinks }: { shortenLinks: boolean }
+): ValidationIssue[] {
+	const issues: ValidationIssue[] = [];
+	const segments = content.thread && content.thread.length > 0 ? content.thread : [content];
+	for (let i = 0; i < segments.length; i++) {
+		const seg = segments[i];
+		issues.push(...videoValidation('bluesky', seg.media, meta, `thread[${i}].media`));
+		const hasMedia = (seg.media?.length ?? 0) > 0;
+		if (!seg.text?.trim() && !hasMedia) {
+			issues.push({
+				field: `thread[${i}]`,
+				message: 'Segment needs text or media',
+				code: 'empty'
+			});
+		}
+		const textCheck = validateBlueskyText(seg.text || '', { shortenLinks });
+		if (!textCheck.ok && (seg.text || '').length > 0) {
+			issues.push({
+				field: `thread[${i}].text`,
+				message: textCheck.message || 'Text too long',
+				code: 'max_length'
+			});
+		}
+		if ((seg.media?.length ?? 0) > 4) {
+			issues.push({
+				field: `thread[${i}].media`,
+				message: 'Bluesky allows max 4 images',
+				code: 'max_images'
+			});
+		}
+		for (const m of seg.media ?? []) {
+			if (isVideoAttachment(m)) {
+				continue;
+			} else if (mediaByteLength(m) > BLUESKY_MAX_IMAGE_BYTES) {
+				issues.push({
+					field: `thread[${i}].media`,
+					message: 'Bluesky allows max 2MB per image',
+					code: 'max_image_bytes'
+				});
+			}
+		}
+	}
+	return issues;
 }
 
 export const blueskyProvider: PlatformProvider = {
@@ -580,49 +608,7 @@ export const blueskyProvider: PlatformProvider = {
 		supportsThreads: true
 	},
 
-	validate(content: NormalizedPost, meta?: ConnectionMeta): ValidationIssue[] {
-		const issues: ValidationIssue[] = [];
-		const segments = content.thread && content.thread.length > 0 ? content.thread : [content];
-		for (let i = 0; i < segments.length; i++) {
-			const seg = segments[i];
-			issues.push(...videoValidation('bluesky', seg.media, meta, `thread[${i}].media`));
-			const hasMedia = (seg.media?.length ?? 0) > 0;
-			if (!seg.text?.trim() && !hasMedia) {
-				issues.push({
-					field: `thread[${i}]`,
-					message: 'Segment needs text or media',
-					code: 'empty'
-				});
-			}
-			const textCheck = validateBlueskyText(seg.text || '');
-			if (!textCheck.ok && (seg.text || '').length > 0) {
-				issues.push({
-					field: `thread[${i}].text`,
-					message: textCheck.message || 'Text too long',
-					code: 'max_length'
-				});
-			}
-			if ((seg.media?.length ?? 0) > 4) {
-				issues.push({
-					field: `thread[${i}].media`,
-					message: 'Bluesky allows max 4 images',
-					code: 'max_images'
-				});
-			}
-			for (const m of seg.media ?? []) {
-				if (isVideoAttachment(m)) {
-					continue;
-				} else if (mediaByteLength(m) > BLUESKY_MAX_IMAGE_BYTES) {
-					issues.push({
-						field: `thread[${i}].media`,
-						message: 'Bluesky allows max 2MB per image',
-						code: 'max_image_bytes'
-					});
-				}
-			}
-		}
-		return issues;
-	},
+	validate: (content, meta) => validateBlueskyPost(content, meta, { shortenLinks: true }),
 
 	async publish(content, creds, _meta, fetchImpl = providerFetch, opts): Promise<PublishResult> {
 		const segments = content.thread && content.thread.length > 0 ? content.thread : [content];

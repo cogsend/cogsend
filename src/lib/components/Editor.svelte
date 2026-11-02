@@ -119,10 +119,13 @@
 		updateSegment
 	} from '#lib/domain/thread-segments.js';
 	import {
+		blueskyTextLength,
 		countGraphemes,
 		mastodonWeightedLength,
 		xWeightedLength
 	} from '#lib/domain/validation/text.js';
+	import { blueskyRichText } from '#lib/domain/bluesky-links.js';
+	import { isZernioConnection } from '#lib/domain/zernio.js';
 	import { utf8ByteLength } from '#lib/domain/bytes.js';
 	import { draftExcerpt } from '#lib/domain/excerpt.js';
 	import {
@@ -508,7 +511,15 @@
 			: supportsThreads(activeTab)
 	);
 
+	// Links reach a Zernio account as typed, so one such account counts them in full.
+	const blueskyShortensLinks = $derived(
+		!accountsFor('bluesky').some((account) => isZernioConnection(account.metaJson))
+	);
+
 	function countForPlatform(text: string, platform: string): number {
+		if (platform === 'bluesky') {
+			return blueskyTextLength(text, { shortenLinks: blueskyShortensLinks });
+		}
 		if (platform === 'mastodon') return mastodonWeightedLength(text);
 		if (platform === 'x') return xWeightedLength(text);
 		return countGraphemes(text);
@@ -579,7 +590,7 @@
 		const linkedinFlat = flattenThreadBody(linkedinText);
 		return {
 			bluesky: {
-				len: maxThreadSegmentLength(bskyText, countGraphemes),
+				len: maxThreadSegmentLength(bskyText, (s) => countForPlatform(s, 'bluesky')),
 				max: PLATFORM_LIMITS.bluesky
 			},
 			mastodon: {
@@ -605,7 +616,8 @@
 		const bskyText = effectivePlatformBody(baseBody, overrides, 'bluesky');
 		let over = 0;
 		for (const seg of splitThreadSegments(bskyText)) {
-			over = Math.max(over, utf8ByteLength(seg) - 3000);
+			const posted = blueskyRichText(seg, { shortenLinks: blueskyShortensLinks }).text;
+			over = Math.max(over, utf8ByteLength(posted) - 3000);
 		}
 		return over;
 	});

@@ -11,8 +11,7 @@ import {
 	validateBlueskyText,
 	validateMastodonText
 } from '#lib/domain/validation/text.js';
-import { blueskyProvider, buildLinkFacets, mastodonProvider } from '#lib/server/providers/index.js';
-import { utf8ByteLength } from '#lib/domain/bytes.js';
+import { blueskyProvider, mastodonProvider } from '#lib/server/providers/index.js';
 
 describe('countGraphemes', () => {
 	it('counts ascii 1:1', () => {
@@ -73,16 +72,6 @@ describe('provider validate', () => {
 	it('rejects empty segment without media', () => {
 		expect(blueskyProvider.validate({ text: '   ' }).length).toBeGreaterThan(0);
 		expect(mastodonProvider.validate({ text: '' }).length).toBeGreaterThan(0);
-	});
-});
-
-describe('buildLinkFacets', () => {
-	it('creates facet with utf8 byte offsets', () => {
-		const text = 'go https://example.com now';
-		const facets = buildLinkFacets(text);
-		expect(facets).toHaveLength(1);
-		expect(facets[0].features[0].uri).toBe('https://example.com');
-		expect(facets[0].index.byteStart).toBe(utf8ByteLength('go '));
 	});
 });
 

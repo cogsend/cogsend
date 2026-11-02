@@ -8,6 +8,7 @@ import {
 	type ZernioPost
 } from '../zernio';
 import { getProvider } from './index';
+import { validateBlueskyPost } from './bluesky';
 import type { PublicMediaVariant } from '../public-media';
 import { providerFetch } from './timed-fetch';
 import {
@@ -176,12 +177,17 @@ export function zernioProviderFor(
 		// Zernio is sent media URLs (mediaItemFor), never bytes.
 		mediaByUrl: true,
 		capabilities: direct.capabilities,
-		// Zernio's X route stops at 280 whatever the account's own plan.
-		validate: (content, meta) =>
-			direct.validate(
+		validate: (content, meta) => {
+			// Zernio is sent the text as typed and makes the links itself, so a
+			// Bluesky link is posted, and counted, at full length.
+			if (platform === 'bluesky')
+				return validateBlueskyPost(content, meta, { shortenLinks: false });
+			// Zernio's X route stops at 280 whatever the account's own plan.
+			return direct.validate(
 				content,
 				platform === 'x' && meta ? { ...meta, maxCharacters: undefined } : meta
-			),
+			);
+		},
 
 		async publish(
 			content,

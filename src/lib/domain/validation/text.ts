@@ -1,4 +1,5 @@
 import { utf8ByteLength } from '../bytes';
+import { blueskyRichText } from '../bluesky-links';
 import { cleanUrl } from '../links';
 
 export function countGraphemes(text: string): number {
@@ -40,11 +41,18 @@ function tooLong(length: number, max: number, label: string) {
 	};
 }
 
+/** A Bluesky post's length as Bluesky counts it: on the text actually posted. */
+export function blueskyTextLength(text: string, opts: { shortenLinks: boolean }): number {
+	return countGraphemes(blueskyRichText(text, opts).text);
+}
+
 export function validateBlueskyText(
 	text: string,
-	maxGraphemes = 300
+	{ shortenLinks = true }: { shortenLinks?: boolean } = {}
 ): { ok: boolean; length: number; max: number; message?: string } {
-	const length = countGraphemes(text);
+	const maxGraphemes = 300;
+	const posted = blueskyRichText(text, { shortenLinks }).text;
+	const length = countGraphemes(posted);
 	if (length > maxGraphemes) {
 		return {
 			ok: false,
@@ -53,7 +61,7 @@ export function validateBlueskyText(
 			message: `${length} graphemes — over by ${length - maxGraphemes} (max ${maxGraphemes})`
 		};
 	}
-	const bytes = utf8ByteLength(text);
+	const bytes = utf8ByteLength(posted);
 	if (bytes > 3000) {
 		return {
 			ok: false,
