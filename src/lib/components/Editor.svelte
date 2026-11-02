@@ -87,7 +87,6 @@
 		parseThreadsTopic,
 		validateThreadsTopic
 	} from '#lib/domain/threads-topic.js';
-	import { isZernioConnection } from '#lib/domain/zernio.js';
 	import type { ProfileSettings } from '#lib/domain/profile-settings.js';
 	import {
 		DEFAULT_SCHEDULE_OFFSET,
@@ -705,16 +704,7 @@
 	const selectedThreadsAccounts = $derived(
 		selectedAccounts.filter((account) => account.platform === 'threads')
 	);
-	const zernioThreadsSelected = $derived(
-		selectedThreadsAccounts.some((account) => isZernioConnection(account.metaJson))
-	);
-	// A topic only reaches direct connections, so accounts on Zernio alone do
-	// not offer the field. One already typed stays reachable, or it could not
-	// be cleared.
-	const showThreadsOptions = $derived(
-		selectedThreadsAccounts.some((account) => !isZernioConnection(account.metaJson)) ||
-			(selectedThreadsAccounts.length > 0 && threadsTopic.trim() !== '')
-	);
+	const showThreadsOptions = $derived(selectedThreadsAccounts.length > 0);
 	const threadsTopicLength = $derived(countGraphemes(normalizeThreadsTopic(threadsTopic)));
 	const threadsPostCount = $derived(
 		splitThreadSegments(effectivePlatformBody(baseBody, overrides, 'threads')).length
@@ -3431,11 +3421,6 @@
 							{/if}
 							{#if threadsPostCount > 1}
 								<p data-testid="threads-topic-first-post">Applies to the first post.</p>
-							{/if}
-							{#if zernioThreadsSelected}
-								<p data-testid="threads-topic-zernio">
-									Not sent to accounts connected through Zernio.
-								</p>
 							{/if}
 						</div>
 					</div>

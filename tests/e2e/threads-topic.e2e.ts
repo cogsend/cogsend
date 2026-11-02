@@ -91,37 +91,40 @@ async function threadsVariant(page: Page, draftId: string) {
 	return variants.find((v) => v.platform === 'threads') ?? null;
 }
 
-test('the field appears for a direct Threads account and not for Zernio alone', async ({
-	page
-}) => {
+test('the field appears for a Threads account, direct or through Zernio', async ({ page }) => {
 	const bluesky = await seedDraft(page, ['bluesky']);
 	await openDraft(page, bluesky.draftId, bluesky.body);
-	await expect(page.getByTestId('threads-options')).toHaveCount(0);
-
-	const zernio = await seedDraft(page, ['zernio-threads']);
-	await openDraft(page, zernio.draftId, zernio.body);
 	await expect(page.getByTestId('threads-options')).toHaveCount(0);
 
 	const direct = await seedDraft(page, ['threads']);
 	await openDraft(page, direct.draftId, direct.body);
 	await expect(page.getByTestId('threads-options')).toBeVisible();
 	await openTopic(page);
-	await expect(page.getByTestId('threads-topic-zernio')).toHaveCount(0);
 	await expect(page.getByTestId('threads-topic-count')).toHaveText('0/50');
+
+	const zernio = await seedDraft(page, ['zernio-threads']);
+	await openDraft(page, zernio.draftId, zernio.body);
+	await expect(page.getByTestId('threads-options')).toBeVisible();
 });
 
-test('a tag on Zernio alone stays reachable, with a note that it is not sent', async ({ page }) => {
+test('a tag on a Zernio account saves, and clearing it removes it', async ({ page }) => {
 	const { draftId, body } = await seedDraft(page, ['zernio-threads'], {
 		body: null,
 		options: { topicTag: 'Stale' }
 	});
 	await openDraft(page, draftId, body);
 	await openTopic(page);
-	await expect(page.getByTestId('threads-topic-zernio')).toBeVisible();
+	await expect(page.getByTestId('threads-topic')).toHaveValue('Stale');
 
-	// With nothing left to clear the field goes too, so there is no value to read back.
+	await page.getByTestId('threads-topic').fill('Fresh');
+	await expect
+		.poll(async () => (await threadsVariant(page, draftId))?.optionsJson.topicTag, {
+			timeout: 15000
+		})
+		.toBe('Fresh');
+
 	await page.getByTestId('threads-topic').fill('');
-	await expect(page.getByTestId('threads-options')).toHaveCount(0);
+	await expect(page.getByTestId('threads-options')).toBeVisible();
 	await expect.poll(() => threadsVariant(page, draftId), { timeout: 15000 }).toBeNull();
 });
 

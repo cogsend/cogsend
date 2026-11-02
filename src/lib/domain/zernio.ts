@@ -26,7 +26,9 @@ export function fromZernioPlatform(platform: string): PlatformId | null {
 	return FROM_ZERNIO[platform] ?? null;
 }
 
-export function isZernioConnection(meta: string | object | null | undefined): boolean {
+export function isZernioConnection(
+	meta: string | Record<string, unknown> | null | undefined
+): boolean {
 	if (!meta) return false;
 	let parsed: unknown = meta;
 	if (typeof meta === 'string') {

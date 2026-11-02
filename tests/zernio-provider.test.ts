@@ -133,6 +133,86 @@ describe('buildZernioPostBody', () => {
 		expect(body.platforms).toEqual([{ platform: 'instagram', accountId: 'acc-1' }]);
 	});
 
+	it('sends a Threads topic tag with a single post', async () => {
+		const body = await buildZernioPostBody({
+			platform: 'threads',
+			accountId: 'acc-1',
+			content: { text: 'hello', options: { topicTag: 'AI Tools' } }
+		});
+		expect(body).toEqual({
+			content: 'hello',
+			platforms: [
+				{
+					platform: 'threads',
+					accountId: 'acc-1',
+					platformSpecificData: { topic_tag: 'AI Tools' }
+				}
+			],
+			publishNow: true
+		});
+	});
+
+	it('sends a Threads topic tag once for a thread, beside the items', async () => {
+		const options = { topicTag: 'AI Tools' };
+		const body = await buildZernioPostBody({
+			platform: 'threads',
+			accountId: 'acc-1',
+			content: {
+				text: 'one',
+				options,
+				thread: [
+					{ text: 'one', options },
+					{ text: 'two', options }
+				]
+			}
+		});
+		expect(body.platforms).toEqual([
+			{
+				platform: 'threads',
+				accountId: 'acc-1',
+				platformSpecificData: {
+					threadItems: [
+						{ content: 'one', mediaItems: [] },
+						{ content: 'two', mediaItems: [] }
+					],
+					topic_tag: 'AI Tools'
+				}
+			}
+		]);
+	});
+
+	it('sends no topic field for an untagged Threads post', async () => {
+		const single = await buildZernioPostBody({
+			platform: 'threads',
+			accountId: 'acc-1',
+			content: { text: 'hello', options: { visibility: 'public' } }
+		});
+		expect(single.platforms).toEqual([{ platform: 'threads', accountId: 'acc-1' }]);
+
+		const thread = await buildZernioPostBody({
+			platform: 'threads',
+			accountId: 'acc-1',
+			content: { text: 'one', thread: [{ text: 'one' }, { text: 'two' }] }
+		});
+		expect((thread.platforms as Array<Record<string, unknown>>)[0].platformSpecificData).toEqual({
+			threadItems: [
+				{ content: 'one', mediaItems: [] },
+				{ content: 'two', mediaItems: [] }
+			]
+		});
+	});
+
+	it('never sends a topic tag to a platform other than Threads', async () => {
+		for (const platform of ['x', 'bluesky', 'linkedin', 'instagram'] as const) {
+			const body = await buildZernioPostBody({
+				platform,
+				accountId: 'acc-1',
+				content: { text: 'hello', options: { topicTag: 'AI Tools' } }
+			});
+			expect(JSON.stringify(body)).not.toContain('topic_tag');
+		}
+	});
+
 	it('refuses to build without a media signer, like Threads', async () => {
 		await expect(
 			buildZernioPostBody({
@@ -448,6 +528,28 @@ describe('zernioProviderFor: a create whose answer was lost', () => {
 		expect(((await seen[0].json()) as { metadata?: unknown }).metadata).toEqual({
 			cogsendRequestId: 'target-9-0'
 		});
+	});
+
+	it('publishes a Threads post with the topic tag from its options', async () => {
+		const seen: Request[] = [];
+		const fetchImpl = mockFetch(
+			{
+				'/v1/posts/p': existing('target-9-0'),
+				'/v1/posts': () => Response.json({ post: { _id: 'p', platforms: [] } })
+			},
+			seen
+		);
+		await zernioProviderFor('threads', fast).publish(
+			{ text: 'hi', options: { topicTag: 'AI Tools' } },
+			creds,
+			undefined,
+			fetchImpl,
+			{ mediaUrlFor, idempotencyKey: (i) => `target-9:${i}` }
+		);
+		const body = (await seen[0].json()) as { platforms: unknown };
+		expect(body.platforms).toEqual([
+			{ platform: 'threads', accountId: 'acc-1', platformSpecificData: { topic_tag: 'AI Tools' } }
+		]);
 	});
 
 	it('adopts its own post from a duplicate 409 and polls it', async () => {

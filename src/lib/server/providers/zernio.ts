@@ -95,6 +95,7 @@ export async function buildZernioPostBody(opts: {
 	const items = async (media: MediaAttachment[] | undefined) =>
 		Promise.all((media ?? []).map((m) => mediaItemFor(m, opts.mediaUrlFor!, opts.platform)));
 	const target: Record<string, unknown> = { platform: zernioPlatform, accountId: opts.accountId };
+	const topicTag = opts.platform === 'threads' ? opts.content.options?.topicTag : undefined;
 
 	// LinkedIn and Instagram have no threads (the direct providers join the
 	// segments too), and a single segment goes out flat everywhere.
@@ -107,7 +108,7 @@ export async function buildZernioPostBody(opts: {
 		return {
 			content: text,
 			...(mediaItems.length ? { mediaItems } : {}),
-			platforms: [target],
+			platforms: [topicTag ? { ...target, platformSpecificData: { topic_tag: topicTag } } : target],
 			publishNow: true
 		};
 	}
@@ -118,7 +119,13 @@ export async function buildZernioPostBody(opts: {
 	}
 	return {
 		content: segments[0].text || '',
-		platforms: [{ ...target, platformSpecificData: { threadItems } }],
+		// The topic labels the whole thread, so it sits beside the items, not in one.
+		platforms: [
+			{
+				...target,
+				platformSpecificData: { threadItems, ...(topicTag ? { topic_tag: topicTag } : {}) }
+			}
+		],
 		publishNow: true
 	};
 }
