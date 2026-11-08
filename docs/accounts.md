@@ -40,6 +40,12 @@ Some accounts that can post long, such as Verified Organizations, report no plan
 
 X accounts connected through [Zernio](zernio.md) stay at 280, since Zernio's X route stops there.
 
+## Compact links on Bluesky
+
+A Bluesky account connected directly posts a long link the way Bluesky's app does, as the site and the start of the address: `marktisdaleart.etsy.com/listing/1234...`. **Turn on** compact links to show only the site instead, `marktisdaleart.etsy.com/...`, which gives back 12 characters per long link. The link still opens the full address, the preview card is unchanged, and a short link such as `linktr.ee/markonart` stays as it is. The site is always kept, so readers can see where a link goes. The counter follows the switch, and a reconnect keeps it.
+
+Accounts connected through [Zernio](zernio.md) post links as typed, so they have no switch.
+
 ## When an account needs reconnecting
 
 A token that stops working marks the account as needing a reconnect, both here and
