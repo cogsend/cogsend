@@ -45,6 +45,7 @@
 			maxCharacters?: number;
 			xSubscription?: string;
 			longPosts?: boolean;
+			compactLinks?: boolean;
 		} | null;
 	};
 	type ZernioAccount = {
@@ -571,29 +572,40 @@
 		}
 	}
 
-	let savingLongPosts = $state<string | null>(null);
+	let savingSwitch = $state<string | null>(null);
 
-	/** `null` hands the decision back to what X reports. */
-	async function setLongPosts(account: Connection, longPosts: boolean | null) {
-		savingLongPosts = account.id;
+	/** One of an account's own switches: X's long posts or Bluesky's compact links. */
+	async function setAccountSwitch(
+		account: Connection,
+		change: { longPosts: boolean | null } | { compactLinks: boolean },
+		failure: string
+	) {
+		savingSwitch = account.id;
 		err = null;
 		try {
 			const res = await fetch(`/api/connections/${account.id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ longPosts })
+				body: JSON.stringify(change)
 			});
 			const payload = await res.json().catch(() => ({}));
-			if (!res.ok) throw new Error(payload.error || 'Could not change long posts');
+			if (!res.ok) throw new Error(payload.error || failure);
 			connections = connections.map((c) =>
 				c.id === account.id ? { ...c, metaJson: payload.connection.metaJson } : c
 			);
 		} catch (e) {
-			err = humanizeError(e instanceof Error ? e.message : 'Could not change long posts');
+			err = humanizeError(e instanceof Error ? e.message : failure);
 		} finally {
-			savingLongPosts = null;
+			savingSwitch = null;
 		}
 	}
+
+	/** `null` hands the decision back to what X reports. */
+	const setLongPosts = (account: Connection, longPosts: boolean | null) =>
+		setAccountSwitch(account, { longPosts }, 'Could not change long posts');
+
+	const setCompactLinks = (account: Connection, compactLinks: boolean) =>
+		setAccountSwitch(account, { compactLinks }, 'Could not change compact links');
 
 	onMount(() => {
 		const params = page.url.searchParams;
@@ -725,7 +737,7 @@
 									<button
 										type="button"
 										onclick={() => setLongPosts(account, !long)}
-										disabled={savingLongPosts === account.id}
+										disabled={savingSwitch === account.id}
 										class="font-bold text-stone-900 underline"
 										>{long ? 'Turn off' : 'Turn on'}</button
 									>
@@ -733,7 +745,7 @@
 										<button
 											type="button"
 											onclick={() => setLongPosts(account, null)}
-											disabled={savingLongPosts === account.id}
+											disabled={savingSwitch === account.id}
 											class="font-bold text-stone-500 underline">Use what X reports</button
 										>
 									{/if}
@@ -743,6 +755,26 @@
 										disabled={verifying === account.id}
 										class="font-bold text-stone-500 underline"
 										>{verifying === account.id ? 'Checking…' : 'Check plan'}</button
+									>
+								</p>
+							{/if}
+							{#if account.platform === 'bluesky' && !viaZernio(account) && !needsReconnect}
+								{@const compact = account.metaJson?.compactLinks === true}
+								<p
+									class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-medium text-stone-500"
+									data-testid="bluesky-compact-links-{account.id}"
+								>
+									<span>
+										Compact links {compact
+											? 'on, a long link shows only its site'
+											: 'off, a long link shows its site and the start of the address'}
+									</span>
+									<button
+										type="button"
+										onclick={() => setCompactLinks(account, !compact)}
+										disabled={savingSwitch === account.id}
+										class="font-bold text-stone-900 underline"
+										>{compact ? 'Turn off' : 'Turn on'}</button
 									>
 								</p>
 							{/if}
