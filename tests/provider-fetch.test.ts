@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { timedFetch } from '#lib/server/providers/timed-fetch.js';
+import {
+	PROVIDER_FETCH_TIMEOUT_MS,
+	PROVIDER_UPLOAD_TIMEOUT_MS,
+	providerTimeoutMs,
+	timedFetch
+} from '#lib/server/providers/timed-fetch.js';
 
 describe('timedFetch', () => {
 	afterEach(() => {
@@ -31,5 +36,21 @@ describe('timedFetch', () => {
 		const res = await run('https://example.com/api');
 		expect(res.ok).toBe(true);
 		expect(await res.text()).toBe('ok');
+	});
+
+	it('gives uploads the longer limit, a streamed video included', () => {
+		const stream = new ReadableStream({ start: (c) => c.close() });
+		expect(providerTimeoutMs({ method: 'POST', body: stream })).toBe(PROVIDER_UPLOAD_TIMEOUT_MS);
+		expect(providerTimeoutMs({ method: 'POST', body: new Uint8Array(4) })).toBe(
+			PROVIDER_UPLOAD_TIMEOUT_MS
+		);
+		expect(providerTimeoutMs({ method: 'POST', body: new FormData() })).toBe(
+			PROVIDER_UPLOAD_TIMEOUT_MS
+		);
+		expect(providerTimeoutMs({ method: 'PUT' })).toBe(PROVIDER_UPLOAD_TIMEOUT_MS);
+		expect(providerTimeoutMs({ method: 'POST', body: '{"text":"hi"}' })).toBe(
+			PROVIDER_FETCH_TIMEOUT_MS
+		);
+		expect(providerTimeoutMs()).toBe(PROVIDER_FETCH_TIMEOUT_MS);
 	});
 });

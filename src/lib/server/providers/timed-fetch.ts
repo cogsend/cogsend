@@ -1,6 +1,6 @@
 import type { FetchLike } from './types';
 
-/** JSON/API calls. Hung providers must fail well before STALE_CLAIM_MS (15m). */
+/** JSON/API calls. Hung providers must fail well before STALE_CLAIM_MS reclaims the run. */
 export const PROVIDER_FETCH_TIMEOUT_MS = 15_000;
 /** Media byte uploads (Mastodon 16MB, LinkedIn 8MB video) need a longer budget. */
 export const PROVIDER_UPLOAD_TIMEOUT_MS = 60_000;
@@ -13,7 +13,13 @@ function isUploadRequest(init?: RequestInit): boolean {
 	if (typeof FormData !== 'undefined' && body instanceof FormData) return true;
 	if (typeof Blob !== 'undefined' && body instanceof Blob) return true;
 	if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) return true;
+	// Bluesky and Mastodon stream a stored video straight from R2.
+	if (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) return true;
 	return false;
+}
+
+export function providerTimeoutMs(init?: RequestInit): number {
+	return isUploadRequest(init) ? PROVIDER_UPLOAD_TIMEOUT_MS : PROVIDER_FETCH_TIMEOUT_MS;
 }
 
 function mergeSignals(timeoutMs: number, existing?: AbortSignal | null): AbortSignal {
@@ -42,8 +48,6 @@ export function timedFetch(timeoutMs: number): FetchLike {
 	};
 }
 
-/** Default outbound fetch: 15s for JSON, 60s for binary/FormData/PUT uploads. */
-export const providerFetch: FetchLike = (input, init) => {
-	const ms = isUploadRequest(init) ? PROVIDER_UPLOAD_TIMEOUT_MS : PROVIDER_FETCH_TIMEOUT_MS;
-	return timedFetch(ms)(input, init);
-};
+/** Default outbound fetch: 15s for JSON, 60s for binary, streamed, FormData and PUT uploads. */
+export const providerFetch: FetchLike = (input, init) =>
+	timedFetch(providerTimeoutMs(init))(input, init);
