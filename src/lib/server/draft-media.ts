@@ -96,7 +96,10 @@ export async function segmentProblem(
 	return `segmentIndex ${segmentIndex} is past the last segment (${cards - 1})`;
 }
 
-/** Whether `adding` more files would take the account past MAX_FILES_PER_USER. */
+/**
+ * Whether `adding` more files would take the account past MAX_FILES_PER_USER.
+ * Counts stored files, not attachments: a duplicated post shares its files.
+ */
 export async function overUserFileCap(
 	db: App.Locals['db'],
 	userId: string,
@@ -106,17 +109,17 @@ export async function overUserFileCap(
 		.select({ id: drafts.id })
 		.from(drafts)
 		.where(eq(drafts.userId, userId));
-	let userFiles = 0;
+	const keys = new Set<string>();
 	for (const chunk of chunkIds(userDraftIds.map((d) => d.id))) {
 		if (!chunk.length) break;
 		const rows = await db
-			.select({ id: draftMedia.id })
+			.selectDistinct({ storageKey: draftMedia.storageKey })
 			.from(draftMedia)
 			.where(inArray(draftMedia.draftId, chunk));
-		userFiles += rows.length;
-		if (userFiles + adding > MAX_FILES_PER_USER) break;
+		for (const row of rows) keys.add(row.storageKey);
+		if (keys.size + adding > MAX_FILES_PER_USER) break;
 	}
-	return userFiles + adding > MAX_FILES_PER_USER;
+	return keys.size + adding > MAX_FILES_PER_USER;
 }
 
 const isVideoRow = (m: { mime: string | null }) =>

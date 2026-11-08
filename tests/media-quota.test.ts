@@ -104,6 +104,28 @@ describe('POST /api/drafts/[id]/media quotas', () => {
 		expect(await res.json()).toMatchObject({ error: expect.stringMatching(/per draft/) });
 	});
 
+	it('counts a file shared by duplicated posts once toward the per-account cap', async () => {
+		const now = new Date();
+		// More drafts than one IN chunk, so a key seen in two chunks still counts once.
+		for (let d = 0; d < 120; d++) {
+			const copy = await freshDraft();
+			await db.insert(draftMedia).values(
+				Array.from({ length: 9 }, (_, i) => ({
+					id: newId(),
+					draftId: copy,
+					storageKey: `shared-${i % 3}`,
+					mime: 'image/png',
+					size: 8,
+					sortOrder: i,
+					segmentIndex: 0,
+					createdAt: now
+				}))
+			);
+		}
+		const res = await upload(await freshDraft(), 1);
+		expect(res.status).toBe(201);
+	});
+
 	it('rejects past the per-account cap', async () => {
 		const spill = await freshDraft();
 		const now = new Date();
