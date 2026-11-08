@@ -130,8 +130,11 @@
 		X_CASHTAG_MESSAGE,
 		xWeightedLength
 	} from '#lib/domain/validation/text.js';
-	import { blueskyRichText } from '#lib/domain/bluesky-links.js';
-	import { isZernioConnection } from '#lib/domain/zernio.js';
+	import {
+		blueskyLinkStyleFor,
+		blueskyRichText,
+		longestBlueskyLinkStyle
+	} from '#lib/domain/bluesky-links.js';
 	import { utf8ByteLength } from '#lib/domain/bytes.js';
 	import { draftExcerpt } from '#lib/domain/excerpt.js';
 	import {
@@ -170,7 +173,11 @@
 		displayName: string | null;
 		avatarUrl?: string | null;
 		status?: string;
-		metaJson?: { maxCharacters?: number } & VideoRuleMeta;
+		metaJson?: {
+			maxCharacters?: number;
+			compactLinks?: boolean;
+			provider?: string;
+		} & VideoRuleMeta;
 	};
 
 	type MediaItem = {
@@ -517,14 +524,17 @@
 			: supportsThreads(activeTab)
 	);
 
-	// Links reach a Zernio account as typed, so one such account counts them in full.
-	const blueskyShortensLinks = $derived(
-		!accountsFor('bluesky').some((account) => isZernioConnection(account.metaJson))
+	// Each account posts its links in its own style; counting the longest keeps
+	// the post fitting on all of them.
+	const blueskyLinks = $derived(
+		longestBlueskyLinkStyle(
+			accountsFor('bluesky').map((account) => blueskyLinkStyleFor(account.metaJson))
+		)
 	);
 
 	function countForPlatform(text: string, platform: string): number {
 		if (platform === 'bluesky') {
-			return blueskyTextLength(text, { shortenLinks: blueskyShortensLinks });
+			return blueskyTextLength(text, { links: blueskyLinks });
 		}
 		// Every post of a Mastodon thread carries the content warning, and counts it.
 		if (platform === 'mastodon') return mastodonWeightedLength(mastodonCountedText(text, mastoCW));
@@ -623,7 +633,7 @@
 		const bskyText = effectivePlatformBody(baseBody, overrides, 'bluesky');
 		let over = 0;
 		for (const seg of splitThreadSegments(bskyText)) {
-			const posted = blueskyRichText(seg, { shortenLinks: blueskyShortensLinks }).text;
+			const posted = blueskyRichText(seg, { links: blueskyLinks }).text;
 			over = Math.max(over, utf8ByteLength(posted) - 3000);
 		}
 		return over;

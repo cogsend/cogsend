@@ -180,8 +180,7 @@ export function zernioProviderFor(
 		validate: (content, meta) => {
 			// Zernio is sent the text as typed and makes the links itself, so a
 			// Bluesky link is posted, and counted, at full length.
-			if (platform === 'bluesky')
-				return validateBlueskyPost(content, meta, { shortenLinks: false });
+			if (platform === 'bluesky') return validateBlueskyPost(content, meta, { links: 'full' });
 			// Zernio's X route stops at 280 whatever the account's own plan.
 			return direct.validate(
 				content,

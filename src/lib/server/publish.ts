@@ -687,7 +687,11 @@ export async function publishTarget(
 			result = await provider.publish(
 				content,
 				workingCreds,
-				{ maxCharacters: meta.maxCharacters, handle: conn.handle || undefined },
+				{
+					maxCharacters: meta.maxCharacters,
+					handle: conn.handle || undefined,
+					compactLinks: meta.compactLinks
+				},
 				fetchImpl,
 				{
 					resume: resumeFrom ?? undefined,

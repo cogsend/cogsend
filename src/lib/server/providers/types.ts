@@ -116,6 +116,8 @@ export interface ConnectionMeta {
 	/** X: the last `subscription_type` seen, and the operator's long-post switch. */
 	xSubscription?: string;
 	longPosts?: boolean;
+	/** Bluesky: the operator's switch for posting links as their site only. */
+	compactLinks?: boolean;
 	provider?: 'zernio';
 	/** Mastodon: the instance's video limits (`configuration.media_attachments`). */
 	videoSizeLimit?: number;

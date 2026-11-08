@@ -3,7 +3,12 @@ import { fetchOgImage } from '../opengraph';
 import { fetchLinkCard } from '../x-post-preview';
 import { isBlockedInstanceHost } from '#lib/domain/instance-host.js';
 import { validateBlueskyText } from '#lib/domain/validation/text.js';
-import { blueskyRichText, type BlueskyLinkFacet } from '#lib/domain/bluesky-links.js';
+import {
+	blueskyLinkStyleFor,
+	blueskyRichText,
+	type BlueskyLinkFacet,
+	type BlueskyLinkStyle
+} from '#lib/domain/bluesky-links.js';
 import { BLUESKY_MAX_IMAGE_BYTES } from '#lib/domain/media-limits.js';
 import type {
 	ConnectionCredentials,
@@ -472,7 +477,8 @@ async function publishOne(
 	fetchImpl: FetchLike,
 	reply?: { root: { uri: string; cid: string }; parent: { uri: string; cid: string } },
 	rkey?: string,
-	video?: { segmentIndex: number; opts: PublishOpts }
+	video?: { segmentIndex: number; opts: PublishOpts },
+	links: BlueskyLinkStyle = 'short'
 ): Promise<{ uri?: string; cid?: string }> {
 	let session = await ensureSession(creds, fetchImpl);
 	const media = content.media ?? [];
@@ -513,8 +519,8 @@ async function publishOne(
 			embed = undefined;
 		}
 	}
-	// The link card above reads the full URL; the record gets the short text.
-	const { text, facets } = blueskyRichText(content.text || '', { shortenLinks: true });
+	// The link card above reads the full URL; the record gets the shorter text.
+	const { text, facets } = blueskyRichText(content.text || '', { links });
 	try {
 		return await createPostRecord(
 			session,
@@ -549,11 +555,11 @@ async function publishOne(
 	}
 }
 
-/** `shortenLinks` says whether the links will be posted short, as publishOne does. */
+/** `links` is how the links will be posted, as publishOne does. */
 export function validateBlueskyPost(
 	content: NormalizedPost,
 	meta: ConnectionMeta | undefined,
-	{ shortenLinks }: { shortenLinks: boolean }
+	{ links }: { links: BlueskyLinkStyle }
 ): ValidationIssue[] {
 	const issues: ValidationIssue[] = [];
 	const segments = content.thread && content.thread.length > 0 ? content.thread : [content];
@@ -568,7 +574,7 @@ export function validateBlueskyPost(
 				code: 'empty'
 			});
 		}
-		const textCheck = validateBlueskyText(seg.text || '', { shortenLinks });
+		const textCheck = validateBlueskyText(seg.text || '', { links });
 		if (!textCheck.ok && (seg.text || '').length > 0) {
 			issues.push({
 				field: `thread[${i}].text`,
@@ -608,9 +614,11 @@ export const blueskyProvider: PlatformProvider = {
 		supportsThreads: true
 	},
 
-	validate: (content, meta) => validateBlueskyPost(content, meta, { shortenLinks: true }),
+	validate: (content, meta) =>
+		validateBlueskyPost(content, meta, { links: blueskyLinkStyleFor(meta) }),
 
-	async publish(content, creds, _meta, fetchImpl = providerFetch, opts): Promise<PublishResult> {
+	async publish(content, creds, meta, fetchImpl = providerFetch, opts): Promise<PublishResult> {
+		const links = blueskyLinkStyleFor(meta);
 		const segments = content.thread && content.thread.length > 0 ? content.thread : [content];
 		const resumeIds = opts?.resume?.segmentIds ?? [];
 		const resumeCids = opts?.resume?.segmentCids ?? [];
@@ -654,7 +662,8 @@ export const blueskyProvider: PlatformProvider = {
 					{
 						segmentIndex: i,
 						opts
-					}
+					},
+					links
 				);
 				// The count matters even when the ids are missing: the checkpoint
 				// is what stops a retry from reposting a segment.

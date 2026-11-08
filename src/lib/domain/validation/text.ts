@@ -1,5 +1,5 @@
 import { utf8ByteLength } from '../bytes';
-import { blueskyRichText } from '../bluesky-links';
+import { blueskyRichText, type BlueskyLinkStyle } from '../bluesky-links';
 import { cleanUrl } from '../links';
 import { splitThreadSegments } from '../thread-segments';
 
@@ -43,16 +43,16 @@ function tooLong(length: number, max: number, label: string) {
 }
 
 /** A Bluesky post's length as Bluesky counts it: on the text actually posted. */
-export function blueskyTextLength(text: string, opts: { shortenLinks: boolean }): number {
+export function blueskyTextLength(text: string, opts: { links: BlueskyLinkStyle }): number {
 	return countGraphemes(blueskyRichText(text, opts).text);
 }
 
 export function validateBlueskyText(
 	text: string,
-	{ shortenLinks = true }: { shortenLinks?: boolean } = {}
+	{ links = 'short' }: { links?: BlueskyLinkStyle } = {}
 ): { ok: boolean; length: number; max: number; message?: string } {
 	const maxGraphemes = 300;
-	const posted = blueskyRichText(text, { shortenLinks }).text;
+	const posted = blueskyRichText(text, { links }).text;
 	const length = countGraphemes(posted);
 	if (length > maxGraphemes) {
 		return {

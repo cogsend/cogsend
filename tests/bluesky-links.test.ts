@@ -51,7 +51,7 @@ describe('shortenBlueskyUrl', () => {
 
 describe('blueskyRichText', () => {
 	it('posts the short text and links it to the full URL', () => {
-		const { text, facets } = blueskyRichText(`read ${LONG_LINK} today`, { shortenLinks: true });
+		const { text, facets } = blueskyRichText(`read ${LONG_LINK} today`, { links: 'short' });
 		expect(text).toBe('read example.com/blog/2026/11... today');
 		expect(facets).toEqual([
 			{
@@ -62,7 +62,7 @@ describe('blueskyRichText', () => {
 	});
 
 	it('counts the facet in bytes after an emoji and non-Latin text', () => {
-		const { text, facets } = blueskyRichText(`👋🏽 नमस्ते ${LONG_LINK} 🎉`, { shortenLinks: true });
+		const { text, facets } = blueskyRichText(`👋🏽 नमस्ते ${LONG_LINK} 🎉`, { links: 'short' });
 		expect(facetText(text, facets[0])).toBe('example.com/blog/2026/11...');
 		expect(text.endsWith(' 🎉')).toBe(true);
 	});
@@ -70,7 +70,7 @@ describe('blueskyRichText', () => {
 	it('leaves closing punctuation outside the link, and handles several links', () => {
 		const { text, facets } = blueskyRichText(
 			`(see ${LONG_LINK}). Also https://bsky.app/3jk7x4irgv52r2313y182h9, ok`,
-			{ shortenLinks: true }
+			{ links: 'short' }
 		);
 		expect(text).toBe('(see example.com/blog/2026/11...). Also bsky.app/3jk7x4irgv52..., ok');
 		expect(facets.map((f) => f.features[0].uri)).toEqual([
@@ -85,14 +85,14 @@ describe('blueskyRichText', () => {
 
 	it('without shortening, keeps the text and links it as typed', () => {
 		const typed = `go ${LONG_LINK} now`;
-		const { text, facets } = blueskyRichText(typed, { shortenLinks: false });
+		const { text, facets } = blueskyRichText(typed, { links: 'full' });
 		expect(text).toBe(typed);
 		expect(facetText(text, facets[0])).toBe(LONG_LINK);
 		expect(facets[0].features[0].uri).toBe(LONG_LINK);
 	});
 
 	it('changes nothing in a post without links', () => {
-		expect(blueskyRichText('just words 👋', { shortenLinks: true })).toEqual({
+		expect(blueskyRichText('just words 👋', { links: 'short' })).toEqual({
 			text: 'just words 👋',
 			facets: []
 		});
@@ -104,11 +104,11 @@ describe('Bluesky length with links', () => {
 	const post = `${'a'.repeat(250)} ${LONG_LINK}`;
 
 	it('counts a link the way Bluesky’s app posts it', () => {
-		expect(blueskyTextLength(post, { shortenLinks: true })).toBe(
+		expect(blueskyTextLength(post, { links: 'short' })).toBe(
 			251 + 'example.com/blog/2026/11...'.length
 		);
 		expect(validateBlueskyText(post).ok).toBe(true);
-		expect(validateBlueskyText(post, { shortenLinks: false }).ok).toBe(false);
+		expect(validateBlueskyText(post, { links: 'full' }).ok).toBe(false);
 		expect(validateBlueskyText('a'.repeat(301)).ok).toBe(false);
 	});
 
