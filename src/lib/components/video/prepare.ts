@@ -44,6 +44,10 @@ async function alreadyFits(file: File): Promise<boolean> {
 	return bitrate <= MAX_BITRATE;
 }
 
+function throwIfAborted(signal: AbortSignal) {
+	if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+}
+
 export async function prepareVideo(
 	file: File,
 	opts: {
@@ -51,76 +55,99 @@ export async function prepareVideo(
 		onProgress: (phase: PreparePhase, fraction: number) => void;
 	}
 ): Promise<PreparedVideo> {
+	const { signal } = opts;
 	opts.onProgress('reading', 0);
 	if (await alreadyFits(file)) {
+		throwIfAborted(signal);
 		return { file, poster: await capturePoster(file).catch(() => null) };
 	}
 	// Loaded only when a video needs it, so the composer stays light.
 	const mb = await import('mediabunny');
-	if (opts.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+	throwIfAborted(signal);
 	const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
-	let video: Awaited<ReturnType<typeof input.getPrimaryVideoTrack>>;
+	let conversion: Awaited<ReturnType<typeof mb.Conversion.init>> | null = null;
+	// Reading the tracks can take a while on a long file, and only disposing
+	// the input stops it; once the conversion runs, cancelling it stops both.
+	const abort = () => {
+		if (conversion) void conversion.cancel();
+		else input.dispose();
+	};
+	signal.addEventListener('abort', abort, { once: true });
 	try {
-		video = await input.getPrimaryVideoTrack();
-	} catch {
-		throw new VideoPrepareError('This file could not be read as a video.');
-	}
-	if (!video) throw new VideoPrepareError('This file has no video in it.');
-	const audio = await input.getPrimaryAudioTrack();
-	const stats = await video.computePacketStats(100).catch(() => null);
-	const longEdge = Math.max(video.displayWidth, video.displayHeight);
-	const tooBig = longEdge > MAX_EDGE;
-	const tooFast = (stats?.averagePacketRate ?? 0) > MAX_FPS + 0.5;
-	const tooDense = (stats?.averageBitrate ?? 0) > MAX_BITRATE;
-	const reencodeVideo = video.codec !== 'avc' || tooBig || tooFast || tooDense;
-	const reencodeAudio = Boolean(audio && audio.codec !== 'aac');
+		let video: Awaited<ReturnType<typeof input.getPrimaryVideoTrack>>;
+		try {
+			video = await input.getPrimaryVideoTrack();
+		} catch {
+			throw new VideoPrepareError('This file could not be read as a video.');
+		}
+		throwIfAborted(signal);
+		if (!video) throw new VideoPrepareError('This file has no video in it.');
+		const audio = await input.getPrimaryAudioTrack();
+		const stats = await video.computePacketStats(100).catch(() => null);
+		throwIfAborted(signal);
+		const longEdge = Math.max(video.displayWidth, video.displayHeight);
+		const tooBig = longEdge > MAX_EDGE;
+		const tooFast = (stats?.averagePacketRate ?? 0) > MAX_FPS + 0.5;
+		const tooDense = (stats?.averageBitrate ?? 0) > MAX_BITRATE;
+		const reencodeVideo = video.codec !== 'avc' || tooBig || tooFast || tooDense;
+		const reencodeAudio = Boolean(audio && audio.codec !== 'aac');
 
-	if (reencodeVideo && (!(await video.canDecode()) || !(await mb.canEncodeVideo('avc')))) {
-		throw new VideoPrepareError(CANNOT_CONVERT);
-	}
-	if (reencodeAudio && audio && (!(await audio.canDecode()) || !(await mb.canEncodeAudio('aac')))) {
-		throw new VideoPrepareError(CANNOT_CONVERT);
-	}
+		if (reencodeVideo && (!(await video.canDecode()) || !(await mb.canEncodeVideo('avc')))) {
+			throw new VideoPrepareError(CANNOT_CONVERT);
+		}
+		if (
+			reencodeAudio &&
+			audio &&
+			(!(await audio.canDecode()) || !(await mb.canEncodeAudio('aac')))
+		) {
+			throw new VideoPrepareError(CANNOT_CONVERT);
+		}
+		throwIfAborted(signal);
 
-	const output = new mb.Output({
-		format: new mb.Mp4OutputFormat({ fastStart: 'in-memory' }),
-		target: new mb.BufferTarget()
-	});
-	const conversion = await mb.Conversion.init({
-		input,
-		output,
-		tracks: 'primary',
-		showWarnings: false,
-		video: {
-			codec: 'avc',
-			...(tooBig
-				? video.displayWidth >= video.displayHeight
-					? { width: MAX_EDGE }
-					: { height: MAX_EDGE }
-				: {}),
-			...(tooFast ? { frameRate: MAX_FPS } : {}),
-			...(reencodeVideo ? { quality: mb.QUALITY_HIGH, forceTranscode: true } : {})
-		},
-		audio: { codec: 'aac', ...(reencodeAudio ? { forceTranscode: true } : {}) }
-	});
-	if (!conversion.isValid) throw new VideoPrepareError(CANNOT_CONVERT);
-	const abort = () => void conversion.cancel();
-	opts.signal.addEventListener('abort', abort, { once: true });
-	conversion.onProgress = (fraction) => opts.onProgress('converting', fraction);
-	try {
-		await conversion.execute();
+		const output = new mb.Output({
+			format: new mb.Mp4OutputFormat({ fastStart: 'in-memory' }),
+			target: new mb.BufferTarget()
+		});
+		conversion = await mb.Conversion.init({
+			input,
+			output,
+			tracks: 'primary',
+			showWarnings: false,
+			video: {
+				codec: 'avc',
+				...(tooBig
+					? video.displayWidth >= video.displayHeight
+						? { width: MAX_EDGE }
+						: { height: MAX_EDGE }
+					: {}),
+				...(tooFast ? { frameRate: MAX_FPS } : {}),
+				...(reencodeVideo ? { quality: mb.QUALITY_HIGH, forceTranscode: true } : {})
+			},
+			audio: { codec: 'aac', ...(reencodeAudio ? { forceTranscode: true } : {}) }
+		});
+		throwIfAborted(signal);
+		if (!conversion.isValid) throw new VideoPrepareError(CANNOT_CONVERT);
+		conversion.onProgress = (fraction) => opts.onProgress('converting', fraction);
+		try {
+			await conversion.execute();
+		} catch (err) {
+			throw new VideoPrepareError(
+				err instanceof Error && err.message ? `${CANNOT_CONVERT} (${err.message})` : CANNOT_CONVERT
+			);
+		}
+		throwIfAborted(signal);
+		const buffer = output.target.buffer;
+		if (!buffer) throw new VideoPrepareError(CANNOT_CONVERT);
+		const prepared = new Blob([buffer], { type: 'video/mp4' });
+		return { file: prepared, poster: await capturePoster(prepared).catch(() => null) };
 	} catch (err) {
-		if (opts.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
-		throw new VideoPrepareError(
-			err instanceof Error && err.message ? `${CANNOT_CONVERT} (${err.message})` : CANNOT_CONVERT
-		);
+		// Whatever a disposed input threw on the way out, a cancel is a cancel.
+		throwIfAborted(signal);
+		throw err;
 	} finally {
-		opts.signal.removeEventListener('abort', abort);
+		signal.removeEventListener('abort', abort);
+		input.dispose();
 	}
-	const buffer = output.target.buffer;
-	if (!buffer) throw new VideoPrepareError(CANNOT_CONVERT);
-	const prepared = new Blob([buffer], { type: 'video/mp4' });
-	return { file: prepared, poster: await capturePoster(prepared).catch(() => null) };
 }
 
 /** A JPEG of the frame at `atSeconds` (clamped to the video), drawn at most 1280 wide. */
