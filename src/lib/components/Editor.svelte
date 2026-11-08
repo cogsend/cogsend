@@ -2189,8 +2189,13 @@
 		});
 		const data = await res.json().catch(() => ({}));
 		if (!res.ok) throw new Error(data.error || 'Could not save the cover');
-		const meta = (data.media as MediaItem | undefined)?.meta ?? null;
-		media = media.map((m) => (m.id === mediaId ? { ...m, meta } : m));
+		// A video shared with another post moves to a copy of its own here.
+		const saved = data.media as MediaItem | undefined;
+		media = media.map((m) =>
+			m.id === mediaId
+				? { ...m, storageKey: saved?.storageKey ?? m.storageKey, meta: saved?.meta ?? null }
+				: m
+		);
 	}
 
 	async function chooseCover(jpeg: Blob, atMs: number | null) {

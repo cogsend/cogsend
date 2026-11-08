@@ -51,7 +51,7 @@ A failed request answers a JSON object with an `error` property.
 - `POST /api/drafts/:id/media`: upload files, see [Media](#media).
 - `PATCH /api/drafts/:id/media`: `{"mediaId", "altText?", "segmentIndex?"}` changes an attachment.
 - `DELETE /api/drafts/:id/media?mediaId=`: remove an attachment.
-- `POST /api/drafts/:id/duplicate`: copy a draft, media included, into a new draft.
+- `POST /api/drafts/:id/duplicate`: copy a draft, media included, into a new draft. The copy's attachments point at the same stored files, which are deleted only with the last draft that uses them.
 - `POST` and `DELETE /api/drafts/:id/share`: make or turn off a preview link.
 - `POST /api/drafts/:id/publish`: `{"connectionIds": []}` answers `{results, draft}`, with one result per account.
 - `POST /api/drafts/:id/schedule`: `{"connectionIds": [], "runAt": "<ISO date>"}` answers `{targets}`.
@@ -93,7 +93,7 @@ A larger video goes up in parts, up to 300 MB:
 
 `DELETE /api/drafts/:id/media/uploads` with the five values abandons an upload. The server converts nothing: it takes an MP4 it can read and refuses anything else, and a video must be the only media on its card.
 
-A video's `meta` holds what the server read from it (`durationMs`, `videoCodec`, `audioCodec`, `fps`, and `faststart`, whether its index comes first) and its `cover` once one is set. `PUT /api/drafts/:id/media/cover?mediaId=…` with a JPEG body of at most 8 MB sets the cover, and `DELETE` with the same query removes it.
+A video's `meta` holds what the server read from it (`durationMs`, `videoCodec`, `audioCodec`, `fps`, and `faststart`, whether its index comes first) and its `cover` once one is set. `PUT /api/drafts/:id/media/cover?mediaId=…` with a JPEG body of at most 8 MB sets the cover, and `DELETE` with the same query removes it. On a video that another draft shares, `PUT` first gives this draft its own copy of the video, so the attachment's `storageKey` in the response changes.
 
 ## Preview links
 

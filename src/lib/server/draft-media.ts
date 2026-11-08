@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import { MAX_IMAGES_PER_SEGMENT, videoMixProblem } from '#lib/domain/media-limits.js';
 import { splitThreadSegments } from '#lib/domain/thread-segments.js';
 import { chunkIds, first } from './db/client';
@@ -31,6 +31,32 @@ export async function rejectIfNotEditable(db: App.Locals['db'], draftId: string)
 	const targets = await db.select().from(publishTargets).where(eq(publishTargets.draftId, draftId));
 	const blocked = draftEditBlock(targets);
 	return blocked ? fail(blocked, 409) : null;
+}
+
+/**
+ * The keys no other media row points at. A copied post shares its original's
+ * stored files, so a file may go only with the last row that uses it.
+ */
+export async function keysUsedOnlyBy(
+	db: App.Locals['db'],
+	keys: string[],
+	leaving: { draftId: string } | { mediaId: string }
+): Promise<string[]> {
+	const unique = [...new Set(keys)];
+	const elsewhere =
+		'draftId' in leaving
+			? ne(draftMedia.draftId, leaving.draftId)
+			: ne(draftMedia.id, leaving.mediaId);
+	const kept = new Set<string>();
+	// One bound parameter goes to `elsewhere`; D1 caps a statement at 100.
+	for (const chunk of chunkIds(unique, 90)) {
+		const rows = await db
+			.selectDistinct({ key: draftMedia.storageKey })
+			.from(draftMedia)
+			.where(and(inArray(draftMedia.storageKey, chunk), elsewhere));
+		for (const row of rows) kept.add(row.key);
+	}
+	return unique.filter((key) => !kept.has(key));
 }
 
 export async function ownDraft(locals: App.Locals, id: string, userId: string) {

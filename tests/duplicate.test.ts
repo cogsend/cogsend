@@ -10,12 +10,16 @@ import {
 	publishTargets,
 	users
 } from '#lib/server/db/schema.js';
+import { coverKey } from '#lib/server/media.js';
 import { POST as duplicatePOST } from '../src/routes/api/drafts/[id]/duplicate/+server';
 import { DELETE as draftDELETE } from '../src/routes/api/drafts/[id]/+server';
+import { DELETE as mediaDELETE } from '../src/routes/api/drafts/[id]/media/+server';
+import {
+	DELETE as coverDELETE,
+	PUT as coverPUT
+} from '../src/routes/api/drafts/[id]/media/cover/+server';
 import { buildMp4 } from './mp4-fixture';
 
-// Real magic bytes: the duplicate route re-sniffs attachment bytes instead of
-// trusting the row, so the fixtures have to be shaped like the media they claim.
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
 const MP4_BYTES = buildMp4();
 
@@ -143,7 +147,13 @@ describe('POST /api/drafts/[id]/duplicate', () => {
 		});
 	});
 
-	it('copies content, variants, and media bytes without publishing state', async () => {
+	const ownLocals = () => ({ db, user: userObj(userId), media });
+	const deleteDraft = (id: string) =>
+		draftDELETE({ params: { id }, locals: ownLocals() } as never) as Promise<Response>;
+	const mediaRows = (draftId: string) =>
+		db.select().from(draftMedia).where(eq(draftMedia.draftId, draftId));
+
+	it('copies content and variants without publishing state, sharing the media files', async () => {
 		const sourceId = await seedSource({ withMedia: true, withTarget: true });
 		const res = await call(sourceId);
 		expect(res.status).toBe(201);
@@ -166,40 +176,125 @@ describe('POST /api/drafts/[id]/duplicate', () => {
 		expect(clone.variants).toHaveLength(1);
 		expect(clone.variants[0]).toMatchObject({ platform: 'mastodon', body: 'variant body' });
 		expect(clone.targets).toHaveLength(0);
-		expect(clone.media).toHaveLength(2);
 
-		// New keys, same bytes, same alt/order.
-		const originalKeys = [
-			'1700000000000-aaaaaaaaaaaaaaaa.png',
-			'1700000000001-bbbbbbbbbbbbbbbb.mp4'
-		];
-		for (let i = 0; i < clone.media.length; i++) {
-			expect(clone.media[i].storageKey).not.toBe(originalKeys[i]);
-			expect(await media.get(clone.media[i].storageKey)).toEqual(await media.get(originalKeys[i]));
+		const source = await mediaRows(sourceId);
+		const sourceById = new Map(source.map((row) => [row.storageKey, row]));
+		expect(clone.media).toHaveLength(2);
+		for (const item of clone.media) {
+			expect(sourceById.has(item.storageKey)).toBe(true);
+			expect(sourceById.get(item.storageKey)!.id).not.toBe(item.id);
 		}
 		expect(clone.media[0].altText).toBe('alt text');
-
-		// The source and its objects are untouched.
-		const sourceRows = await db.select().from(draftMedia).where(eq(draftMedia.draftId, sourceId));
-		expect(sourceRows).toHaveLength(2);
-		expect(await media.get(originalKeys[0])).toEqual(PNG_BYTES);
 		expect(
 			await db.select().from(publishTargets).where(eq(publishTargets.draftId, sourceId))
 		).toHaveLength(1);
 
-		// Cloned media rows point at the new keys.
-		const cloneRows = await db.select().from(draftMedia).where(eq(draftMedia.draftId, clone.id));
-		expect(cloneRows.map((r) => r.storageKey).sort()).toEqual(
-			clone.media.map((m) => m.storageKey).sort()
-		);
+		// A file goes with the last post that uses it, not the first.
+		expect((await deleteDraft(clone.id)).status).toBe(200);
+		expect(await media.get('1700000000000-aaaaaaaaaaaaaaaa.png')).toEqual(PNG_BYTES);
+		expect(await media.get('1700000000001-bbbbbbbbbbbbbbbb.mp4')).toEqual(MP4_BYTES);
+		expect((await deleteDraft(sourceId)).status).toBe(200);
+		expect(await media.get('1700000000000-aaaaaaaaaaaaaaaa.png')).toBeNull();
+		expect(await media.get('1700000000001-bbbbbbbbbbbbbbbb.mp4')).toBeNull();
+	});
 
-		// Deleting the clone must not remove the source's bytes.
-		const del = (await draftDELETE({
+	it('keeps a shared file when one post removes it', async () => {
+		const sourceId = await seedSource({ withMedia: true });
+		const clone = ((await (await call(sourceId)).json()) as { draft: { id: string } }).draft;
+		const image = (await mediaRows(clone.id)).find((row) => row.mime === 'image/png')!;
+		const remove = (draftId: string, mediaId: string) =>
+			mediaDELETE({
+				params: { id: draftId },
+				url: new URL(`http://localhost/x?mediaId=${mediaId}`),
+				locals: ownLocals()
+			} as never) as Promise<Response>;
+
+		expect((await remove(clone.id, image.id)).status).toBe(200);
+		expect(await media.get(image.storageKey)).toEqual(PNG_BYTES);
+		const original = (await mediaRows(sourceId)).find((row) => row.mime === 'image/png')!;
+		expect((await remove(sourceId, original.id)).status).toBe(200);
+		expect(await media.get(image.storageKey)).toBeNull();
+	});
+
+	it('gives a copied video its own file before changing its cover', async () => {
+		const sourceId = await seedSource({ withMedia: true });
+		const video = (await mediaRows(sourceId)).find((row) => row.mime === 'video/mp4')!;
+		const oldCover = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1]);
+		await media.put(coverKey(video.storageKey), oldCover, 'image/jpeg');
+		await db
+			.update(draftMedia)
+			.set({ metaJson: JSON.stringify({ cover: { v: 1 } }) })
+			.where(eq(draftMedia.id, video.id));
+
+		const clone = ((await (await call(sourceId)).json()) as { draft: { id: string } }).draft;
+		const copied = (await mediaRows(clone.id)).find((row) => row.mime === 'video/mp4')!;
+		expect(copied.storageKey).toBe(video.storageKey);
+
+		const newCover = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 2]);
+		const url = new URL(`http://localhost/x?mediaId=${copied.id}`);
+		const put = (await coverPUT({
 			params: { id: clone.id },
-			locals: { db, user: userObj(userId), media }
+			url,
+			request: new Request(url, { method: 'PUT', body: newCover }),
+			locals: ownLocals()
+		} as never)) as Response;
+		expect(put.status).toBe(200);
+		const moved = ((await put.json()) as { media: { storageKey: string } }).media.storageKey;
+		expect(moved).not.toBe(video.storageKey);
+		expect(await media.get(moved)).toEqual(MP4_BYTES);
+		expect(await media.get(coverKey(moved))).toEqual(newCover);
+		expect(await media.get(coverKey(video.storageKey))).toEqual(oldCover);
+
+		// Removing a cover on a video another post uses leaves that post's cover.
+		const second = ((await (await call(sourceId)).json()) as { draft: { id: string } }).draft;
+		const secondVideo = (await mediaRows(second.id)).find((row) => row.mime === 'video/mp4')!;
+		const del = (await coverDELETE({
+			params: { id: second.id },
+			url: new URL(`http://localhost/x?mediaId=${secondVideo.id}`),
+			locals: ownLocals()
 		} as never)) as Response;
 		expect(del.status).toBe(200);
-		expect(await media.get(originalKeys[0])).toEqual(PNG_BYTES);
+		expect(await media.get(coverKey(video.storageKey))).toEqual(oldCover);
+	});
+
+	it('leaves a copied video without a cover when storing its new one fails', async () => {
+		const sourceId = await seedSource({ withMedia: true });
+		const video = (await mediaRows(sourceId)).find((row) => row.mime === 'video/mp4')!;
+		await media.put(
+			coverKey(video.storageKey),
+			new Uint8Array([0xff, 0xd8, 0xff, 0xe0]),
+			'image/jpeg'
+		);
+		await db
+			.update(draftMedia)
+			.set({ metaJson: JSON.stringify({ cover: { v: 1 } }) })
+			.where(eq(draftMedia.id, video.id));
+		const clone = ((await (await call(sourceId)).json()) as { draft: { id: string } }).draft;
+		const copied = (await mediaRows(clone.id)).find((row) => row.mime === 'video/mp4')!;
+
+		const refusing = {
+			...media,
+			put: async (key: string, bytes: Uint8Array, mime: string) => {
+				if (key.startsWith('cover/')) throw new Error('storage unavailable');
+				return media.put(key, bytes, mime);
+			}
+		};
+		const url = new URL(`http://localhost/x?mediaId=${copied.id}`);
+		const put = (await coverPUT({
+			params: { id: clone.id },
+			url,
+			request: new Request(url, {
+				method: 'PUT',
+				body: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 3])
+			}),
+			locals: { ...ownLocals(), media: refusing }
+		} as never)) as Response;
+		expect(put.ok).toBe(false);
+		const [after] = await db.select().from(draftMedia).where(eq(draftMedia.id, copied.id));
+		expect(JSON.parse(after.metaJson ?? '{}').cover).toBeUndefined();
+		expect(await media.get(after.storageKey)).toEqual(MP4_BYTES);
+		const [original] = await db.select().from(draftMedia).where(eq(draftMedia.id, video.id));
+		expect(JSON.parse(original.metaJson ?? '{}').cover).toEqual({ v: 1 });
 	});
 
 	it('skips attachments whose object is missing instead of failing', async () => {
@@ -234,7 +329,7 @@ describe('POST /api/drafts/[id]/duplicate', () => {
 		expect(res.status).toBe(403);
 	});
 
-	it('copies more media than fits in one insert chunk', async () => {
+	it('copies more media rows than fit in one insert chunk', async () => {
 		const sourceId = await seedSource();
 		const now = new Date();
 		const keys: string[] = [];
@@ -259,10 +354,7 @@ describe('POST /api/drafts/[id]/duplicate', () => {
 			draft: { id: string; media: Array<{ storageKey: string }> };
 		};
 		expect(body.draft.media).toHaveLength(9);
-		for (const item of body.draft.media) {
-			expect(keys).not.toContain(item.storageKey);
-			expect(await media.get(item.storageKey)).not.toBeNull();
-		}
+		expect(body.draft.media.map((item) => item.storageKey).sort()).toEqual(keys.sort());
 		const rows = await db.select().from(draftMedia).where(eq(draftMedia.draftId, body.draft.id));
 		expect(rows).toHaveLength(9);
 	});

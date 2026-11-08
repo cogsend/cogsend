@@ -57,24 +57,16 @@ import {
 } from '#lib/server/publish.js';
 import { humanizedCause } from '#lib/domain/human-error.js';
 import type { SubrequestBudget } from '#lib/server/budget.js';
-import { randomHex } from '#lib/domain/bytes.js';
-import { MAX_VIDEO_BYTES, validateImageUpload } from '#lib/domain/media-limits.js';
-import type { Mp4Facts } from '#lib/domain/mp4-probe.js';
 import { validatePollConfig } from '#lib/domain/poll.js';
 import { validateThreadsTopic } from '#lib/domain/threads-topic.js';
 import {
 	assertSafeStorageKey,
-	coverKey,
 	deleteMediaObjects,
-	jpegKey,
 	makeStoredJpegCopy,
-	previewKey,
-	probeStoredVideo,
-	videoMetaFrom,
 	type ImageResizer,
-	type StoredImageMeta,
-	type StoredVideoMeta
+	type StoredImageMeta
 } from '#lib/server/media.js';
+import { keysUsedOnlyBy } from '#lib/server/draft-media.js';
 import { STALE_CLAIM_MS } from '#lib/domain/due-jobs.js';
 import { ApiOperationError } from '#lib/server/api/operation-error.js';
 import { DRAFTS_LIST_LIMIT, DRAFTS_LIST_MAX_LIMIT, loadQueueList } from '#lib/server/post-list.js';
@@ -461,68 +453,10 @@ export async function rescheduleDelivery(
 	return { ok: true as const, scheduledFor: runAt.toISOString() };
 }
 
-// The shape saveMediaBytes mints; anything else fails the serving route's key check.
-const ALLOWED_MEDIA_EXTENSIONS = new Set(['jpg', 'png', 'webp', 'gif', 'mp4']);
 // 12 bound parameters per media row; D1 caps a query at 100.
 const MEDIA_INSERT_CHUNK = 8;
 const VARIANT_PLATFORMS = new Set(['mastodon', 'bluesky', 'linkedin', 'threads', 'instagram', 'x']);
 const VISIBILITIES = new Set(['public', 'unlisted', 'private', 'direct']);
-
-/**
- * Copy a stored video in storage, without reading it into the isolate (a
- * 300 MB file would not fit), then read back what was copied: the source row
- * is not trusted. Its cover comes along. Null when there is nothing playable
- * to copy, in which case nothing is left behind.
- */
-async function copyVideo(
-	store: OperationContext['media'],
-	item: { storageKey: string; metaJson: string | null },
-	storageKey: string
-): Promise<{ size: number; facts: Mp4Facts; meta: StoredVideoMeta } | null> {
-	if (!store.copy || !store.size) return null;
-	if (!(await store.copy(item.storageKey, storageKey))) return null;
-	try {
-		const size = (await store.size(storageKey)) ?? 0;
-		const facts = await probeStoredVideo(store, storageKey, size);
-		if (!facts?.videoCodec || size <= 0 || size > MAX_VIDEO_BYTES) throw new Error('unplayable');
-		const meta = videoMetaFrom(facts);
-		const cover = parseJson<Partial<StoredVideoMeta>>(item.metaJson, {}).cover;
-		if (cover && (await store.copy(coverKey(item.storageKey), coverKey(storageKey)))) {
-			meta.cover = cover;
-		}
-		return { size, facts, meta };
-	} catch {
-		await deleteMediaObjects(store, [storageKey]).catch(() => {});
-		return null;
-	}
-}
-
-/**
- * An image's preview and JPEG copy come along when the store can copy them;
- * otherwise the copy shows the original, and Instagram asks for it again.
- */
-async function copyImageVariants(
-	store: OperationContext['media'],
-	item: { storageKey: string; metaJson: string | null },
-	storageKey: string
-): Promise<StoredImageMeta | null> {
-	const stored = parseJson<StoredImageMeta>(item.metaJson, {});
-	const copied: StoredImageMeta = stored.animated ? { animated: true } : {};
-	const variants = [
-		['preview', previewKey],
-		['jpeg', jpegKey]
-	] as const;
-	for (const [name, keyOf] of variants) {
-		const variant = stored[name];
-		if (!variant || !store.copy) continue;
-		try {
-			if (await store.copy(keyOf(item.storageKey), keyOf(storageKey))) copied[name] = variant;
-		} catch {
-			// The original is still copied; this variant is just left behind.
-		}
-	}
-	return Object.keys(copied).length ? copied : null;
-}
 
 export async function listDrafts(ctx: OperationContext, userId: string, requestedLimit?: number) {
 	const limit = Number.isFinite(requestedLimit)
@@ -630,9 +564,9 @@ export async function createDraft(
 }
 
 /**
- * Media is copied to new R2 keys: deleting a draft removes its objects, so
- * shared keys would let deleting one copy break the other. Targets are not
- * copied; the clone starts as a plain draft.
+ * The copy's media rows point at the original's stored files instead of new
+ * copies of them; a file is deleted only with the last row that uses it.
+ * Targets are not copied; the clone starts as a plain draft.
  */
 export async function duplicateDraft(ctx: OperationContext, userId: string, draftId: string) {
 	const source = await first(
@@ -649,7 +583,6 @@ export async function duplicateDraft(ctx: OperationContext, userId: string, draf
 	const media = await ctx.db.select().from(draftMedia).where(eq(draftMedia.draftId, source.id));
 	const now = new Date();
 	const newDraftId = newId();
-	const savedKeys: string[] = [];
 	try {
 		const [draft] = await ctx.db
 			.insert(drafts)
@@ -683,51 +616,22 @@ export async function duplicateDraft(ctx: OperationContext, userId: string, draf
 		// A missing object skips that attachment rather than failing the copy.
 		const mediaValues: Array<typeof draftMedia.$inferInsert> = [];
 		for (const item of media) {
-			// The row is not trusted: re-check the key shape and what is stored.
-			let extension: string;
+			// Only a key saveMediaBytes minted is shared; the serving routes refuse any other.
 			try {
-				extension = assertSafeStorageKey(item.storageKey).split('.').pop() ?? '';
+				assertSafeStorageKey(item.storageKey);
 			} catch {
 				continue;
 			}
-			if (!ALLOWED_MEDIA_EXTENSIONS.has(extension)) continue;
-			const storageKey = `${Date.now()}-${randomHex(8)}.${extension}`;
-			if ((item.mime || '').toLowerCase().startsWith('video/')) {
-				const copied = await copyVideo(ctx.media, item, storageKey);
-				if (!copied) continue;
-				savedKeys.push(storageKey);
-				mediaValues.push({
-					id: newId(),
-					draftId: newDraftId,
-					storageKey,
-					mime: 'video/mp4',
-					size: copied.size,
-					width: copied.facts.width,
-					height: copied.facts.height,
-					metaJson: JSON.stringify(copied.meta),
-					altText: item.altText,
-					sortOrder: item.sortOrder,
-					segmentIndex: item.segmentIndex,
-					createdAt: now
-				});
-				continue;
-			}
-			const bytes = await ctx.media.get(item.storageKey);
-			if (!bytes) continue;
-			const validated = validateImageUpload({ mime: item.mime, size: bytes.length, bytes });
-			if (!validated.ok) continue;
-			await ctx.media.put(storageKey, bytes, validated.mime);
-			savedKeys.push(storageKey);
-			const imageMeta = await copyImageVariants(ctx.media, item, storageKey);
+			if (ctx.media.size && (await ctx.media.size(item.storageKey)) === null) continue;
 			mediaValues.push({
 				id: newId(),
 				draftId: newDraftId,
-				storageKey,
-				mime: validated.mime,
-				size: bytes.length,
+				storageKey: item.storageKey,
+				mime: item.mime,
+				size: item.size,
 				width: item.width,
 				height: item.height,
-				metaJson: imageMeta ? JSON.stringify(imageMeta) : null,
+				metaJson: item.metaJson,
 				altText: item.altText,
 				sortOrder: item.sortOrder,
 				segmentIndex: item.segmentIndex,
@@ -747,7 +651,6 @@ export async function duplicateDraft(ctx: OperationContext, userId: string, draf
 			draft: serializeDraft(draft, { variants: newVariants, media: newMedia, targets: [] })
 		};
 	} catch (error) {
-		await deleteMediaObjects(ctx.media, savedKeys).catch(() => {});
 		await ctx.db
 			.delete(drafts)
 			.where(eq(drafts.id, newDraftId))
@@ -1086,7 +989,11 @@ export async function deleteDraft(ctx: OperationContext, userId: string, draftId
 	// Objects before the row: a crash in between leaves a retryable row, not orphaned bytes.
 	await deleteMediaObjects(
 		ctx.media,
-		files.map((file) => file.storageKey)
+		await keysUsedOnlyBy(
+			ctx.db,
+			files.map((file) => file.storageKey),
+			{ draftId }
+		)
 	);
 	await ctx.db.delete(drafts).where(eq(drafts.id, draftId));
 	return { ok: true as const };

@@ -150,14 +150,13 @@ describe('image previews', () => {
 		expect(res.ok).toBe(true);
 		const { draft } = (await res.json()) as { draft: { id: string } };
 		const [copy] = await db.select().from(draftMedia).where(eq(draftMedia.draftId, draft.id));
-		expect(copy.storageKey).not.toBe(item.storageKey);
+		expect(copy.storageKey).toBe(item.storageKey);
 		expect(JSON.parse(copy.metaJson ?? '{}').preview).toEqual(item.meta!.preview);
 		expect(await media.get(previewKey(copy.storageKey))).toEqual(JPEG);
 
 		await deleteMediaObjects(media, [item.storageKey]);
 		expect(await media.get(item.storageKey)).toBeNull();
 		expect(await media.get(previewKey(item.storageKey))).toBeNull();
-		expect(await media.get(previewKey(copy.storageKey))).toEqual(JPEG);
 	});
 
 	it("keeps a PNG's JPEG copy for Instagram, and hands publishing the news", async () => {

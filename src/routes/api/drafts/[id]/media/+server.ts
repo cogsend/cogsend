@@ -10,6 +10,7 @@ import { first, newId } from '#lib/server/db/client.js';
 import { draftMedia } from '#lib/server/db/schema.js';
 import {
 	cleanAltText,
+	keysUsedOnlyBy,
 	MAX_FILES_PER_DRAFT,
 	MAX_FILES_PER_USER,
 	overUserFileCap,
@@ -290,7 +291,12 @@ export const DELETE: RequestHandler = async ({ params, url, locals }) => {
 		await locals.db
 			.delete(draftMedia)
 			.where(and(eq(draftMedia.id, mediaId), eq(draftMedia.draftId, params.id)));
-		if (gone) await deleteMediaObjects(locals.media, [gone.storageKey]);
+		if (gone) {
+			await deleteMediaObjects(
+				locals.media,
+				await keysUsedOnlyBy(locals.db, [gone.storageKey], { mediaId: gone.id })
+			);
+		}
 		return ok({ ok: true });
 	} catch (err) {
 		return handleError(err);
