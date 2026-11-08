@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { afterNavigate, beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	import { onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import {
 		Image as ImageIcon,
 		Trash2,
@@ -865,6 +865,8 @@
 		for (const job of videoJobs) job.controller.abort();
 		videoJobs = [];
 	}
+
+	onDestroy(abortVideoJobs);
 
 	function resetEditorForNewDraft() {
 		editorGeneration++;
@@ -3104,7 +3106,18 @@
 		returnToPosts = from?.url.pathname === '/posts' && Boolean(to?.url.searchParams.get('id'));
 	});
 
-	beforeNavigate(() => {
+	beforeNavigate(({ to, type, cancel }) => {
+		// The job lives on in this component's closure, so leaving would let it
+		// finish unseen and attach the video later. A full unload is left to the
+		// beforeunload prompt below; another post here aborts it in loadDraft.
+		if (videoJobs.length && type !== 'leave' && to?.route.id !== '/compose') {
+			cancel();
+			showToast(
+				'A video is still converting or uploading. Wait for it, or cancel it first.',
+				'warn'
+			);
+			return;
+		}
 		if (editLocked) return;
 		if (!dirty && Object.keys(altPending).length === 0) return;
 		void persistAll(false, { navigate: false });
