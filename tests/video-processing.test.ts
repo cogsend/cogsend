@@ -124,6 +124,7 @@ describe('a video the platform is still processing', () => {
 		(await db.select().from(publishTargets).where(eq(publishTargets.id, id)))[0];
 	const run = (id: string, at: number) =>
 		publishTarget(db, TEST_ENV, store, id, { now: new Date(at) });
+	const retry = (id: string) => retryDelivery({ db, env: TEST_ENV, media: store }, userId, id);
 	const park =
 		(storageKey: string, state: Record<string, unknown>, segment = 0): Step =>
 		() => {
@@ -213,9 +214,7 @@ describe('a video the platform is still processing', () => {
 		expect(isRetryableError(late.error!)).toBe(false);
 
 		steps = [done];
-		expect((await run(targetId, t0 + VIDEO_PROCESSING_DEADLINE_MS + 120_000)).status).toBe(
-			'published'
-		);
+		expect((await retry(targetId)).status).toBe('published');
 		expect(seen.at(-1)).toBeUndefined();
 	});
 
@@ -247,7 +246,7 @@ describe('a video the platform is still processing', () => {
 		];
 		await run(targetId, t0);
 		expect((await run(targetId, t0 + 31_000)).status).toBe('failed');
-		expect((await run(targetId, t0 + 62_000)).status).toBe('published');
+		expect((await retry(targetId)).status).toBe('published');
 		expect(seen[1]?.pending?.state).toEqual({ mediaId: 'm1' });
 		expect(seen[2]).toBeUndefined();
 	});

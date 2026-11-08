@@ -171,6 +171,54 @@ describe('claimDueTargets stale publishing', () => {
 		await db.delete(publishTargets).where(eq(publishTargets.id, targetId));
 	});
 
+	it('a late queue message never sends a delivery that already failed again', async () => {
+		const now = new Date();
+		const earlier = new Date(now.getTime() - 60_000);
+		const cases = [
+			{ errorMessage: STALLED_PUBLISH_MESSAGE, attemptCount: MAX_PUBLISH_ATTEMPTS },
+			{ errorMessage: 'Bluesky posts are limited to 300 characters', attemptCount: 1 }
+		];
+		const ids: string[] = [];
+		for (const failure of cases) {
+			const d = newId();
+			await db.insert(drafts).values({
+				id: d,
+				userId,
+				baseBody: 'already failed',
+				status: 'failed',
+				createdAt: now,
+				updatedAt: now
+			});
+			const id = newId();
+			ids.push(id);
+			await db.insert(publishTargets).values({
+				id,
+				draftId: d,
+				connectionId: connId,
+				status: 'failed',
+				...failure,
+				createdAt: now,
+				updatedAt: earlier
+			});
+		}
+		const posted: string[] = [];
+		const fetchImpl = async (input: RequestInfo | URL) => {
+			posted.push(String(input instanceof Request ? input.url : input));
+			return new Response('unexpected', { status: 500 });
+		};
+
+		for (const id of ids) {
+			const result = await consumePublishJob(db, TEST_ENV, createTestMedia(), id, fetchImpl);
+			expect(result).toMatchObject({ status: 'failed', skipped: true });
+		}
+		expect(posted).toEqual([]);
+		for (const [i, id] of ids.entries()) {
+			const [row] = await db.select().from(publishTargets).where(eq(publishTargets.id, id));
+			expect(row).toMatchObject({ status: 'failed', ...cases[i] });
+		}
+		await db.delete(publishTargets).where(inArray(publishTargets.id, ids));
+	});
+
 	it('still reclaims a run that died with attempts left', async () => {
 		const now = new Date();
 		const d = newId();

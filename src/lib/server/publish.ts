@@ -455,7 +455,7 @@ export async function publishTarget(
 						and(
 							eq(publishTargets.id, targetId),
 							isNull(publishTargets.remotePostId),
-							inArray(publishTargets.status, ['pending', 'failed'])
+							eq(publishTargets.status, 'pending')
 						)
 					)
 					.returning({ id: publishTargets.id });
@@ -503,8 +503,11 @@ export async function publishTarget(
 			and(
 				eq(publishTargets.id, targetId),
 				eq(publishTargets.attemptCount, target.attemptCount),
+				// Never `failed`: every path that sends one again (Retry, Publish,
+				// Schedule) resets it first, so only a late or repeated queue
+				// message still points at it, and that would post it again.
 				or(
-					inArray(publishTargets.status, ['pending', 'failed']),
+					eq(publishTargets.status, 'pending'),
 					and(eq(publishTargets.status, 'scheduled'), lte(publishTargets.scheduledFor, now)),
 					// A run that died with attempts left; the tick fails one without.
 					and(
