@@ -14,6 +14,7 @@ import { captureConsole, loggedLines } from './console-spy';
 import { writeAppSetting } from '#lib/server/app-settings.js';
 import { draftHasInFlightPublish } from '#lib/server/publish-plan.js';
 import { MAX_PUBLISH_ATTEMPTS, publishTarget } from '#lib/server/publish.js';
+import { publishDraft, scheduleDraft } from '#lib/server/api/operations.js';
 import {
 	claimDueTargets,
 	consumePublishJob,
@@ -217,6 +218,53 @@ describe('claimDueTargets stale publishing', () => {
 			expect(row).toMatchObject({ status: 'failed', ...cases[i] });
 		}
 		await db.delete(publishTargets).where(inArray(publishTargets.id, ids));
+	});
+
+	it('Publish and Schedule leave a run that died on its last attempt for the stalled warning', async () => {
+		const now = new Date();
+		const d = newId();
+		await db.insert(drafts).values({
+			id: d,
+			userId,
+			baseBody: 'died on the last try',
+			status: 'publishing',
+			createdAt: now,
+			updatedAt: now
+		});
+		const targetId = newId();
+		await db.insert(publishTargets).values({
+			id: targetId,
+			draftId: d,
+			connectionId: connId,
+			status: 'publishing',
+			attemptCount: MAX_PUBLISH_ATTEMPTS,
+			createdAt: now,
+			updatedAt: new Date(now.getTime() - 16 * 60_000)
+		});
+		const ctx = { db, env: TEST_ENV, media: createTestMedia() };
+		await expect(publishDraft(ctx, userId, d, { connectionIds: [connId] })).rejects.toMatchObject({
+			status: 409,
+			message: 'Already publishing'
+		});
+		await expect(
+			scheduleDraft(ctx, userId, d, {
+				connectionIds: [connId],
+				runAt: new Date(now.getTime() + 60 * 60_000).toISOString()
+			})
+		).rejects.toMatchObject({ status: 409, message: 'Already publishing' });
+		const [untouched] = await db
+			.select()
+			.from(publishTargets)
+			.where(eq(publishTargets.id, targetId));
+		expect(untouched).toMatchObject({
+			status: 'publishing',
+			attemptCount: MAX_PUBLISH_ATTEMPTS
+		});
+
+		await recoverStalePublishing(db, now);
+		const [row] = await db.select().from(publishTargets).where(eq(publishTargets.id, targetId));
+		expect(row).toMatchObject({ status: 'failed', errorMessage: STALLED_PUBLISH_MESSAGE });
+		await db.delete(publishTargets).where(eq(publishTargets.id, targetId));
 	});
 
 	it('still reclaims a run that died with attempts left', async () => {

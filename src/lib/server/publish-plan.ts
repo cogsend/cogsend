@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, lte, or } from 'drizzle-orm';
 import type { InferSelectModel } from 'drizzle-orm';
 import { STALE_CLAIM_MS, isFreshPublishing } from '#lib/domain/due-jobs.js';
 import { isTargetSending } from '#lib/domain/post-state.js';
@@ -9,6 +9,7 @@ import {
 } from '#lib/domain/published-lock.js';
 import { newId, type AppDb } from './db/client';
 import { draftVariants, publishTargets } from './db/schema';
+import { MAX_PUBLISH_ATTEMPTS } from './publish';
 
 export type ConnectionRow = {
 	id: string;
@@ -73,8 +74,15 @@ export function classifyWinner(
 	// Status first: a provider that answered 200 without an id still published
 	// the post, and classifying that row as reusable would publish it twice.
 	if (winner.status === 'published' || winner.remotePostId) return 'published';
-	if (isFreshPublishing(winner, now)) return 'inFlight';
+	if (isFreshPublishing(winner, now) || isSpentPublishing(winner)) return 'inFlight';
 	return 'reusable';
+}
+
+// A run that died on its last attempt may have posted. Only the tick's
+// stalled failure says so, so Publish and Schedule leave it to the tick
+// (recoverStalePublishing) rather than quietly sending it again.
+function isSpentPublishing(row: PublishTargetRow): boolean {
+	return row.status === 'publishing' && row.attemptCount >= MAX_PUBLISH_ATTEMPTS;
 }
 
 // Draft-level guard: any target with a live claim (fresh `publishing` or a
@@ -161,7 +169,11 @@ function reusableWhere(id: string, now: Date) {
 		isNull(publishTargets.remotePostId),
 		or(
 			inArray(publishTargets.status, [...REUSABLE_STATUSES]),
-			and(eq(publishTargets.status, 'publishing'), lte(publishTargets.updatedAt, staleBefore))
+			and(
+				eq(publishTargets.status, 'publishing'),
+				lte(publishTargets.updatedAt, staleBefore),
+				lt(publishTargets.attemptCount, MAX_PUBLISH_ATTEMPTS)
+			)
 		)
 	);
 }
@@ -250,7 +262,7 @@ export async function ensureTargets(
 			continue;
 		}
 
-		if (isFreshPublishing(winner, now)) {
+		if (isFreshPublishing(winner, now) || isSpentPublishing(winner)) {
 			out.push({ target: winner, reused: true, alreadyPublished: false, inFlight: true });
 			continue;
 		}
