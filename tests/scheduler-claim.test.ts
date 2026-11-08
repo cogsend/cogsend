@@ -13,14 +13,17 @@ import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js'
 import { captureConsole, loggedLines } from './console-spy';
 import { writeAppSetting } from '#lib/server/app-settings.js';
 import { draftHasInFlightPublish } from '#lib/server/publish-plan.js';
+import { MAX_PUBLISH_ATTEMPTS, publishTarget } from '#lib/server/publish.js';
 import {
 	claimDueTargets,
 	consumePublishJob,
 	JANITOR_INTERVAL_MS,
 	JANITOR_SETTING,
+	recoverStalePublishing,
 	runJanitorsIfDue,
 	runSchedulerTick,
 	schedulerHealth,
+	STALLED_PUBLISH_MESSAGE,
 	writeHeartbeat
 } from '#lib/server/scheduler.js';
 
@@ -115,6 +118,85 @@ describe('claimDueTargets stale publishing', () => {
 			}
 		});
 		expect(result.results.some((r) => r.id === targetId && r.status === 'published')).toBe(true);
+	});
+
+	it('fails a run that died on its last attempt instead of reclaiming it for ever', async () => {
+		const now = new Date();
+		const d = newId();
+		await db.insert(drafts).values({
+			id: d,
+			userId,
+			baseBody: 'dies every time',
+			status: 'scheduled',
+			createdAt: now,
+			updatedAt: now
+		});
+		const targetId = newId();
+		await db.insert(publishTargets).values({
+			id: targetId,
+			draftId: d,
+			connectionId: connId,
+			status: 'publishing',
+			scheduledFor: new Date(now.getTime() - 60 * 60_000),
+			attemptCount: MAX_PUBLISH_ATTEMPTS,
+			jobId: 'sched-dead',
+			createdAt: now,
+			updatedAt: new Date(now.getTime() - 16 * 60_000)
+		});
+		expect((await claimDueTargets(db, now)).map((t) => t.id)).not.toContain(targetId);
+		expect(
+			(await publishTarget(db, TEST_ENV, createTestMedia(), targetId, { mustTry: true })).skipped
+		).toBe(true);
+
+		const posted: string[] = [];
+		const tick = await runSchedulerTick(db, TEST_ENV, {
+			store: createTestMedia(),
+			fetchImpl: async (input) => {
+				posted.push(String(input instanceof Request ? input.url : input));
+				return new Response('unexpected', { status: 500 });
+			}
+		});
+		expect(tick.results.some((r) => r.id === targetId)).toBe(false);
+		expect(posted).toEqual([]);
+		const [row] = await db.select().from(publishTargets).where(eq(publishTargets.id, targetId));
+		expect(row).toMatchObject({
+			status: 'failed',
+			errorMessage: STALLED_PUBLISH_MESSAGE,
+			jobId: null,
+			attemptCount: MAX_PUBLISH_ATTEMPTS
+		});
+		const [draft] = await db.select().from(drafts).where(eq(drafts.id, d));
+		expect(draft.status).toBe('failed');
+		await db.delete(publishTargets).where(eq(publishTargets.id, targetId));
+	});
+
+	it('still reclaims a run that died with attempts left', async () => {
+		const now = new Date();
+		const d = newId();
+		await db.insert(drafts).values({
+			id: d,
+			userId,
+			baseBody: 'died once',
+			status: 'scheduled',
+			createdAt: now,
+			updatedAt: now
+		});
+		const targetId = newId();
+		await db.insert(publishTargets).values({
+			id: targetId,
+			draftId: d,
+			connectionId: connId,
+			status: 'publishing',
+			scheduledFor: new Date(now.getTime() - 60_000),
+			attemptCount: MAX_PUBLISH_ATTEMPTS - 1,
+			createdAt: now,
+			updatedAt: new Date(now.getTime() - 16 * 60_000)
+		});
+		await recoverStalePublishing(db, now);
+		const [row] = await db.select().from(publishTargets).where(eq(publishTargets.id, targetId));
+		expect(row).toMatchObject({ status: 'pending', attemptCount: MAX_PUBLISH_ATTEMPTS - 1 });
+		expect((await claimDueTargets(db, now)).map((t) => t.id)).toContain(targetId);
+		await db.delete(publishTargets).where(eq(publishTargets.id, targetId));
 	});
 
 	it('bounds the batch oldest-due-first', async () => {

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { isLocalAppUrl } from '#lib/domain/app-url.js';
 import { safeHttpUrl } from '#lib/domain/links.js';
 import { LEASE_REFRESH_MS, STALE_CLAIM_MS } from '#lib/domain/due-jobs.js';
@@ -498,10 +498,12 @@ export async function publishTarget(
 				or(
 					inArray(publishTargets.status, ['pending', 'failed']),
 					and(eq(publishTargets.status, 'scheduled'), lte(publishTargets.scheduledFor, now)),
+					// A run that died with attempts left; the tick fails one without.
 					and(
 						eq(publishTargets.status, 'publishing'),
 						isNull(publishTargets.remotePostId),
-						lte(publishTargets.updatedAt, staleBefore)
+						lte(publishTargets.updatedAt, staleBefore),
+						lt(publishTargets.attemptCount, MAX_PUBLISH_ATTEMPTS)
 					)
 				)
 			)

@@ -5,6 +5,7 @@ import {
 	desc,
 	eq,
 	gt,
+	gte,
 	inArray,
 	isNotNull,
 	isNull,
@@ -30,7 +31,12 @@ import {
 } from './db/schema';
 import type { AppEnv } from './env';
 import type { MediaStore } from './media';
-import { PUBLISH_RESERVE_CALLS, publishTarget } from './publish';
+import {
+	MAX_PUBLISH_ATTEMPTS,
+	PUBLISH_RESERVE_CALLS,
+	publishTarget,
+	refreshDraftStatuses
+} from './publish';
 import { countingFetch, type SubrequestBudget } from './budget';
 import { mastodonInstanceLimits } from './providers/mastodon';
 import { providerFetch } from './providers/timed-fetch';
@@ -311,18 +317,33 @@ export async function maybeSendFailureDigest(
  * both the hand-off and the inline claim understand, and a partially published
  * thread still resumes from its attempt checkpoints.
  */
+/** What a target says once runs that never finished have used every attempt. */
+export const STALLED_PUBLISH_MESSAGE = `Publishing stopped before it finished ${MAX_PUBLISH_ATTEMPTS} times. Check the account before retrying, as it may have been posted.`;
+
 export async function recoverStalePublishing(db: AppDb, now: Date = new Date()) {
 	const staleBefore = new Date(now.getTime() - STALE_CLAIM_MS);
+	const stale = and(
+		eq(publishTargets.status, 'publishing'),
+		isNull(publishTargets.remotePostId),
+		lte(publishTargets.updatedAt, staleBefore)
+	);
+	// The attempt limit is enforced when a run records its failure, which a run
+	// that dies never does: without this, such a target is reclaimed every
+	// STALE_CLAIM_MS for ever, and each run may post it again.
+	const exhausted = await db
+		.update(publishTargets)
+		.set({ status: 'failed', errorMessage: STALLED_PUBLISH_MESSAGE, jobId: null, updatedAt: now })
+		.where(and(stale, gte(publishTargets.attemptCount, MAX_PUBLISH_ATTEMPTS)))
+		.returning({ draftId: publishTargets.draftId });
+	if (exhausted.length)
+		await refreshDraftStatuses(
+			db,
+			exhausted.map((row) => row.draftId)
+		);
 	await db
 		.update(publishTargets)
 		.set({ status: 'pending', scheduledFor: null, jobId: null, updatedAt: now })
-		.where(
-			and(
-				eq(publishTargets.status, 'publishing'),
-				isNull(publishTargets.remotePostId),
-				lte(publishTargets.updatedAt, staleBefore)
-			)
-		);
+		.where(and(stale, lt(publishTargets.attemptCount, MAX_PUBLISH_ATTEMPTS)));
 }
 
 export async function claimDueTargets(db: AppDb, now = new Date(), limit = TICK_BATCH_LIMIT) {
@@ -356,7 +377,11 @@ export async function claimDueTargets(db: AppDb, now = new Date(), limit = TICK_
 					// isolate, aborted request, spent statement budget) nothing
 					// else can reach the row, so treat it as due now.
 					and(isNull(publishTargets.scheduledFor), eq(publishTargets.status, 'pending')),
-					and(eq(publishTargets.status, 'publishing'), lte(publishTargets.updatedAt, staleBefore))
+					and(
+						eq(publishTargets.status, 'publishing'),
+						lte(publishTargets.updatedAt, staleBefore),
+						lt(publishTargets.attemptCount, MAX_PUBLISH_ATTEMPTS)
+					)
 				)
 			)
 		)
