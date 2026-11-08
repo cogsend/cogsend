@@ -7,8 +7,9 @@ export type DestinationOutcome = {
 	/**
 	 * `retrying` = left for the scheduler: a retryable failure backing off, a
 	 * video the platform is still processing, or work deferred to the next tick.
+	 * `cancelled` = cancelled while the request was on its way; nothing was sent.
 	 */
-	status: 'published' | 'publishing' | 'retrying' | 'failed';
+	status: 'published' | 'publishing' | 'retrying' | 'failed' | 'cancelled';
 	error: string | null;
 	processing?: boolean;
 	/** Published before this attempt: the server skipped it, nothing was sent. */
@@ -28,6 +29,11 @@ export function outcomeOfRow(
 	row: PublishRow | undefined
 ): DestinationOutcome {
 	if (!row) return { connectionId, status: 'failed', error: 'Publish failed' };
+	// The platform took this request's post, but another run had claimed the
+	// row by the time it could say so. A failure here would invite a Retry that
+	// posts it twice.
+	if (row.status === 'preempted') return { connectionId, status: 'published', error: null };
+	if (row.status === 'cancelled') return { connectionId, status: 'cancelled', error: null };
 	if (row.status === 'published') {
 		return { connectionId, status: 'published', error: null, already: row.skipped === true };
 	}
@@ -66,7 +72,9 @@ export type PublishSummary = {
  * sent, so a failed publish never also loses the rest of the schedule.
  */
 export function mayUnscheduleOthers(outcomes: DestinationOutcome[]): boolean {
-	return !outcomes.some((o) => o.status === 'failed' || o.status === 'publishing');
+	return !outcomes.some(
+		(o) => o.status === 'failed' || o.status === 'publishing' || o.status === 'cancelled'
+	);
 }
 
 /**
@@ -79,13 +87,14 @@ export function summarizePublish(
 	nameOf: (connectionId: string) => string,
 	opts: { note?: string; noteKept?: boolean } = {}
 ): PublishSummary {
-	const note = opts.note ?? '';
 	const failed = outcomes.filter((o) => o.status === 'failed');
 	const published = outcomes.filter((o) => o.status === 'published');
 	const inFlight = outcomes.filter((o) => o.status === 'publishing');
 	const retrying = outcomes.filter((o) => o.status === 'retrying');
+	const cancelled = outcomes.filter((o) => o.status === 'cancelled');
 	const names = (list: DestinationOutcome[]) => list.map((o) => nameOf(o.connectionId)).join(', ');
 	const posts = { label: 'View posts', href: '/posts' };
+	const note = (opts.note ?? '') + (cancelled.length ? ` · cancelled on ${names(cancelled)}` : '');
 
 	if (failed.length) {
 		const where = names(failed);
@@ -132,6 +141,10 @@ export function summarizePublish(
 			announcement: 'One of these destinations is already publishing.'
 		};
 	}
+	if (!published.length && cancelled.length) {
+		const message = `Nothing was sent: cancelled on ${names(cancelled)}${opts.note ?? ''}`;
+		return { message, tone: 'warn', action: posts, announcement: `${message}.` };
+	}
 	const sent = published.filter((p) => !p.already).length;
 	const already = published.length - sent;
 	const message =
@@ -167,12 +180,14 @@ export function summarizeProgress(
 	const processing = settled.filter((o) => o.status === 'retrying' && o.processing);
 	const retrying = settled.filter((o) => o.status === 'retrying' && !o.processing);
 	const inFlight = settled.filter((o) => o.status === 'publishing');
+	const cancelled = settled.filter((o) => o.status === 'cancelled');
 	const parts: string[] = [];
 	if (sent.length) parts.push(`Published to ${names(sent)}`);
 	if (already.length) parts.push(`already on ${names(already)}`);
 	if (processing.length) parts.push(`${names(processing)} processing the video`);
 	if (retrying.length) parts.push(`retrying ${names(retrying)}`);
 	if (inFlight.length) parts.push(`${names(inFlight)} already publishing`);
+	if (cancelled.length) parts.push(`cancelled on ${names(cancelled)}`);
 	if (failed.length) {
 		const detail =
 			failed.length === 1 && failed[0].error ? `: ${humanizeError(failed[0].error)}` : '';

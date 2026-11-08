@@ -142,6 +142,33 @@ describe('publish outcome', () => {
 		expect(out('a', undefined).status).toBe('failed');
 	});
 
+	it('reports a post another run took over as published, and a cancelled one as not sent', () => {
+		expect(out('a', { status: 'preempted', skipped: true })).toEqual({
+			connectionId: 'a',
+			status: 'published',
+			error: null
+		});
+		expect(
+			summarizePublish([out('a', { status: 'preempted', skipped: true })], nameOf)
+		).toMatchObject({ message: 'Published to 1 destination', tone: 'success' });
+
+		const cancelled = out('b', { status: 'cancelled', error: 'Target cancelled' });
+		expect(cancelled).toEqual({ connectionId: 'b', status: 'cancelled', error: null });
+		expect(summarizePublish([cancelled], nameOf)).toMatchObject({
+			message: 'Nothing was sent: cancelled on Threads · b',
+			tone: 'warn',
+			action: { label: 'View posts', href: '/posts' }
+		});
+		expect(summarizePublish([out('a', { status: 'published' }), cancelled], nameOf).message).toBe(
+			'Published to 1 destination · cancelled on Threads · b'
+		);
+		expect(summarizeProgress([cancelled], ['a'], nameOf)?.message).toBe(
+			'Cancelled on Threads · b · still sending to Bluesky · a'
+		);
+		// Nothing went out there, so the rest of the schedule stays.
+		expect(mayUnscheduleOthers([out('a', { status: 'published' }), cancelled])).toBe(false);
+	});
+
 	it('reports each account as it lands while others are still sending', () => {
 		const names = (id: string) =>
 			({ a: 'Bluesky · a', b: 'Threads · b', c: 'Mastodon · c' })[id] ?? id;
