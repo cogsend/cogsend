@@ -122,6 +122,8 @@
 		blueskyTextLength,
 		countGraphemes,
 		mastodonWeightedLength,
+		mostThreadsLinksInAPost,
+		THREADS_MAX_LINKS,
 		xWeightedLength
 	} from '#lib/domain/validation/text.js';
 	import { blueskyRichText } from '#lib/domain/bluesky-links.js';
@@ -621,15 +623,13 @@
 		}
 		return over;
 	});
-	const threadsLinkCount = $derived.by(() => {
-		const text = effectivePlatformBody(baseBody, overrides, 'threads');
-		const found = text.match(/https?:\/\/[^\s]+/gi) ?? [];
-		const urls = new Set(
-			found.map((u) => u.replace(/[.,);:!?]+$/, '').toLowerCase()).filter(Boolean)
-		);
-		return urls.size;
-	});
-	const threadsLinksOver = $derived(threadsLinkCount > 5 && selectedPlatforms.has('threads'));
+	// Threads counts links per post, so a thread is over only when one of its posts is.
+	const threadsLinkCount = $derived(
+		mostThreadsLinksInAPost(effectivePlatformBody(baseBody, overrides, 'threads'))
+	);
+	const threadsLinksOver = $derived(
+		threadsLinkCount > THREADS_MAX_LINKS && selectedPlatforms.has('threads')
+	);
 	// LinkedIn flattens the whole thread into one post, so its media rules
 	// apply to the combined attachments rather than per segment.
 	const linkedinMediaProblem = $derived.by(() => {
@@ -1370,7 +1370,10 @@
 			return;
 		}
 		if (threadsLinksOver && connectionIds.some((id) => platformOf(id) === 'threads')) {
-			showToast(`Threads allows max 5 links per post (${threadsLinkCount} found)`, 'warn');
+			showToast(
+				`Threads allows max ${THREADS_MAX_LINKS} links per post (${threadsLinkCount} in one post)`,
+				'warn'
+			);
 			return;
 		}
 		if (linkedinMediaOver && connectionIds.some((id) => platformOf(id) === 'linkedin')) {
@@ -1872,7 +1875,10 @@
 		// Mirror the publish guards: scheduling a post that cannot publish just
 		// parks a guaranteed failure in the queue.
 		if (threadsLinksOver) {
-			showToast(`Threads allows max 5 links per post (${threadsLinkCount} found)`, 'warn');
+			showToast(
+				`Threads allows max ${THREADS_MAX_LINKS} links per post (${threadsLinkCount} in one post)`,
+				'warn'
+			);
 			return;
 		}
 		if (linkedinMediaOver) {

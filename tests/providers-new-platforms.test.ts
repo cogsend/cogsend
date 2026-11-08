@@ -14,7 +14,12 @@ import {
 } from '#lib/server/providers/threads.js';
 import { PublishPartialError } from '#lib/server/providers/types.js';
 import type { FetchLike } from '#lib/server/providers/types.js';
-import { validateLinkedinText, validateThreadsText } from '#lib/domain/validation/text.js';
+import {
+	countThreadsLinks,
+	mostThreadsLinksInAPost,
+	validateLinkedinText,
+	validateThreadsText
+} from '#lib/domain/validation/text.js';
 import { captureConsole, loggedLines } from './console-spy';
 
 function mockFetch(
@@ -404,6 +409,20 @@ describe('threads validation', () => {
 		expect(threadsProvider.validate({ text: manyLinks }).some((i) => i.code === 'max_links')).toBe(
 			true
 		);
+	});
+
+	it('counts links per post of a thread, as Threads does', () => {
+		const five = (prefix: string) =>
+			['a', 'b', 'c', 'd', 'e'].map((x) => `https://${prefix}${x}.com`).join(' ');
+		const thread = { text: '', thread: [{ text: five('one') }, { text: five('two') }] };
+		expect(threadsProvider.validate(thread).some((i) => i.code === 'max_links')).toBe(false);
+		// The same link twice, in any case or with trailing punctuation, is one link.
+		expect(countThreadsLinks('https://a.com https://A.com, https://a.com. https://b.com')).toBe(2);
+		expect(countThreadsLinks('no links here')).toBe(0);
+		// The composer holds a thread back only when one of its posts is over.
+		expect(mostThreadsLinksInAPost(`${five('one')}\n---\n${five('two')}`)).toBe(5);
+		expect(mostThreadsLinksInAPost(`${five('one')} https://f.com\n---\nhi`)).toBe(6);
+		expect(mostThreadsLinksInAPost('')).toBe(0);
 	});
 });
 

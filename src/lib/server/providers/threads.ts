@@ -4,7 +4,11 @@ import {
 	parseThreadsMetaMarker,
 	THREADS_META_AUTH_CODES
 } from '#lib/domain/threads-error.js';
-import { validateThreadsText } from '#lib/domain/validation/text.js';
+import {
+	countThreadsLinks,
+	THREADS_MAX_LINKS,
+	validateThreadsText
+} from '#lib/domain/validation/text.js';
 import {
 	mediaByteLength,
 	processingError,
@@ -462,12 +466,10 @@ export const threadsProvider: PlatformProvider = {
 					});
 				}
 			}
-			const links = (seg.text || '').match(/https?:\/\/[^\s]+/gi) || [];
-			const unique = new Set(links.map((l) => l.replace(/[.,);:!?]+$/, '').toLowerCase()));
-			if (unique.size > 5) {
+			if (countThreadsLinks(seg.text || '') > THREADS_MAX_LINKS) {
 				issues.push({
 					field: `thread[${i}].text`,
-					message: 'Threads allows max 5 links per post',
+					message: `Threads allows max ${THREADS_MAX_LINKS} links per post`,
 					code: 'max_links'
 				});
 			}

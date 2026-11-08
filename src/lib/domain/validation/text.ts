@@ -1,6 +1,7 @@
 import { utf8ByteLength } from '../bytes';
 import { blueskyRichText } from '../bluesky-links';
 import { cleanUrl } from '../links';
+import { splitThreadSegments } from '../thread-segments';
 
 export function countGraphemes(text: string): number {
 	if (!text) return 0;
@@ -87,6 +88,20 @@ export function validateMastodonText(
 		};
 	}
 	return { ok: true, length, max: maxChars };
+}
+
+/** Threads refuses a post with more distinct links than this. */
+export const THREADS_MAX_LINKS = 5;
+
+/** Distinct links in one Threads post, as the publish check counts them. */
+export function countThreadsLinks(text: string): number {
+	const links = text.match(/https?:\/\/[^\s]+/gi) ?? [];
+	return new Set(links.map((l) => l.replace(/[.,);:!?]+$/, '').toLowerCase())).size;
+}
+
+/** The most links any one post of a Threads thread has. */
+export function mostThreadsLinksInAPost(body: string): number {
+	return Math.max(0, ...splitThreadSegments(body).map(countThreadsLinks));
 }
 
 export const LINKEDIN_MAX_CHARS = 3000;
