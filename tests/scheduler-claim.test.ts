@@ -165,6 +165,7 @@ describe('claimDueTargets stale publishing', () => {
 			jobId: null,
 			attemptCount: MAX_PUBLISH_ATTEMPTS
 		});
+		expect(row.scheduledFor).toBeInstanceOf(Date);
 		const [draft] = await db.select().from(drafts).where(eq(drafts.id, d));
 		expect(draft.status).toBe('failed');
 		await db.delete(publishTargets).where(eq(publishTargets.id, targetId));
@@ -189,12 +190,21 @@ describe('claimDueTargets stale publishing', () => {
 			status: 'publishing',
 			scheduledFor: new Date(now.getTime() - 60_000),
 			attemptCount: MAX_PUBLISH_ATTEMPTS - 1,
+			errorMessage: 'HTTP 503',
 			createdAt: now,
 			updatedAt: new Date(now.getTime() - 16 * 60_000)
 		});
 		await recoverStalePublishing(db, now);
 		const [row] = await db.select().from(publishTargets).where(eq(publishTargets.id, targetId));
-		expect(row).toMatchObject({ status: 'pending', attemptCount: MAX_PUBLISH_ATTEMPTS - 1 });
+		expect(row).toMatchObject({
+			status: 'pending',
+			attemptCount: MAX_PUBLISH_ATTEMPTS - 1,
+			errorMessage: 'HTTP 503',
+			scheduledFor: null,
+			jobId: null
+		});
+		const [draft] = await db.select().from(drafts).where(eq(drafts.id, d));
+		expect(draft.status).toBe('scheduled');
 		expect((await claimDueTargets(db, now)).map((t) => t.id)).toContain(targetId);
 		await db.delete(publishTargets).where(eq(publishTargets.id, targetId));
 	});

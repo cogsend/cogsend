@@ -5,7 +5,6 @@ import {
 	desc,
 	eq,
 	gt,
-	gte,
 	inArray,
 	isNotNull,
 	isNull,
@@ -13,7 +12,8 @@ import {
 	lt,
 	ne,
 	notExists,
-	or
+	or,
+	sql
 } from 'drizzle-orm';
 import { isLocalAppUrl } from '#lib/domain/app-url.js';
 import { STALE_CLAIM_MS, selectDueScheduledTargets } from '#lib/domain/due-jobs.js';
@@ -303,6 +303,9 @@ export async function maybeSendFailureDigest(
 	return { sent: true, failedCount: failures.length };
 }
 
+/** What a target says once runs that never finished have used every attempt. */
+export const STALLED_PUBLISH_MESSAGE = `Publishing stopped before it finished ${MAX_PUBLISH_ATTEMPTS} times. Check the account before retrying, as it may have been posted.`;
+
 /**
  * Recover rows a dead consumer left in `publishing`.
  *
@@ -315,35 +318,38 @@ export async function maybeSendFailureDigest(
  *
  * Resetting to `pending` puts the row back into the "publish now" shape that
  * both the hand-off and the inline claim understand, and a partially published
- * thread still resumes from its attempt checkpoints.
+ * thread still resumes from its attempt checkpoints. A row whose attempts are
+ * spent is failed instead: the limit is enforced when a run records its
+ * failure, which a run that dies never does, so it would otherwise be
+ * reclaimed every STALE_CLAIM_MS for ever, and each run may post it again.
+ * One statement either way, since every tick spends it from the call budget.
  */
-/** What a target says once runs that never finished have used every attempt. */
-export const STALLED_PUBLISH_MESSAGE = `Publishing stopped before it finished ${MAX_PUBLISH_ATTEMPTS} times. Check the account before retrying, as it may have been posted.`;
-
 export async function recoverStalePublishing(db: AppDb, now: Date = new Date()) {
 	const staleBefore = new Date(now.getTime() - STALE_CLAIM_MS);
-	const stale = and(
-		eq(publishTargets.status, 'publishing'),
-		isNull(publishTargets.remotePostId),
-		lte(publishTargets.updatedAt, staleBefore)
-	);
-	// The attempt limit is enforced when a run records its failure, which a run
-	// that dies never does: without this, such a target is reclaimed every
-	// STALE_CLAIM_MS for ever, and each run may post it again.
-	const exhausted = await db
+	const spent = sql`${publishTargets.attemptCount} >= ${MAX_PUBLISH_ATTEMPTS}`;
+	const recovered = await db
 		.update(publishTargets)
-		.set({ status: 'failed', errorMessage: STALLED_PUBLISH_MESSAGE, jobId: null, updatedAt: now })
-		.where(and(stale, gte(publishTargets.attemptCount, MAX_PUBLISH_ATTEMPTS)))
-		.returning({ draftId: publishTargets.draftId });
-	if (exhausted.length)
+		.set({
+			status: sql`CASE WHEN ${spent} THEN 'failed' ELSE 'pending' END`,
+			errorMessage: sql`CASE WHEN ${spent} THEN ${STALLED_PUBLISH_MESSAGE} ELSE ${publishTargets.errorMessage} END`,
+			scheduledFor: sql`CASE WHEN ${spent} THEN ${publishTargets.scheduledFor} ELSE NULL END`,
+			jobId: null,
+			updatedAt: now
+		})
+		.where(
+			and(
+				eq(publishTargets.status, 'publishing'),
+				isNull(publishTargets.remotePostId),
+				lte(publishTargets.updatedAt, staleBefore)
+			)
+		)
+		.returning({ draftId: publishTargets.draftId, status: publishTargets.status });
+	const failed = recovered.filter((row) => row.status === 'failed');
+	if (failed.length)
 		await refreshDraftStatuses(
 			db,
-			exhausted.map((row) => row.draftId)
+			failed.map((row) => row.draftId)
 		);
-	await db
-		.update(publishTargets)
-		.set({ status: 'pending', scheduledFor: null, jobId: null, updatedAt: now })
-		.where(and(stale, lt(publishTargets.attemptCount, MAX_PUBLISH_ATTEMPTS)));
 }
 
 export async function claimDueTargets(db: AppDb, now = new Date(), limit = TICK_BATCH_LIMIT) {
