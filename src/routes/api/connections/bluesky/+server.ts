@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { encryptJson } from '#lib/server/crypto.js';
-import { newId } from '#lib/server/db/client.js';
+import { newId, parseJson } from '#lib/server/db/client.js';
 import { findExistingConnection } from '#lib/server/oauth-callback.js';
 import { connections } from '#lib/server/db/schema.js';
 import { fail, handleError, ok } from '#lib/server/http.js';
@@ -42,12 +42,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			'did'
 		);
 		const now = new Date();
+		// A reconnect keeps the operator's link style.
+		const compactLinks = parseJson<{ compactLinks?: unknown }>(existing?.metaJson, {}).compactLinks;
 		const data = {
 			displayName: session.displayName || session.handle || null,
 			handle: session.handle || null,
 			avatarUrl: session.avatarUrl || null,
 			credentialsEncrypted: encrypted,
-			metaJson: JSON.stringify({ did: session.did, pdsHost: session.pdsHost }),
+			metaJson: JSON.stringify({
+				did: session.did,
+				pdsHost: session.pdsHost,
+				...(compactLinks === true ? { compactLinks } : {})
+			}),
 			status: 'active',
 			updatedAt: now
 		};

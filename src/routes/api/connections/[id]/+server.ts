@@ -107,31 +107,50 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 };
 
 /**
- * The long-post switch on an X account: `true` or `false` overrides what X
- * reported about the account's plan, and `null` goes back to that report.
+ * An account's own switches, one per request. `longPosts` on an X account:
+ * `true` or `false` overrides what X reported about the account's plan, and
+ * `null` goes back to that report. `compactLinks` on a Bluesky account: `true`
+ * posts links as their site only, `false` the way Bluesky's app does.
  * Session-only, like connecting: a key cannot change what an account may post.
  */
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	try {
 		const user = requireSession(locals.user, locals.authMethod);
-		const body = (await request.json().catch(() => null)) as { longPosts?: unknown } | null;
-		const longPosts = body?.longPosts;
-		if (!body || !Object.hasOwn(body, 'longPosts')) return fail('Send longPosts', 400);
-		if (longPosts !== null && typeof longPosts !== 'boolean') {
+		const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+		const setsLongPosts = !!body && Object.hasOwn(body, 'longPosts');
+		const setsCompactLinks = !!body && Object.hasOwn(body, 'compactLinks');
+		if (setsLongPosts === setsCompactLinks) return fail('Send longPosts or compactLinks', 400);
+		const value = setsLongPosts ? body!.longPosts : body!.compactLinks;
+		if (setsLongPosts && value !== null && typeof value !== 'boolean') {
 			return fail('longPosts must be true, false or null', 400);
+		}
+		if (setsCompactLinks && typeof value !== 'boolean') {
+			return fail('compactLinks must be true or false', 400);
 		}
 		const owned = and(eq(connections.id, params.id), eq(connections.userId, user.id));
 		const conn = await first(locals.db.select().from(connections).where(owned));
 		if (!conn) return fail('Not found', 404);
-		if (conn.platform !== 'x' || isZernioConnection(conn.metaJson)) {
-			return fail('Long posts can only be set on an X account connected directly', 400);
+		const platform = setsLongPosts ? 'x' : 'bluesky';
+		if (conn.platform !== platform || isZernioConnection(conn.metaJson)) {
+			return fail(
+				setsLongPosts
+					? 'Long posts can only be set on an X account connected directly'
+					: 'Compact links can only be set on a Bluesky account connected directly',
+				400
+			);
 		}
 		if (conn.status === 'disconnected')
 			return fail('Account disconnected — reconnect it first', 409);
 		const meta = parseJson<Record<string, unknown>>(conn.metaJson, {});
-		if (longPosts === null) delete meta.longPosts;
-		else meta.longPosts = longPosts;
-		meta.maxCharacters = xLimitFor(meta);
+		if (setsLongPosts) {
+			if (value === null) delete meta.longPosts;
+			else meta.longPosts = value;
+			meta.maxCharacters = xLimitFor(meta);
+		} else if (value) {
+			meta.compactLinks = true;
+		} else {
+			delete meta.compactLinks;
+		}
 		const metaJson = JSON.stringify(meta);
 		await locals.db.update(connections).set({ metaJson, updatedAt: new Date() }).where(owned);
 		return ok({ connection: serializeConnection({ ...conn, metaJson }) });
