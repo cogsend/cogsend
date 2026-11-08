@@ -7,6 +7,7 @@ import {
 import { platformMark } from '#lib/domain/platform-marks.js';
 import {
 	countGraphemes,
+	mastodonCountedText,
 	mastodonWeightedLength,
 	validateBlueskyText,
 	validateMastodonText
@@ -51,6 +52,29 @@ describe('validateMastodonText', () => {
 	it('uses instance max', () => {
 		expect(validateMastodonText('a'.repeat(500), 500).ok).toBe(true);
 		expect(validateMastodonText('a'.repeat(501), 500).ok).toBe(false);
+	});
+});
+
+describe('mastodonCountedText', () => {
+	it('counts the content warning with every post, as the instance and the publish check do', () => {
+		expect(mastodonCountedText('body', 'cw')).toBe('cw\nbody');
+		expect(mastodonCountedText('body', '')).toBe('body');
+		expect(mastodonCountedText('body', undefined)).toBe('body');
+		const body = 'a'.repeat(495);
+		expect(mastodonWeightedLength(mastodonCountedText(body, 'spoiler'))).toBe(503);
+		const thread = {
+			text: body,
+			thread: [
+				{ text: body, options: { spoilerText: 'spoiler' } },
+				{ text: 'short', options: { spoilerText: 'spoiler' } }
+			]
+		};
+		expect(
+			mastodonProvider
+				.validate(thread, { maxCharacters: 500 })
+				.filter((i) => i.code === 'max_length')
+				.map((i) => i.field)
+		).toEqual(['thread[0].text']);
 	});
 });
 

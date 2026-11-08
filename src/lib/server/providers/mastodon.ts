@@ -1,6 +1,6 @@
 import { isBlockedInstanceHost } from '#lib/domain/instance-host.js';
 import { validatePollConfig } from '#lib/domain/poll.js';
-import { validateMastodonText } from '#lib/domain/validation/text.js';
+import { mastodonCountedText, validateMastodonText } from '#lib/domain/validation/text.js';
 import { randomHex } from '#lib/domain/bytes.js';
 import { mediaByteLength, processingError, resumedVideoState } from './types';
 import {
@@ -379,7 +379,7 @@ export const mastodonProvider: PlatformProvider = {
 			// The instance counts the content warning toward the limit too, so a
 			// post that fits the body alone can still be refused at publish.
 			const check = validateMastodonText(
-				[seg.options?.spoilerText, seg.text].filter(Boolean).join('\n'),
+				mastodonCountedText(seg.text || '', seg.options?.spoilerText),
 				max
 			);
 			if (!check.ok) {

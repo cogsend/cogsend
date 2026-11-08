@@ -74,6 +74,11 @@ export function validateBlueskyText(
 	return { ok: true, length, max: maxGraphemes };
 }
 
+/** What an instance counts toward its limit: the content warning, then the post. */
+export function mastodonCountedText(text: string, contentWarning?: string | null): string {
+	return [contentWarning, text].filter(Boolean).join('\n');
+}
+
 export function validateMastodonText(
 	text: string,
 	maxChars = 500

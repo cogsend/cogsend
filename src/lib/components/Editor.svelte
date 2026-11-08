@@ -121,6 +121,7 @@
 	import {
 		blueskyTextLength,
 		countGraphemes,
+		mastodonCountedText,
 		mastodonWeightedLength,
 		mostThreadsLinksInAPost,
 		THREADS_MAX_LINKS,
@@ -522,7 +523,8 @@
 		if (platform === 'bluesky') {
 			return blueskyTextLength(text, { shortenLinks: blueskyShortensLinks });
 		}
-		if (platform === 'mastodon') return mastodonWeightedLength(text);
+		// Every post of a Mastodon thread carries the content warning, and counts it.
+		if (platform === 'mastodon') return mastodonWeightedLength(mastodonCountedText(text, mastoCW));
 		if (platform === 'x') return xWeightedLength(text);
 		return countGraphemes(text);
 	}
@@ -596,7 +598,7 @@
 				max: PLATFORM_LIMITS.bluesky
 			},
 			mastodon: {
-				len: maxThreadSegmentLength(mastoText, mastodonWeightedLength),
+				len: maxThreadSegmentLength(mastoText, (s) => countForPlatform(s, 'mastodon')),
 				max: platformMax('mastodon', accountsFor('mastodon'))
 			},
 			linkedin: { len: countGraphemes(linkedinFlat), max: PLATFORM_LIMITS.linkedin },
