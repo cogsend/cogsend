@@ -109,6 +109,19 @@ export function mostThreadsLinksInAPost(body: string): number {
 	return Math.max(0, ...splitThreadSegments(body).map(countThreadsLinks));
 }
 
+export const X_CASHTAG_MESSAGE = 'X allows max 1 cashtag (e.g. $AAPL) per post';
+
+/** Distinct cashtags ($AAPL) in one X post, which takes at most one. */
+export function countCashtags(text: string): number {
+	const found = text.match(/\$[A-Za-z]{1,6}\b/g) || [];
+	return new Set(found.map((t) => t.toUpperCase())).size;
+}
+
+/** The most cashtags any one post of an X thread has. */
+export function mostCashtagsInAPost(body: string): number {
+	return Math.max(0, ...splitThreadSegments(body).map(countCashtags));
+}
+
 export const LINKEDIN_MAX_CHARS = 3000;
 export const THREADS_MAX_CHARS = 500;
 export const INSTAGRAM_MAX_CHARS = 2200;

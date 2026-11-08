@@ -1,4 +1,9 @@
-import { validateXText, xWeightedLength } from '#lib/domain/validation/text.js';
+import {
+	countCashtags,
+	validateXText,
+	X_CASHTAG_MESSAGE,
+	xWeightedLength
+} from '#lib/domain/validation/text.js';
 import { storedXLimit, xLimitFor } from '#lib/domain/x-limits.js';
 import { mediaByteLength, processingError, resumedVideoState } from './types';
 import {
@@ -157,11 +162,6 @@ function validateSegmentMedia(media: MediaAttachment[], meta?: ConnectionMeta): 
 		}
 	}
 	return issues;
-}
-
-function countCashtags(text: string): number {
-	const found = text.match(/\$[A-Za-z]{1,6}\b/g) || [];
-	return new Set(found.map((t) => t.toUpperCase())).size;
 }
 
 // --- PKCE helpers (Web/Workers-compatible, no node:crypto) ---
@@ -697,7 +697,7 @@ export const xProvider: PlatformProvider = {
 			if (countCashtags(seg.text || '') > 1) {
 				issues.push({
 					field: `thread[${i}].text`,
-					message: 'X allows max 1 cashtag (e.g. $AAPL) per post',
+					message: X_CASHTAG_MESSAGE,
 					code: 'max_cashtags'
 				});
 			}

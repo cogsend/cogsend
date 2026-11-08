@@ -123,8 +123,11 @@
 		countGraphemes,
 		mastodonCountedText,
 		mastodonWeightedLength,
+		mostCashtagsInAPost,
 		mostThreadsLinksInAPost,
 		THREADS_MAX_LINKS,
+		validateInstagramText,
+		X_CASHTAG_MESSAGE,
 		xWeightedLength
 	} from '#lib/domain/validation/text.js';
 	import { blueskyRichText } from '#lib/domain/bluesky-links.js';
@@ -632,6 +635,18 @@
 	const threadsLinksOver = $derived(
 		threadsLinkCount > THREADS_MAX_LINKS && selectedPlatforms.has('threads')
 	);
+	const xCashtagsOver = $derived(
+		selectedPlatforms.has('x') &&
+			mostCashtagsInAPost(effectivePlatformBody(baseBody, overrides, 'x')) > 1
+	);
+	// What publishing checks Instagram's caption with, hashtags included.
+	const instagramTextProblem = $derived.by(() => {
+		if (!selectedPlatforms.has('instagram')) return null;
+		const check = validateInstagramText(
+			flattenThreadBody(effectivePlatformBody(baseBody, overrides, 'instagram'))
+		);
+		return check.ok ? null : (check.message ?? 'Instagram cannot take this caption');
+	});
 	// LinkedIn flattens the whole thread into one post, so its media rules
 	// apply to the combined attachments rather than per segment.
 	const linkedinMediaProblem = $derived.by(() => {
@@ -1378,6 +1393,14 @@
 			);
 			return;
 		}
+		if (xCashtagsOver && connectionIds.some((id) => platformOf(id) === 'x')) {
+			showToast(X_CASHTAG_MESSAGE, 'warn');
+			return;
+		}
+		if (instagramTextProblem && connectionIds.some((id) => platformOf(id) === 'instagram')) {
+			showToast(instagramTextProblem, 'warn');
+			return;
+		}
 		if (linkedinMediaOver && connectionIds.some((id) => platformOf(id) === 'linkedin')) {
 			showToast(linkedinMediaProblem ?? 'LinkedIn cannot take this media', 'warn');
 			return;
@@ -1881,6 +1904,14 @@
 				`Threads allows max ${THREADS_MAX_LINKS} links per post (${threadsLinkCount} in one post)`,
 				'warn'
 			);
+			return;
+		}
+		if (xCashtagsOver) {
+			showToast(X_CASHTAG_MESSAGE, 'warn');
+			return;
+		}
+		if (instagramTextProblem) {
+			showToast(instagramTextProblem, 'warn');
 			return;
 		}
 		if (linkedinMediaOver) {

@@ -6,13 +6,16 @@ import {
 } from '#lib/domain/editor-limits.js';
 import { platformMark } from '#lib/domain/platform-marks.js';
 import {
+	countCashtags,
 	countGraphemes,
 	mastodonCountedText,
 	mastodonWeightedLength,
+	mostCashtagsInAPost,
 	validateBlueskyText,
+	validateInstagramText,
 	validateMastodonText
 } from '#lib/domain/validation/text.js';
-import { blueskyProvider, mastodonProvider } from '#lib/server/providers/index.js';
+import { blueskyProvider, mastodonProvider, xProvider } from '#lib/server/providers/index.js';
 
 describe('countGraphemes', () => {
 	it('counts ascii 1:1', () => {
@@ -75,6 +78,33 @@ describe('mastodonCountedText', () => {
 				.filter((i) => i.code === 'max_length')
 				.map((i) => i.field)
 		).toEqual(['thread[0].text']);
+	});
+});
+
+describe('cashtags and hashtags the composer checks before publishing does', () => {
+	it('counts distinct cashtags per X post', () => {
+		expect(countCashtags('$AAPL and $aapl')).toBe(1);
+		expect(countCashtags('$AAPL and $TSLA')).toBe(2);
+		expect(mostCashtagsInAPost('$AAPL\n---\n$TSLA')).toBe(1);
+		expect(mostCashtagsInAPost('$AAPL $TSLA\n---\nhi')).toBe(2);
+		expect(mostCashtagsInAPost('')).toBe(0);
+		expect(xProvider.validate({ text: '$AAPL $TSLA' }).some((i) => i.code === 'max_cashtags')).toBe(
+			true
+		);
+		expect(
+			xProvider
+				.validate({ text: '', thread: [{ text: '$AAPL' }, { text: '$TSLA' }] })
+				.some((i) => i.code === 'max_cashtags')
+		).toBe(false);
+	});
+
+	it('holds Instagram to 30 hashtags', () => {
+		const tags = (n: number) => Array.from({ length: n }, (_, i) => `#tag${i}`).join(' ');
+		expect(validateInstagramText(tags(30)).ok).toBe(true);
+		expect(validateInstagramText(tags(31))).toMatchObject({
+			ok: false,
+			message: 'Instagram takes up to 30 hashtags (31 used)'
+		});
 	});
 });
 
