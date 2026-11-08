@@ -61,6 +61,7 @@ Instances update themselves from **Settings → Instance** by installing a signe
 
 - Before finishing a change, check whether `README.md`, `docs/` or `AGENTS.md` has gone stale because of it, and ask whether to update them. Do not update the docs silently, and do not skip the check.
 - One-line conventional commits: `fix(media): …`, `feat(accounts): …`. Add a body only when the change genuinely needs one.
+- Split a change into several small commits, one self-contained step each, rather than one large commit: for example the shared logic, then the route, then the UI, then the tests or docs that go with them. Each commit must still pass `npm run check` on its own.
 - Do not hard-wrap prose. Release notes, PR descriptions and long messages wrap in the reader's view, so inserting line breaks by hand is a defect.
 - Do not commit or push unless asked. When asked, commit to the current branch; do not create a new one unless asked.
 
