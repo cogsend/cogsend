@@ -98,11 +98,19 @@ export function isAuthFailure(err: unknown, message: string): boolean {
 }
 
 /**
+ * The post breaks one of the platform's rules, found before anything is sent.
+ * Only an edit changes that, so retrying on a timer would spend every attempt
+ * on the same refusal.
+ */
+class ContentRuleError extends Error {}
+
+/**
  * Should this failure auto-retry with backoff? Structured codes decide when
  * present; otherwise legacy message matching applies unchanged (so an
  * unclassified 500 stays retryable exactly as before).
  */
 export function isFailureRetryable(err: unknown, message: string): boolean {
+	if (err instanceof ContentRuleError) return false;
 	const classified = classifyProviderError(err);
 	if (classified.code) return classified.retryable === true;
 	return isRetryableError(message);
@@ -613,7 +621,7 @@ export async function publishTarget(
 			...meta,
 			handle: meta.handle || conn.handle || undefined
 		});
-		if (issues.length) throw new Error(issues.map((i) => i.message).join('; '));
+		if (issues.length) throw new ContentRuleError(issues.map((i) => i.message).join('; '));
 
 		const baseFetch = options.fetchImpl ?? providerFetch;
 		const fetchImpl = options.budget ? countingFetch(baseFetch, options.budget) : baseFetch;

@@ -1356,6 +1356,53 @@ describe('publish auth classification', () => {
 		expect(target?.status).toBe('failed');
 	});
 
+	it('fails a post that breaks a platform rule at once, without retrying or sending', async () => {
+		const conn = await mastoConn();
+		const targetId = await pendingTarget(conn, 'pick one');
+		const [target] = await db.select().from(publishTargets).where(eq(publishTargets.id, targetId));
+		const now = new Date();
+		await db
+			.update(publishTargets)
+			.set({ status: 'scheduled', scheduledFor: new Date(now.getTime() - 60_000) })
+			.where(eq(publishTargets.id, targetId));
+		await db.insert(draftVariants).values({
+			id: newId(),
+			draftId: target.draftId,
+			platform: 'mastodon',
+			body: null,
+			optionsJson: JSON.stringify({ poll: { options: ['yes', 'no'], expiresIn: 86_400 } }),
+			createdAt: now,
+			updatedAt: now
+		});
+		const key = '1700000000000-dddddddddddddddd.png';
+		const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+		await store.put(key, png, 'image/png');
+		await db.insert(draftMedia).values({
+			id: newId(),
+			draftId: target.draftId,
+			storageKey: key,
+			mime: 'image/png',
+			size: png.length,
+			sortOrder: 0,
+			segmentIndex: 0,
+			createdAt: now
+		});
+		const sent: string[] = [];
+		const result = await publishTarget(db, TEST_ENV, store, targetId, {
+			fetchImpl: async (input) => {
+				sent.push(String(input));
+				return new Response('unexpected', { status: 500 });
+			}
+		});
+		expect(result).toMatchObject({
+			status: 'failed',
+			error: 'Mastodon polls cannot be combined with images'
+		});
+		expect(sent).toEqual([]);
+		const [after] = await db.select().from(publishTargets).where(eq(publishTargets.id, targetId));
+		expect(after).toMatchObject({ status: 'failed', attemptCount: 1 });
+	});
+
 	it('a 401 still expires the connection', async () => {
 		const conn = await mastoConn();
 		const targetId = await pendingTarget(conn);
