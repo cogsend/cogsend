@@ -1489,3 +1489,41 @@ test('a video attaches in parts, plays only when asked, and comes off again', as
 		await deleteConnection(connId);
 	}
 });
+
+test('the composer stays open while a video is still uploading', async () => {
+	const connId = await seedFirewalledBluesky(page, 'video-leave.bsky.social');
+	// Hold the start of the upload, so the video stays in progress.
+	let release = () => {};
+	const held = new Promise<void>((resolve) => (release = resolve));
+	await page.route('**/api/drafts/*/media/uploads', async (route) => {
+		if (route.request().method() === 'POST') await held;
+		await route.continue().catch(() => {});
+	});
+	try {
+		await page.goto('/compose');
+		const progress = page.locator('[data-testid^="video-progress-"]');
+		await attachUntilAnswered(
+			page.getByTestId('file-input-0'),
+			{ name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.from(buildMp4()) },
+			progress
+		);
+
+		await page.getByRole('button', { name: 'Workspace menu' }).click();
+		await page.getByRole('menuitem', { name: 'Posts' }).click();
+		await expect(page.getByTestId('publish-toast')).toContainText(
+			'A video is still converting or uploading'
+		);
+		await expect(page).toHaveURL(/\/compose/);
+		await expect(progress).toBeVisible();
+
+		await page.locator('[data-testid^="video-cancel-"]').click();
+		await expect(progress).toHaveCount(0);
+		await page.getByRole('button', { name: 'Workspace menu' }).click();
+		await page.getByRole('menuitem', { name: 'Posts' }).click();
+		await expect(page).toHaveURL(/\/posts/);
+	} finally {
+		release();
+		await page.unroute('**/api/drafts/*/media/uploads');
+		await deleteConnection(connId);
+	}
+});
