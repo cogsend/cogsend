@@ -4,6 +4,7 @@
 	import { onDestroy, onMount, tick } from 'svelte';
 	import {
 		Image as ImageIcon,
+		Images,
 		Trash2,
 		Calendar,
 		Send,
@@ -31,6 +32,7 @@
 		BLUESKY_MAX_IMAGE_BYTES,
 		LINKEDIN_MAX_IMAGES,
 		LINKEDIN_MAX_IMAGE_BYTES,
+		MAX_IMAGES_PER_SEGMENT,
 		THREADS_MAX_IMAGE_BYTES,
 		MAX_VIDEO_BYTES,
 		X_MAX_GIF_BYTES,
@@ -52,6 +54,7 @@
 	import { prepareVideo, VideoPrepareError } from '#lib/components/video/prepare.js';
 	import { uploadVideo } from '#lib/components/video/upload.js';
 	import MediaFit from './video/MediaFit.svelte';
+	import MediaLibrary, { type LibraryFile } from './MediaLibrary.svelte';
 	import MediaPreview from './MediaPreview.svelte';
 	import SharePreview from './SharePreview.svelte';
 	import VideoCover from './video/VideoCover.svelte';
@@ -368,6 +371,9 @@
 	let videoJobs = $state<VideoJob[]>([]);
 	let coverFor = $state<string | null>(null);
 	let coverBusy = $state(false);
+	/** The card "Your media" is adding to. */
+	let libraryFor = $state<number | null>(null);
+	let libraryBusy = $state(false);
 	let dirty = $state(false);
 	// URL id of a draft whose load is in flight. Autosave waits for it so a
 	// keystroke typed during a slow load cannot create a second draft.
@@ -2134,6 +2140,70 @@
 		videoJobs = videoJobs.map((job) => (job.id === id ? { ...job, ...patch } : job));
 	}
 
+	/** What a card holds, for what "Your media" lets you pick for it. */
+	function libraryCard(segmentIndex: number) {
+		const onCard = mediaBySegment.get(segmentIndex) ?? [];
+		const video =
+			onCard.some(isVideoItem) || videoJobs.some((job) => job.segmentIndex === segmentIndex);
+		return {
+			images: onCard.filter((m) => !isVideoItem(m)).length,
+			video,
+			room: video ? 0 : Math.max(0, MAX_IMAGES_PER_SEGMENT - onCard.length)
+		};
+	}
+
+	/** Attach files already used in a post; nothing is stored again. */
+	async function attachFromLibrary(segmentIndex: number, files: LibraryFile[]) {
+		if (editLocked || !files.length || libraryBusy) return;
+		libraryBusy = true;
+		uploadingSegment = segmentIndex;
+		const generation = editorGeneration;
+		const added: MediaItem[] = [];
+		let failure: string | null = null;
+		try {
+			const id = await persistAll(true);
+			if (!id) throw new Error('Could not create draft for upload');
+			for (const file of files) {
+				const res = await fetch(`/api/drafts/${id}/media/reuse`, {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ storageKey: file.storageKey, segmentIndex })
+				});
+				const data = await res.json().catch(() => ({}));
+				if (!res.ok) throw new Error(data.error || 'Could not attach that file');
+				added.push(data.media as MediaItem);
+			}
+		} catch (e) {
+			failure = humanizeError(e instanceof Error ? e.message : 'Could not attach that file');
+		} finally {
+			libraryBusy = false;
+			libraryFor = null;
+			uploadingSegment = null;
+		}
+		// Left for another post meanwhile: what was attached belongs to the
+		// one it was sent with, which keeps it.
+		if (generation !== editorGeneration) return;
+		if (added.length) {
+			media = [
+				...media,
+				...added.map((it) => ({ ...it, segmentIndex: it.segmentIndex ?? segmentIndex }))
+			];
+		}
+		if (failure) {
+			showToast(failure, 'error');
+			return;
+		}
+		const video = added.some(isVideoItem);
+		showToast(
+			video
+				? 'Video attached'
+				: added.length === 1
+					? 'Image attached'
+					: `${added.length} images attached`,
+			'success'
+		);
+	}
+
 	/**
 	 * Prepare the video in the browser (convert it when a platform would refuse
 	 * it as it is), upload it in parts, then keep a frame as its cover so Posts
@@ -3893,6 +3963,17 @@
 											e.currentTarget.value = '';
 										}}
 									/>
+									<button
+										type="button"
+										data-testid="library-{index}"
+										disabled={uploadingSegment === index}
+										class="flex items-center justify-center rounded-lg p-1.5 text-stone-500 opacity-0 transition-all group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 pointer-coarse:opacity-100"
+										aria-label={`Choose from your media for post ${index + 1}`}
+										title="Your media"
+										onclick={() => (libraryFor = index)}
+									>
+										<Images class="h-4 w-4" />
+									</button>
 								{/if}
 								<div
 									data-testid="segment-count-{index}"
@@ -4361,6 +4442,18 @@
 			onClose={() => (coverFor = null)}
 		/>
 	{/if}
+{/if}
+
+{#if libraryFor !== null && !editLocked}
+	{@const card = libraryFor}
+	<MediaLibrary
+		card={libraryCard(card)}
+		busy={libraryBusy}
+		onAttach={(files) => void attachFromLibrary(card, files)}
+		onClose={() => {
+			if (!libraryBusy) libraryFor = null;
+		}}
+	/>
 {/if}
 
 <ConfirmDialog
