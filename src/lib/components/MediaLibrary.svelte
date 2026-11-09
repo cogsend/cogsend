@@ -118,12 +118,30 @@
 		return null;
 	}
 
+	// Why the last tapped file can't be picked: a greyed tile's reason is
+	// otherwise only in a tooltip, which a touch screen never shows.
+	let notice = $state<string | null>(null);
+
+	/** When the card itself is why nothing can be picked, said once above the files. */
+	const cardNotice = $derived(
+		card.video
+			? 'This post has a video, which goes on its own.'
+			: card.room === 0
+				? `This post already has ${MAX_IMAGES_PER_SEGMENT} images. Remove one to attach another.`
+				: null
+	);
+
 	function toggle(f: LibraryFile) {
 		if (busy) return;
+		const reason = blocked(f);
 		if (picked.includes(f.storageKey)) {
 			picked = picked.filter((key) => key !== f.storageKey);
-		} else if (!blocked(f)) {
+			notice = null;
+		} else if (reason) {
+			notice = reason;
+		} else {
 			picked = [...picked, f.storageKey];
+			notice = null;
 		}
 	}
 
@@ -164,8 +182,28 @@
 		</p>
 
 		<div class="mt-3 min-h-0 flex-1 overflow-y-auto" bind:this={scroller}>
+			{#if cardNotice && files.length}
+				<p
+					class="mb-2 rounded-xl bg-stone-100 px-3 py-2 text-xs font-medium text-stone-600"
+					data-testid="media-library-card-notice"
+				>
+					{cardNotice}
+				</p>
+			{/if}
 			{#if !loaded && loading}
 				<p class="py-8 text-center text-xs font-medium text-stone-500">Loading…</p>
+			{:else if !loaded && problem}
+				<div class="flex flex-col items-center gap-2 py-8" role="alert">
+					<p class="text-xs font-medium text-red-700">{problem}</p>
+					<button
+						type="button"
+						data-testid="media-library-retry"
+						onclick={() => void load(null)}
+						class="rounded-full border border-stone-200 px-3 py-1.5 text-xs font-bold text-stone-700 hover:border-stone-300 pointer-coarse:py-2.5"
+					>
+						Try again
+					</button>
+				</div>
 			{:else if loaded && files.length === 0}
 				<p class="py-8 text-center text-xs font-medium text-stone-500">
 					Nothing here yet. Images and videos you attach to posts show up here.
@@ -184,9 +222,10 @@
 								aria-pressed={on}
 								aria-label={reason ? `${describe(f)}. ${reason}` : describe(f)}
 								title={reason ?? f.altText ?? undefined}
-								disabled={Boolean(reason) || busy}
+								aria-disabled={reason ? 'true' : undefined}
+								disabled={busy}
 								onclick={() => toggle(f)}
-								class="relative block aspect-square w-full overflow-hidden rounded-xl border border-stone-200/80 bg-stone-100 transition hover:border-stone-400 disabled:cursor-not-allowed disabled:opacity-40"
+								class="relative block aspect-square w-full overflow-hidden rounded-xl border border-stone-200/80 bg-stone-100 transition hover:border-stone-400 disabled:cursor-not-allowed disabled:opacity-40 aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
 							>
 								{#if broken.includes(f.storageKey)}
 									<span class="flex h-full w-full items-center justify-center text-stone-400">
@@ -260,17 +299,24 @@
 					</div>
 				{/if}
 			{/if}
-			{#if problem}
+			{#if problem && loaded}
 				<p class="mt-2 text-xs font-medium text-red-700" role="alert">{problem}</p>
 			{/if}
 		</div>
+		<p
+			class="mt-2 min-h-4 text-xs font-medium text-stone-600 empty:hidden"
+			role="status"
+			data-testid="media-library-notice"
+		>
+			{notice ?? ''}
+		</p>
 
 		<div class="mt-4 flex items-center justify-end gap-2">
 			<button
 				type="button"
 				onclick={onClose}
 				disabled={busy}
-				class="rounded-full border border-stone-200 px-4 py-1.5 text-sm font-bold text-stone-500 hover:border-stone-300 hover:text-stone-900 disabled:opacity-50"
+				class="rounded-full border border-stone-200 px-4 py-1.5 text-sm font-bold text-stone-500 hover:border-stone-300 hover:text-stone-900 disabled:opacity-50 pointer-coarse:py-2.5"
 			>
 				Cancel
 			</button>
@@ -279,7 +325,7 @@
 				data-testid="media-library-attach"
 				onclick={() => onAttach(pickedFiles)}
 				disabled={!picked.length || busy}
-				class="rounded-full bg-stone-900 px-4 py-1.5 text-sm font-bold text-white hover:bg-stone-800 disabled:opacity-50"
+				class="rounded-full bg-stone-900 px-4 py-1.5 text-sm font-bold text-white hover:bg-stone-800 disabled:opacity-50 pointer-coarse:py-2.5"
 			>
 				{attachLabel}
 			</button>
