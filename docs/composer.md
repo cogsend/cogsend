@@ -43,6 +43,8 @@ MB, and LinkedIn rejects WebP — and are checked again when the post is publish
 
 A larger image is shown from a lighter 1280 px copy your browser makes when you attach it, in the composer and in **Posts**; the original is what gets published.
 
+**Your media**, the button beside **Add Image** on each card, lists the images and videos already used in your posts, whether drafts, scheduled or published, the most recently attached first. Pick one or more and press **Attach**: the file is not stored again, and it comes with the alt text it was last attached with, which you can change for this post without changing the others. Anything that can't go on the card is greyed out, such as a video beside other media or a fifth image. A file leaves the list once the last post using it is deleted.
+
 An image over 2 MB is shrunk in your browser before it uploads, so a pasted
 screenshot fits every platform: it is scaled down to 2560 px on the long edge,
 kept as PNG when that is enough and re-encoded as JPEG when it is not. GIFs and

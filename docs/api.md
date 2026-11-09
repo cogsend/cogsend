@@ -39,6 +39,7 @@ A failed request answers a JSON object with an `error` property.
 - `GET /api/queue`: upcoming and recent deliveries.
 - `POST /api/validate`: check a post against each platform's rules.
 - `GET /api/insights`: delivery stats. `?days=` and `?tz=` are optional.
+- `GET /api/media`: the files your drafts use, see [Media](#media).
 - `GET /api/settings`: read settings.
 
 ### With a Read + write key
@@ -51,6 +52,7 @@ A failed request answers a JSON object with an `error` property.
 - `POST /api/drafts/:id/media`: upload files, see [Media](#media).
 - `PATCH /api/drafts/:id/media`: `{"mediaId", "altText?", "segmentIndex?"}` changes an attachment.
 - `DELETE /api/drafts/:id/media?mediaId=`: remove an attachment.
+- `POST /api/drafts/:id/media/reuse`: attach a file another draft already uses, see [Media](#media).
 - `POST /api/drafts/:id/duplicate`: copy a draft, media included, into a new draft. The copy's attachments point at the same stored files, which are deleted only with the last draft that uses them.
 - `POST` and `DELETE /api/drafts/:id/share`: make or turn off a preview link.
 - `POST /api/drafts/:id/publish`: `{"connectionIds": []}` answers `{results, draft}`, with one result per account.
@@ -94,6 +96,10 @@ A larger video goes up in parts, up to 300 MB:
 `DELETE /api/drafts/:id/media/uploads` with the five values abandons an upload. The server converts nothing: it takes an MP4 it can read and refuses anything else, and a video must be the only media on its card.
 
 A video's `meta` holds what the server read from it (`durationMs`, `videoCodec`, `audioCodec`, `fps`, and `faststart`, whether its index comes first) and its `cover` once one is set. `PUT /api/drafts/:id/media/cover?mediaId=…` with a JPEG body of at most 8 MB sets the cover, and `DELETE` with the same query removes it. On a video that another draft shares, `PUT` first gives this draft its own copy of the video, so the attachment's `storageKey` in the response changes.
+
+`GET /api/media` lists every stored file your drafts use, once each, the most recently attached first: `{"items": [{"storageKey", "mime", "size", "width", "height", "altText", "meta", "lastUsedAt"}], "next"}`, where `altText` and `meta` come from the file's newest attachment. It answers 60 files at a time, or up to 100 with `?limit=`; send `next` back as `?before=` for the files after, until `next` is `null`. A file leaves the list with the last draft that uses it.
+
+`POST /api/drafts/:id/media/reuse` with `{"storageKey", "segmentIndex?", "altText?"}` attaches one of those files to a card without storing it again, and answers `201` with the new `media`. Without `altText` it takes the file's newest alt text, and `null` leaves it without one. It runs the same checks as an upload, and answers **404** for a file none of your drafts uses or one no longer in storage.
 
 ## Preview links
 
