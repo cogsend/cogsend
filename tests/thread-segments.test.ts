@@ -11,7 +11,8 @@ import {
 	flattenThreadBody,
 	joinThreadTexts,
 	remapSegmentIndexAfterInsert,
-	splitAtMarkers
+	splitAtMarkers,
+	threadPosts
 } from '#lib/domain/thread-segments.js';
 
 describe('splitThreadSegments', () => {
@@ -200,5 +201,53 @@ describe('remapSegmentIndexAfterInsert', () => {
 		expect(remapSegmentIndexAfterInsert(1, 1, 2)).toBe(1);
 		expect(remapSegmentIndexAfterInsert(2, 1, 2)).toBe(4);
 		expect(remapSegmentIndexAfterInsert(3, 1, 0)).toBe(3);
+	});
+});
+
+describe('threadPosts', () => {
+	const m = (id: string, segmentIndex?: number | null) => ({ id, segmentIndex });
+
+	it('keeps a single post whole, with all its media', () => {
+		expect(threadPosts(' hello ', [m('a', 0), m('b')])).toEqual([
+			{ segmentIndex: 0, text: 'hello', media: [m('a', 0), m('b')] }
+		]);
+	});
+
+	it('gives one empty post for an empty body', () => {
+		expect(threadPosts('', [])).toEqual([{ segmentIndex: 0, text: '', media: [] }]);
+		expect(threadPosts(null, [])).toEqual([{ segmentIndex: 0, text: '', media: [] }]);
+		expect(threadPosts('\n---\n\n---\n', [])).toEqual([{ segmentIndex: 0, text: '', media: [] }]);
+	});
+
+	it('splits Windows line endings like the composer does', () => {
+		expect(threadPosts('one\r\n---\r\ntwo', []).map((p) => p.text)).toEqual(['one', 'two']);
+	});
+
+	it('gives each post its own media, in the order given', () => {
+		const media = [m('a', 0), m('b', 2), m('c', 2), m('d', 0)];
+		expect(threadPosts('one\n---\ntwo\n---\nthree', media)).toEqual([
+			{ segmentIndex: 0, text: 'one', media: [m('a', 0), m('d', 0)] },
+			{ segmentIndex: 1, text: 'two', media: [] },
+			{ segmentIndex: 2, text: 'three', media: [m('b', 2), m('c', 2)] }
+		]);
+	});
+
+	it('skips an empty post as publishing does, unless it has media', () => {
+		expect(threadPosts('one\n---\n  \n---\nthree', []).map((p) => p.segmentIndex)).toEqual([0, 2]);
+		expect(threadPosts('one\n---\n\n---\nthree', [m('a', 1)])).toEqual([
+			{ segmentIndex: 0, text: 'one', media: [] },
+			{ segmentIndex: 1, text: '', media: [m('a', 1)] },
+			{ segmentIndex: 2, text: 'three', media: [] }
+		]);
+	});
+
+	it('keeps media on a card past the body as a post without text', () => {
+		expect(threadPosts('one', [m('x', 3), m('a', 0)])).toEqual([
+			{ segmentIndex: 0, text: 'one', media: [m('a', 0)] },
+			{ segmentIndex: 3, text: '', media: [m('x', 3)] }
+		]);
+		expect(threadPosts('', [m('x', 2)])).toEqual([
+			{ segmentIndex: 2, text: '', media: [m('x', 2)] }
+		]);
 	});
 });

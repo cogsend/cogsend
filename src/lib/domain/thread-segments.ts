@@ -26,6 +26,35 @@ export function resolvePublishSegments(
 	return out;
 }
 
+export type ThreadPost<M> = { segmentIndex: number; text: string; media: M[] };
+
+/**
+ * The posts a draft body goes out as, each with its own media, for list views.
+ * Matches publishing: empty segments without media are skipped. A variant can
+ * have more cards than the base body, so media on a segment past the body is
+ * kept as a post without text instead of vanishing from the list.
+ */
+export function threadPosts<M extends { segmentIndex?: number | null }>(
+	body: string | null | undefined,
+	media: M[]
+): ThreadPost<M>[] {
+	const onSegment = (i: number) => media.filter((m) => (m.segmentIndex ?? 0) === i);
+	const posts: ThreadPost<M>[] = resolvePublishSegments(body ?? '', (i) =>
+		media.some((m) => (m.segmentIndex ?? 0) === i)
+	).map(({ text, segmentIndex }) => ({ segmentIndex, text, media: onSegment(segmentIndex) }));
+	const covered = new Set(posts.map((p) => p.segmentIndex));
+	for (const m of media) {
+		const i = m.segmentIndex ?? 0;
+		if (covered.has(i)) continue;
+		covered.add(i);
+		posts.push({ segmentIndex: i, text: '', media: onSegment(i) });
+	}
+	// Publishing's placeholder for an empty body is not a post once media exists.
+	const shown = posts.filter((p) => p.text || p.media.length);
+	if (shown.length === 0) return [{ segmentIndex: 0, text: '', media: [] }];
+	return shown.sort((a, b) => a.segmentIndex - b.segmentIndex);
+}
+
 export function joinThreadSegments(segments: string[]): string {
 	if (!segments.length) return '';
 	if (segments.length === 1) return segments[0] ?? '';
