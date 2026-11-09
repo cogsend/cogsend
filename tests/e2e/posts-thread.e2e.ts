@@ -7,7 +7,7 @@ const DOT_PNG = Buffer.from(
 	'base64'
 );
 
-test('a thread on Posts shows its first post, opens to the rest and follows the search', async ({
+test('a thread on Posts shows its first post, opens to the rest and follows the search, and line breaks show', async ({
 	page
 }) => {
 	const tag = `t${Date.now().toString(36)}`;
@@ -33,7 +33,7 @@ test('a thread on Posts shows its first post, opens to the rest and follows the 
 			headers
 		});
 		expect(upload.ok(), await upload.text()).toBe(true);
-		await draft(`single ${tag}`);
+		await draft(`single ${tag}\n\n\n\nafter the gap`);
 
 		await page.reload();
 		const card = page.getByTestId('post-card').filter({ hasText: `lead ${tag}` });
@@ -79,6 +79,10 @@ test('a thread on Posts shows its first post, opens to the rest and follows the 
 		const single = page.getByTestId('post-card').filter({ hasText: `single ${tag}` });
 		await expect(single).toBeVisible();
 		await expect(single.getByTestId('thread-toggle')).toHaveCount(0);
+		// Line breaks show as written, with a run of blank lines kept to one.
+		await expect
+			.poll(() => single.locator('p', { hasText: 'after the gap' }).innerText())
+			.toBe(`single ${tag}\n\nafter the gap`);
 	} finally {
 		for (const id of created) await page.request.delete(`/api/drafts/${id}`, { headers });
 	}
