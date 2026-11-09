@@ -126,15 +126,15 @@ const isVideoRow = (m: { mime: string | null }) =>
 	(m.mime || '').toLowerCase().startsWith('video/');
 
 /**
- * Every check a new video on `segmentIndex` must pass before any bytes are
- * stored: the card exists, the draft and account have room, and the card holds
- * no other media. The parts route runs it when an upload starts and again when
- * it completes, since another upload may have landed in between.
+ * Every check one more attachment on `segmentIndex` must pass: the card
+ * exists, the draft has room, the account has room for a file that is stored
+ * anew, and the card keeps a video on its own.
  */
-export async function videoSlotProblem(
+export async function cardRoomProblem(
 	locals: App.Locals,
 	draft: { id: string; baseBody: string | null; userId: string },
-	segmentIndex: number
+	segmentIndex: number,
+	adding: { video: boolean; storesFile: boolean }
 ): Promise<Response | null> {
 	const problem = await segmentProblem(locals, draft, segmentIndex);
 	if (problem) return fail(problem, 400);
@@ -145,7 +145,7 @@ export async function videoSlotProblem(
 	if (existing.length + 1 > MAX_FILES_PER_DRAFT) {
 		return fail(`Max ${MAX_FILES_PER_DRAFT} files per draft`, 413);
 	}
-	if (await overUserFileCap(locals.db, draft.userId, 1)) {
+	if (adding.storesFile && (await overUserFileCap(locals.db, draft.userId, 1))) {
 		return fail(`Max ${MAX_FILES_PER_USER} files per account`, 413);
 	}
 	const onSegment = existing.filter((m) => (m.segmentIndex ?? 0) === segmentIndex);
@@ -153,6 +153,22 @@ export async function videoSlotProblem(
 		return fail(`Max ${MAX_IMAGES_PER_SEGMENT} images per post`);
 	}
 	const videos = onSegment.filter(isVideoRow).length;
-	const mix = videoMixProblem(videos + 1, onSegment.length - videos);
+	const images = onSegment.length - videos;
+	const mix = adding.video
+		? videoMixProblem(videos + 1, images)
+		: videoMixProblem(videos, images + 1);
 	return mix ? fail(mix) : null;
+}
+
+/**
+ * Every check a new video must pass before any bytes are stored. The parts
+ * route runs it when an upload starts and again when it completes, since
+ * another upload may have landed in between.
+ */
+export function videoSlotProblem(
+	locals: App.Locals,
+	draft: { id: string; baseBody: string | null; userId: string },
+	segmentIndex: number
+): Promise<Response | null> {
+	return cardRoomProblem(locals, draft, segmentIndex, { video: true, storesFile: true });
 }
