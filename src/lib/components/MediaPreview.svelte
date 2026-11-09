@@ -159,11 +159,13 @@
 		</button>
 	{/if}
 	{#if toolbar}
-		<div class="absolute top-2 right-2 z-10 flex items-center gap-1.5">
+		<!-- On touch the buttons take taps a little beyond their edge; the wider
+		     gap keeps those areas apart. -->
+		<div class="absolute top-2 right-2 z-10 flex items-center gap-1.5 pointer-coarse:gap-3">
 			{@render toolbar(m)}
 		</div>
 	{/if}
-	{#if i === shown.length - 1 && extra > 0}
+	{#if i === shown.length - 1 && extra > 0 && playing !== m.id}
 		<div
 			class="pointer-events-none absolute inset-0 flex items-center justify-center bg-stone-900/60 text-lg font-extrabold text-white"
 			role="img"

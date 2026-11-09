@@ -3781,7 +3781,7 @@
 											type="button"
 											data-testid="alt-toggle-{m.id}"
 											onclick={() => toggleAlt(m.id)}
-											class="min-h-7 rounded-full px-2.5 text-[11px] font-bold tracking-wide shadow-sm backdrop-blur-sm {hasAlt
+											class="relative min-h-7 rounded-full px-2.5 text-[11px] font-bold tracking-wide shadow-sm backdrop-blur-sm pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-[''] {hasAlt
 												? 'bg-black/60 text-white hover:bg-black/75'
 												: 'bg-amber-400 text-black hover:bg-amber-300'}"
 											title={hasAlt ? 'Edit alt text' : 'Add alt text (accessibility)'}
@@ -3794,7 +3794,7 @@
 												type="button"
 												data-testid="video-cover-{m.id}"
 												onclick={() => (coverFor = m.id)}
-												class="min-h-7 rounded-full bg-black/60 px-2.5 text-[11px] font-bold tracking-wide text-white shadow-sm backdrop-blur-sm hover:bg-black/75"
+												class="relative min-h-7 rounded-full bg-black/60 px-2.5 text-[11px] font-bold tracking-wide text-white shadow-sm backdrop-blur-sm hover:bg-black/75 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
 												title="Choose the cover"
 												aria-label={`Choose the cover for video ${index + 1}`}
 											>
@@ -3806,7 +3806,7 @@
 												type="button"
 												data-testid="remove-media-{m.id}"
 												onclick={() => requestRemoveMedia(m.id)}
-												class="flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white shadow-sm backdrop-blur-sm hover:bg-black/75"
+												class="relative flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white shadow-sm backdrop-blur-sm hover:bg-black/75 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
 												title={`Remove ${kind} ${index + 1}`}
 												aria-label={`Remove ${kind} ${index + 1}`}
 											>
@@ -4023,7 +4023,7 @@
 										type="button"
 										data-testid="attach-image-{index}"
 										disabled={uploadingSegment === index}
-										class="flex items-center justify-center rounded-lg p-1.5 text-stone-500 opacity-0 transition-all group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 pointer-coarse:opacity-100"
+										class="flex items-center justify-center rounded-lg p-1.5 text-stone-500 opacity-0 transition-all group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 pointer-coarse:p-2.5 pointer-coarse:opacity-100"
 										aria-label={uploadingSegment === index
 											? `Uploading to post ${index + 1}`
 											: `Add image to post ${index + 1}`}
@@ -4049,7 +4049,7 @@
 										type="button"
 										data-testid="library-{index}"
 										disabled={uploadingSegment === index}
-										class="flex items-center justify-center rounded-lg p-1.5 text-stone-500 opacity-0 transition-all group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 pointer-coarse:opacity-100"
+										class="flex items-center justify-center rounded-lg p-1.5 text-stone-500 opacity-0 transition-all group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-40 pointer-coarse:p-2.5 pointer-coarse:opacity-100"
 										aria-label={`Choose from your media for post ${index + 1}`}
 										title="Your media"
 										onclick={() => (libraryFor = index)}

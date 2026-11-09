@@ -23,6 +23,17 @@
 	const item = $derived(items[Math.min(index, items.length - 1)]);
 	const many = $derived(items.length > 1);
 
+	const srcOf = (m: PreviewItem) => m.previewUrl || imageUrl(m, mediaBase);
+
+	// The images either side are fetched ahead, so moving to one shows it at once.
+	$effect(() => {
+		if (!many) return;
+		for (const by of [1, -1]) {
+			const near = items[(index + by + items.length) % items.length];
+			new Image().src = srcOf(near);
+		}
+	});
+
 	function step(by: number) {
 		index = (index + by + items.length) % items.length;
 	}
@@ -87,6 +98,12 @@
 		data-testid="media-viewer"
 		class="pointer-events-none absolute inset-0 flex items-center justify-center px-4 py-14 sm:px-16"
 	>
+		<!-- Read out as the viewer moves: the counter on screen is hidden from it. -->
+		<p class="sr-only" aria-live="polite" data-testid="media-viewer-announce">
+			{many ? `Image ${index + 1} of ${items.length}` : 'Image'}{item.altText
+				? `: ${item.altText}`
+				: ''}
+		</p>
 		<button
 			type="button"
 			data-testid="media-viewer-close"
@@ -110,7 +127,7 @@
 			<!-- Sized to the picture itself, so a click beside it reaches the backdrop;
 			     the height leaves room for the padding and up to four caption lines. -->
 			<img
-				src={item.previewUrl || imageUrl(item, mediaBase)}
+				src={srcOf(item)}
 				alt={item.altText || ''}
 				draggable="false"
 				class="pointer-events-auto h-auto max-w-full rounded-lg {item.altText
