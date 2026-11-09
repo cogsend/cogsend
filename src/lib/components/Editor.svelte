@@ -368,6 +368,8 @@
 	let threadsTopic = $state(seededThreadsTopic);
 	let focusedSegment = $state(0);
 	let uploadingSegment = $state<number | null>(null);
+	// The card a file is being dragged over, for its highlight.
+	let dropTarget = $state<number | null>(null);
 	let videoJobs = $state<VideoJob[]>([]);
 	let coverFor = $state<string | null>(null);
 	let coverBusy = $state(false);
@@ -2914,13 +2916,37 @@
 		if (pasted && handleSplitPaste(index, pasted)) e.preventDefault();
 	}
 
-	function handleDrop(e: DragEvent, index: number) {
+	/** A drag that carries files, not text being moved within the page. */
+	const draggingFiles = (e: DragEvent) => Boolean(e.dataTransfer?.types?.includes('Files'));
+
+	function handleDragOver(e: DragEvent, index: number) {
+		if (!draggingFiles(e)) return;
 		e.preventDefault();
+		if (!editLocked) dropTarget = index;
+	}
+
+	function handleDragLeave(e: DragEvent) {
+		const card = e.currentTarget as HTMLElement;
+		if (!card.contains(e.relatedTarget as Node | null)) dropTarget = null;
+	}
+
+	function handleDrop(e: DragEvent, index: number) {
+		if (!draggingFiles(e)) return;
+		e.preventDefault();
+		dropTarget = null;
 		if (editLocked) return;
 		if (e.dataTransfer?.files?.length) {
 			const files = Array.from(e.dataTransfer.files).filter((f) => isMediaFile(f.type));
 			if (files.length) void attachFilesToSegment(index, files);
 		}
+	}
+
+	// A file dropped beside the cards would otherwise be opened by the browser
+	// in this tab, taking the composer with it.
+	function ignoreStrayDrop(e: DragEvent) {
+		if (!draggingFiles(e)) return;
+		e.preventDefault();
+		if (e.type === 'drop') dropTarget = null;
 	}
 
 	function openDestinations() {
@@ -3264,7 +3290,12 @@
 	});
 </script>
 
-<svelte:window onclick={handleWindowClick} />
+<svelte:window
+	onclick={handleWindowClick}
+	ondragover={ignoreStrayDrop}
+	ondrop={ignoreStrayDrop}
+	ondragend={() => (dropTarget = null)}
+/>
 <div
 	class="relative mx-auto mb-8 flex w-full max-w-2xl flex-1 flex-col pb-32"
 	data-testid="thread-preview"
@@ -3645,8 +3676,27 @@
 					card past the composer column instead of ellipsizing. -->
 					<div
 						data-testid="segment-card-{index}"
-						class="flex min-w-0 flex-1 flex-col rounded-[1.5rem] border border-stone-200/80 bg-white p-5 shadow-[0_4px_24px_-8px_rgb(28_25_23/0.06)] transition-all focus-within:border-stone-500 focus-within:shadow-[0_8px_30px_-12px_rgb(28_25_23/0.12)] focus-within:ring-2 focus-within:ring-stone-900/10"
+						role="group"
+						aria-label="Post {index + 1}"
+						data-drop-target={dropTarget === index ? '' : undefined}
+						ondragover={(e) => handleDragOver(e, index)}
+						ondragleave={handleDragLeave}
+						ondrop={(e) => handleDrop(e, index)}
+						class="flex min-w-0 flex-1 flex-col rounded-[1.5rem] border border-stone-200/80 bg-white p-5 shadow-[0_4px_24px_-8px_rgb(28_25_23/0.06)] transition-all focus-within:border-stone-500 focus-within:shadow-[0_8px_30px_-12px_rgb(28_25_23/0.12)] focus-within:ring-2 focus-within:ring-stone-900/10 {dropTarget ===
+						index
+							? 'border-stone-900 ring-2 ring-stone-900/15'
+							: ''}"
 					>
+						{#if dropTarget === index}
+							<!-- No height, so the hint never moves what is under it. -->
+							<div class="pointer-events-none relative h-0">
+								<span
+									class="absolute -top-2 right-0 rounded-full bg-stone-900 px-2.5 py-1 text-[11px] font-bold text-white"
+								>
+									Drop to attach
+								</span>
+							</div>
+						{/if}
 						<textarea
 							use:autoResize={segment}
 							bind:this={textareaRefs[index]}
@@ -3661,8 +3711,6 @@
 								revealTrailing = null;
 								void syncSegmentInput(index);
 							}}
-							ondrop={(e) => handleDrop(e, index)}
-							ondragover={(e) => e.preventDefault()}
 							placeholder={index === 0 ? "What's happening?" : 'Add another post...'}
 							aria-label={index === 0 ? 'Post text' : `Post ${index + 1} text`}
 							class="w-full resize-none bg-transparent text-[15px] font-medium text-stone-900 placeholder:text-stone-500 focus:outline-none pointer-coarse:text-base"
