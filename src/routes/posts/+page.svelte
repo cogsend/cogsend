@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
@@ -54,7 +55,7 @@
 		scheduleFromDHM,
 		scheduleValueToIso
 	} from '#lib/domain/schedule-helpers.js';
-	import { splitThreadSegments } from '#lib/domain/thread-segments.js';
+	import { threadPosts, type ThreadPost } from '#lib/domain/thread-segments.js';
 	import type { Snapshot } from './$types';
 
 	type PostMedia = {
@@ -147,8 +148,8 @@
 		whenTitle: string;
 		/** All attachments flattened across thread segments, display-sorted. */
 		media: PostMedia[];
-		/** Number of thread posts (1 = single post). */
-		segmentCount: number;
+		/** What publishing sends, one entry per thread post; one entry for a single post. */
+		posts: ThreadPost<PostMedia>[];
 	};
 
 	const TAB_VALUES: PostsTab[] = ['all', 'scheduled', 'published', 'failed', 'drafts'];
@@ -363,6 +364,11 @@
 		);
 	}
 
+	function cardMedia(body: string, list: PostMedia[] | undefined | null) {
+		const media = sortPostMedia(list);
+		return { media, posts: threadPosts(body, media) };
+	}
+
 	/** Waiting on the platform to finish a video, which is not a failure. */
 	function isProcessing(error: string | null | undefined): boolean {
 		return (error ?? '').includes(PROCESSING_MARK);
@@ -381,14 +387,6 @@
 			text: `${formatRelativeTime(d)} · ${formatDayTime(d)}`,
 			title: formatFullLocalWithZone(d)
 		};
-	}
-
-	function threadSegmentCount(body: string): number {
-		try {
-			return Math.max(1, splitThreadSegments(body ?? '').length);
-		} catch {
-			return 1;
-		}
 	}
 
 	function draftCards(): Card[] {
@@ -433,8 +431,7 @@
 					targetId: null,
 					whenText: whenDisplay(d.updatedAt).text,
 					whenTitle: whenDisplay(d.updatedAt).title,
-					media: sortPostMedia(d.media),
-					segmentCount: threadSegmentCount(body)
+					...cardMedia(body, d.media)
 				};
 			});
 	}
@@ -521,8 +518,7 @@
 				targetId: primary.id,
 				whenText: whenShown.text,
 				whenTitle: whenShown.title,
-				media: sortPostMedia(primary.draft.media),
-				segmentCount: threadSegmentCount(body)
+				...cardMedia(body, primary.draft.media)
 			};
 		});
 	}
@@ -642,6 +638,35 @@
 		list.sort((a, b) => b.sortKey - a.sortKey);
 		return list;
 	});
+
+	// A tap's choice, kept while the list refreshes. Without one, a thread opens
+	// while the search matches only a later post, so the match is on screen; a
+	// new search drops the taps, so an earlier close can't hide its match.
+	const threadOpen = new SvelteMap<string, boolean>();
+	$effect.pre(() => {
+		void debouncedQuery;
+		untrack(() => threadOpen.clear());
+	});
+
+	function isThreadOpen(card: Card): boolean {
+		const chosen = threadOpen.get(card.key);
+		if (chosen !== undefined) return chosen;
+		const q = debouncedQuery.trim().toLowerCase();
+		if (!q) return false;
+		const [lead, ...rest] = card.posts;
+		return (
+			!lead.text.toLowerCase().includes(q) && rest.some((p) => p.text.toLowerCase().includes(q))
+		);
+	}
+
+	async function toggleThread(card: Card, toggle: HTMLElement) {
+		const open = !isThreadOpen(card);
+		threadOpen.set(card.key, open);
+		if (open) return;
+		await tick();
+		// Closing a long thread can leave its toggle above the screen.
+		toggle.scrollIntoView({ block: 'nearest' });
+	}
 
 	function countFor(tab: PostsTab): number {
 		if (tab === 'scheduled') return upcomingCards.length;
@@ -1283,28 +1308,93 @@
 				</div>
 
 				<!-- Post Content -->
-				<p
-					class="mb-5 text-[14px] leading-relaxed font-medium break-words whitespace-pre-wrap text-stone-800"
-				>
-					{draftExcerpt(card.body, 500)}
-				</p>
+				{#if card.posts.length < 2}
+					<p
+						class="mb-5 text-[14px] leading-relaxed font-medium break-words whitespace-pre-wrap text-stone-800"
+					>
+						{draftExcerpt(card.posts[0].text, 500)}
+					</p>
 
-				{#if card.media.length > 0}
-					{@const allValid = card.media.filter((m) => m.storageKey)}
-					{#if allValid.length > 0}
+					{#if card.media.length > 0}
+						{@const allValid = card.media.filter((m) => m.storageKey)}
+						{#if allValid.length > 0}
+							<div class="mb-5" data-testid="post-media-{card.key}">
+								<MediaPreview
+									items={allValid}
+									maxHeight={280}
+									extra={Math.max(0, allValid.length - 4)}
+								/>
+							</div>
+						{/if}
+					{/if}
+				{:else}
+					{@const [lead, ...rest] = card.posts}
+					{@const open = isThreadOpen(card)}
+					{@const leadMedia = lead.media.filter((m) => m.storageKey)}
+					{#if lead.text}
+						<p
+							class="mb-5 text-[14px] leading-relaxed font-medium break-words whitespace-pre-wrap text-stone-800"
+						>
+							{draftExcerpt(lead.text, 500)}
+						</p>
+					{/if}
+					{#if leadMedia.length > 0}
 						<div class="mb-5" data-testid="post-media-{card.key}">
 							<MediaPreview
-								items={allValid}
+								items={leadMedia}
 								maxHeight={280}
-								extra={Math.max(0, allValid.length - 4)}
+								extra={Math.max(0, leadMedia.length - 4)}
 							/>
-							{#if card.segmentCount > 1}
-								<p class="mt-2 text-[11px] font-bold text-stone-500">
-									Thread · {card.segmentCount} posts · images combined
-								</p>
-							{/if}
 						</div>
 					{/if}
+					{#if open}
+						<ol
+							id="thread-{card.key}"
+							class="mb-4 ml-1 flex flex-col gap-4 border-l-2 border-stone-200 pl-4"
+							data-testid="thread-posts"
+						>
+							{#each rest as post, i (post.segmentIndex)}
+								{@const postMedia = post.media.filter((m) => m.storageKey)}
+								<li data-testid="thread-post">
+									<p class="mb-1 text-[11px] font-bold text-stone-400 tabular-nums">
+										{i + 2}/{card.posts.length}
+									</p>
+									{#if post.text}
+										<p
+											class="text-[14px] leading-relaxed font-medium break-words whitespace-pre-wrap text-stone-800"
+										>
+											{draftExcerpt(post.text, 500)}
+										</p>
+									{/if}
+									{#if postMedia.length > 0}
+										<div class="mt-2">
+											<MediaPreview
+												items={postMedia}
+												maxHeight={160}
+												extra={Math.max(0, postMedia.length - 4)}
+											/>
+										</div>
+									{/if}
+								</li>
+							{/each}
+						</ol>
+					{/if}
+					<button
+						type="button"
+						class="-mx-1 mb-5 flex items-center gap-1 self-start rounded-lg px-1 py-1 text-xs font-bold text-stone-500 transition-colors hover:text-stone-900 focus-visible:ring-2 focus-visible:ring-stone-900/20 focus-visible:outline-none pointer-coarse:py-2"
+						aria-expanded={open}
+						aria-controls="thread-{card.key}"
+						data-testid="thread-toggle"
+						onclick={(e) => toggleThread(card, e.currentTarget)}
+					>
+						<ChevronDown
+							class="h-3.5 w-3.5 transition-transform {open ? 'rotate-180' : ''}"
+							aria-hidden="true"
+						/>
+						{open
+							? 'Show less'
+							: `${rest.length} more ${rest.length === 1 ? 'post' : 'posts'} in this thread`}
+					</button>
 				{/if}
 
 				{#if failedOf(card).length > 0}
