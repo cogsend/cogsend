@@ -85,7 +85,7 @@ curl -s -X POST "$APP_URL/api/drafts/DRAFT_ID/publish" \
 
 ## Media
 
-`POST /api/drafts/:id/media` takes a `multipart/form-data` body with one or more `files`, the card's `segmentIndex` (0 for the first) and an optional `altText`. Images go up to 16 MB, an MP4 to 95 MB. An optional `preview-<n>`, a JPEG of at most 1 MB, is shown in place of the n-th file in the app; the original is what gets published. An optional `jpeg-<n>`, a JPEG at the n-th file's full size of at most 8 MB, is what Instagram gets for a PNG or WebP; without one, such an image cannot go to Instagram unless the deployment has the Images binding, which makes the copy when the draft is scheduled or published to Instagram. If one request cannot make every copy within its call budget, it answers 503 and the next try picks up the rest.
+`POST /api/drafts/:id/media` takes a `multipart/form-data` body with one or more `files`, the card's `segmentIndex` (0 for the first) and an optional `altText`. Images go up to 16 MB, an MP4 to 95 MB. An optional `preview-<n>`, a JPEG of at most 1 MB, is shown in place of the n-th file in the app; the original is what gets published. An optional `thumb-<n>`, a JPEG of at most 200 KB, is what **Your media** shows for it. An optional `jpeg-<n>`, a JPEG at the n-th file's full size of at most 8 MB, is what Instagram gets for a PNG or WebP; without one, such an image cannot go to Instagram unless the deployment has the Images binding, which makes the copy when the draft is scheduled or published to Instagram. If one request cannot make every copy within its call budget, it answers 503 and the next try picks up the rest.
 
 A larger video goes up in parts, up to 300 MB:
 

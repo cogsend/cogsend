@@ -83,20 +83,14 @@ steps, and the redirect URIs that go with them.
 
 ## Faster post thumbnails
 
-The Posts grid asks for small copies of its image attachments. A deployment with
-the Cloudflare Images binding downscales each still image once to a 160px JPEG,
-caches it in the media bucket, and serves it instead of the full-size original:
+The app shows the small copies your browser makes when you attach an image, so this binding is optional. With the Cloudflare Images binding, `GET /api/media/:key?thumb=1` also answers a 160px JPEG of a still image that has none, made once and cached in the media bucket, and the server makes the JPEG copy Instagram needs, described below:
 
 ```jsonc
 // wrangler.jsonc, or wrangler.personal.jsonc for a personal deployment
 "images": { "binding": "IMAGES" }
 ```
 
-The binding name must stay `IMAGES`. Transformations of images stored in R2 are
-part of the Images Free plan (5,000 unique transformations a month, then $0.50
-per 1,000); because the result is cached, each image is transformed once, not
-once per view. Without the binding, and for GIFs, videos, or an encode that
-fails, the original is served — this is a speed-up, not a requirement.
+The binding name must stay `IMAGES`. Transformations of images stored in R2 are part of the Images Free plan (5,000 unique transformations a month, then $0.50 per 1,000); because the result is cached, each image is transformed once, not once per view. Without the binding, and for GIFs, videos, or an encode that fails, the original is served: this is a speed-up, not a requirement.
 
 The same binding makes the JPEG copy Instagram needs for a PNG or WebP that
 arrived without one — attached before Instagram support, or uploaded through

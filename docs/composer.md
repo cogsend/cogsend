@@ -41,9 +41,9 @@ this image…"); fill it in and it goes out with the image on platforms that
 support it. The × removes the image. Size and format limits differ per platform — Bluesky takes 2 MB, X 5
 MB, and LinkedIn rejects WebP — and are checked again when the post is published.
 
-A larger image is shown from a lighter 1280 px copy your browser makes when you attach it, in the composer and in **Posts**; the original is what gets published.
+A larger image is shown from a lighter 1280 px copy your browser makes when you attach it, in the composer and in **Posts**; the original is what gets published. Click an image to see it whole, with its alt text: the arrows, arrow keys or a swipe move between the images of a post, and Esc or a click beside the picture closes it.
 
-**Your media**, the button beside **Add Image** on each card, lists the images and videos already used in your posts, whether drafts, scheduled or published, the most recently attached first. Pick one or more and press **Attach**: the file is not stored again, and it comes with the alt text it was last attached with, which you can change for this post without changing the others. Anything that can't go on the card is greyed out, such as a video beside other media or a fifth image. A file leaves the list once the last post using it is deleted.
+**Your media**, the button beside **Add Image** on each card, lists the images and videos already used in your posts, whether drafts, scheduled or published, the most recently attached first. Pick one or more and press **Attach**: the file is not stored again, and it comes with the alt text it was last attached with, which you can change for this post without changing the others. Anything that can't go on the card is greyed out, such as a video beside other media or a fifth image. A file leaves the list once the last post using it is deleted. The list shows a small copy your browser makes when you attach an image, and a still of a GIF; an image attached before 1.30 shows as it does in the composer.
 
 An image over 2 MB is shrunk in your browser before it uploads, so a pasted
 screenshot fits every platform: it is scaled down to 2560 px on the long edge,
