@@ -2034,15 +2034,35 @@
 			void attachVideo(segmentIndex, videoFiles[0]);
 			return;
 		}
-		if (videoJobs.some((job) => job.segmentIndex === segmentIndex)) {
+		const onCard = mediaBySegment.get(segmentIndex) ?? [];
+		if (
+			videoJobs.some((job) => job.segmentIndex === segmentIndex) ||
+			onCard.some((m) => isVideoItem(m))
+		) {
 			showToast('Videos cannot mix with images on the same post', 'warn');
 			return;
 		}
+		// One upload at a time: the busy state is shared, and the first upload
+		// to finish would clear it while another is still going.
+		if (uploadingSegment !== null) {
+			showToast('Wait for the upload to finish', 'warn');
+			return;
+		}
+		// Checked before any work, so a pick of too many keeps the ones that
+		// fit instead of the server refusing the whole batch after the upload.
+		const room = MAX_IMAGES_PER_SEGMENT - onCard.length;
+		if (room <= 0) {
+			showToast(`This post already has ${MAX_IMAGES_PER_SEGMENT} images`, 'warn');
+			return;
+		}
+		const leftOut = Math.max(0, picked.length - room);
 		// Shrink to Bluesky's cap, the strictest one, whatever is selected now:
 		// the file is stored once and may be published anywhere later.
 		uploadingSegment = segmentIndex;
 		const images: File[] = [];
-		for (const f of picked) images.push(await shrinkToFit(f, BLUESKY_MAX_IMAGE_BYTES));
+		for (const f of picked.slice(0, room)) {
+			images.push(await shrinkToFit(f, BLUESKY_MAX_IMAGE_BYTES));
+		}
 		const blueskySelected = connections.some((c) => selected.has(c.id) && c.platform === 'bluesky');
 		const linkedinSelected = connections.some(
 			(c) => selected.has(c.id) && c.platform === 'linkedin'
@@ -2127,10 +2147,15 @@
 				...media,
 				...items.map((it) => ({ ...it, segmentIndex: it.segmentIndex ?? segmentIndex }))
 			];
-			showToast(
-				items.length === 1 ? 'Image attached' : `${items.length} images attached`,
-				'success'
-			);
+			const attached = items.length === 1 ? 'Image attached' : `${items.length} images attached`;
+			if (leftOut) {
+				showToast(
+					`${attached} · ${leftOut} left out, a post takes ${MAX_IMAGES_PER_SEGMENT}`,
+					'warn'
+				);
+			} else {
+				showToast(attached, 'success');
+			}
 		} catch (e) {
 			showToast(e instanceof Error ? e.message : 'Upload failed', 'error');
 		} finally {
@@ -2157,6 +2182,10 @@
 	/** Attach files already used in a post; nothing is stored again. */
 	async function attachFromLibrary(segmentIndex: number, files: LibraryFile[]) {
 		if (editLocked || !files.length || libraryBusy) return;
+		if (uploadingSegment !== null) {
+			showToast('Wait for the upload to finish', 'warn');
+			return;
+		}
 		libraryBusy = true;
 		uploadingSegment = segmentIndex;
 		const generation = editorGeneration;
