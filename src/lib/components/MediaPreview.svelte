@@ -33,6 +33,7 @@
 		mediaUrl
 	} from '#lib/domain/media-layout.js';
 	import { formatDuration } from '#lib/domain/video-rules.js';
+	import MediaViewer from './MediaViewer.svelte';
 
 	let {
 		items,
@@ -64,6 +65,9 @@
 	let playing = $state<string | null>(null);
 
 	const shown = $derived(items.slice(0, 4));
+	// Every image, past the fourth too: the viewer steps on from behind "+N".
+	const images = $derived(items.filter((m) => !isVideoMedia(m)));
+	let viewing = $state<number | null>(null);
 	const grid = $derived(gridFor(shown.length));
 	const single = $derived(shown.length === 1 ? shown[0] : null);
 	const frame = $derived(
@@ -137,14 +141,22 @@
 			</button>
 		{/if}
 	{:else}
-		<img
-			src={m.previewUrl || imageUrl(m, mediaBase)}
-			alt={label(m, i)}
-			loading="lazy"
-			decoding="async"
-			onload={(e) => measure(m, e.currentTarget as HTMLImageElement)}
-			class="h-full w-full {fit === 'contain' ? 'object-contain' : 'object-cover'}"
-		/>
+		<button
+			type="button"
+			data-testid="media-view-{m.id}"
+			onclick={() => (viewing = images.findIndex((x) => x.id === m.id))}
+			class="block h-full w-full cursor-zoom-in"
+			aria-label={`View ${label(m, i)}`}
+		>
+			<img
+				src={m.previewUrl || imageUrl(m, mediaBase)}
+				alt={label(m, i)}
+				loading="lazy"
+				decoding="async"
+				onload={(e) => measure(m, e.currentTarget as HTMLImageElement)}
+				class="h-full w-full {fit === 'contain' ? 'object-contain' : 'object-cover'}"
+			/>
+		</button>
 	{/if}
 	{#if toolbar}
 		<div class="absolute top-2 right-2 z-10 flex items-center gap-1.5">
@@ -211,3 +223,11 @@
 		</div>
 	{/if}
 </div>
+
+{#if viewing !== null && viewing >= 0 && images.length}
+	<!-- The viewer moves itself to the body; this stays behind, so removing the
+	     block never walks the DOM from a node that has left. -->
+	<div class="contents">
+		<MediaViewer items={images} start={viewing} {mediaBase} onClose={() => (viewing = null)} />
+	</div>
+{/if}
