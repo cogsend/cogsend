@@ -36,10 +36,10 @@ An X account on a paid plan can post up to 25,000 characters in one post ([how C
 
 ## Images and alt text
 
-Each card takes up to four images, shown large in the card the way they will be laid out: one image at its own shape, two to four in a grid. Its buttons sit in the top corner, on hover or always on a phone: **ALT** (amber until it has a description) opens the alt-text field ("Describe
+Each card takes up to four images, shown large in the card the way they will be laid out: one image at its own shape, two to four in a grid. Add them with the image button, by pasting, or by dropping files anywhere on the card; pick more than fit and the first ones are attached, with a note saying how many were left out. Its buttons sit in the top corner, on hover or always on a phone: **ALT** (amber until it has a description) opens the alt-text field ("Describe
 this image…"); fill it in and it goes out with the image on platforms that
 support it. The × removes the image. Size and format limits differ per platform — Bluesky takes 2 MB, X 5
-MB, and LinkedIn rejects WebP — and are checked again when the post is published.
+MB, and LinkedIn rejects WebP — and are checked again when the post is published. An image a selected account would refuse, for its size or type (a WebP on LinkedIn, anything but JPEG or PNG on Threads), is named in a line under the card, with a link to uncheck that account.
 
 A larger image is shown from a lighter 1280 px copy your browser makes when you attach it, in the composer and in **Posts**; the original is what gets published. Click an image to see it whole, with its alt text: the arrows, arrow keys or a swipe move between the images of a post, and Esc or a click beside the picture closes it.
 
