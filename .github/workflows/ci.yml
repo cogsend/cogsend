@@ -163,15 +163,21 @@ jobs:
         # `main` runs with SKIP_TOTP so specs can sign in with a password.
         # `totp` removes it, because enrolling an authenticator is the flow a new
         # instance cannot skip; it restores .dev.vars afterwards. All of them run
-        # in parallel, because one at a time had grown past eight minutes. Each
-        # shard has its own runner, so its own database and sign-in. Keep all
-        # three even while the last has nothing to do: Playwright keeps the smoke
-        # journey together, so the tests fit in two for now, but a spec that
-        # lands in a shard nobody runs would silently stop being tested.
+        # in parallel, each on its own runner, so its own database and sign-in.
+        # Every shard from 1 to 4 must stay listed: a missing one is a slice of
+        # the specs that silently stops being tested.
+        #
+        # Playwright splits shards by test count and keeps a file's tests
+        # together, so the smoke journey's many quick tests would fill one shard
+        # while the slow specs crowd another. `weights` (PWTEST_SHARD_WEIGHTS,
+        # tests per shard) evens out their times; measure again when one shard
+        # grows well past the others. If Playwright stops reading it, the split
+        # falls back to equal counts: slower, but every spec still runs.
         include:
-          - { suite: main-1, script: 'test:e2e -- --shard=1/3' }
-          - { suite: main-2, script: 'test:e2e -- --shard=2/3' }
-          - { suite: main-3, script: 'test:e2e -- --shard=3/3' }
+          - { suite: main-1, script: 'test:e2e -- --shard=1/4', weights: '4:3:3:6' }
+          - { suite: main-2, script: 'test:e2e -- --shard=2/4', weights: '4:3:3:6' }
+          - { suite: main-3, script: 'test:e2e -- --shard=3/4', weights: '4:3:3:6' }
+          - { suite: main-4, script: 'test:e2e -- --shard=4/4', weights: '4:3:3:6' }
           - { suite: totp, script: 'test:e2e:totp' }
     steps:
       - uses: actions/checkout@v7
@@ -193,6 +199,8 @@ jobs:
       # `wrangler dev` serves the built Worker locally, so no Cloudflare
       # credentials are involved.
       - run: npm run ${{ matrix.script }}
+        env:
+          PWTEST_SHARD_WEIGHTS: ${{ matrix.weights }}
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
