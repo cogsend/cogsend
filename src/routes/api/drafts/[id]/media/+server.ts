@@ -26,8 +26,10 @@ import {
 	jpegKey,
 	MAX_JPEG_COPY_BYTES,
 	MAX_PREVIEW_BYTES,
+	MAX_THUMB_BYTES,
 	previewKey,
 	saveMediaBytes,
+	thumbCacheKey,
 	type StoredImageMeta
 } from '#lib/server/media.js';
 import { requireScope, requireUser } from '#lib/server/require.js';
@@ -92,9 +94,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 		const files: File[] = [];
 		// `preview-<n>` is the composer's smaller copy of the n-th file entry,
-		// `jpeg-<n>` its full-size JPEG copy of a PNG or WebP.
+		// `jpeg-<n>` its full-size JPEG copy of a PNG or WebP, `thumb-<n>` its
+		// small copy for Your media.
 		const previews: Array<File | null> = [];
 		const jpegs: Array<File | null> = [];
+		const thumbs: Array<File | null> = [];
 		const fileField = (name: string) => {
 			const value = form.get(name);
 			return value instanceof File && value.size > 0 ? value : null;
@@ -104,6 +108,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			files.push(entry);
 			previews.push(fileField(`preview-${n}`));
 			jpegs.push(fileField(`jpeg-${n}`));
+			thumbs.push(fileField(`thumb-${n}`));
 		});
 		if (!files.length) return fail('file required');
 		// Per-file caps, ahead of the ArrayBuffer copy below: formData() already
@@ -169,6 +174,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 					(await saveJpegVariant(locals, jpegKey(key), jpegs[i], MAX_JPEG_COPY_BYTES))
 				) {
 					imageMeta.jpeg = { v };
+				}
+				if (await saveJpegVariant(locals, thumbCacheKey(key), thumbs[i], MAX_THUMB_BYTES)) {
+					imageMeta.thumb = { v };
 				}
 			}
 			let media;

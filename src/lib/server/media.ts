@@ -273,12 +273,19 @@ export function assertSafeStorageKey(key: string): string {
 
 /** Private media keys never change, so the browser can keep them. */
 export const PRIVATE_MEDIA_CACHE = 'private, max-age=31536000, immutable';
-/** Longest edge of a posts-grid thumbnail. CSS shows 80px; this covers 2x. */
+/** Longest edge of a thumbnail the Images binding makes for `?thumb`. */
 export const THUMB_EDGE = 160;
 
+/**
+ * A small copy of an image for Your media: the one the browser makes at
+ * upload, else one the Images binding made on request.
+ */
 export function thumbCacheKey(storageKey: string): string {
 	return `thumb/${storageKey}`;
 }
+
+/** A browser thumbnail is a JPEG of at most 480 px; anything larger is not one. */
+export const MAX_THUMB_BYTES = 200_000;
 
 /** A video's cover image, kept beside it so every cleanup path removes both. */
 export function coverKey(storageKey: string): string {
@@ -314,6 +321,8 @@ export interface StoredImageMeta {
 	preview?: { v: number };
 	/** Set once a JPEG copy is stored at jpegKey(). */
 	jpeg?: { v: number };
+	/** Set once the browser's thumbnail is stored at thumbCacheKey(). */
+	thumb?: { v: number };
 	/** An animated WebP, which makeStoredJpegCopy leaves alone. */
 	animated?: boolean;
 }

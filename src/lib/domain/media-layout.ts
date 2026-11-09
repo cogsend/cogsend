@@ -12,6 +12,7 @@ export type MediaShape = {
 	meta?: {
 		cover?: { v?: number } | null;
 		preview?: { v?: number } | null;
+		thumb?: { v?: number } | null;
 		durationMs?: number | null;
 	} | null;
 };
@@ -94,6 +95,12 @@ export function mediaUrl(m: { storageKey: string }, base = MEDIA_BASE): string {
 export function imageUrl(m: MediaShape, base = MEDIA_BASE): string {
 	const v = m.meta?.preview?.v;
 	return v ? `${mediaUrl(m, base)}?preview=${v}` : mediaUrl(m, base);
+}
+
+/** What to show for an image in a small tile: its thumbnail when it has one, else imageUrl. */
+export function thumbUrl(m: MediaShape, base = MEDIA_BASE): string {
+	const v = m.meta?.thumb?.v;
+	return v ? `${mediaUrl(m, base)}?thumb=${v}` : imageUrl(m, base);
 }
 
 /** A video's chosen cover, versioned so a new one is not served from cache. */

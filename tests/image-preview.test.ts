@@ -3,9 +3,9 @@ import { eq } from 'drizzle-orm';
 import { newId, type AppDb } from '#lib/server/db/client.js';
 import { draftMedia, drafts, users } from '#lib/server/db/schema.js';
 import { createTestDb, createTestMedia } from '#lib/server/db/test.js';
-import { deleteMediaObjects, jpegKey, previewKey } from '#lib/server/media.js';
+import { deleteMediaObjects, jpegKey, previewKey, thumbCacheKey } from '#lib/server/media.js';
 import { buildNormalizedPost } from '#lib/server/publish.js';
-import { imageUrl } from '#lib/domain/media-layout.js';
+import { imageUrl, thumbUrl } from '#lib/domain/media-layout.js';
 import { POST as mediaPOST } from '../src/routes/api/drafts/[id]/media/+server';
 import { POST as duplicatePOST } from '../src/routes/api/drafts/[id]/duplicate/+server';
 import { GET as mediaGET } from '../src/routes/api/media/[key]/+server';
@@ -48,14 +48,15 @@ describe('image previews', () => {
 
 	async function upload(
 		draftId: string,
-		files: Array<{ image: Uint8Array<ArrayBuffer>; preview?: Blob; jpeg?: Blob }>
+		files: Array<{ image: Uint8Array<ArrayBuffer>; preview?: Blob; jpeg?: Blob; thumb?: Blob }>
 	) {
 		const form = new FormData();
 		form.set('segmentIndex', '0');
-		files.forEach(({ image, preview, jpeg }, n) => {
+		files.forEach(({ image, preview, jpeg, thumb }, n) => {
 			form.append('files', new File([image], `p${n}.png`, { type: 'image/png' }));
 			if (preview) form.append(`preview-${n}`, preview, 'preview.jpg');
 			if (jpeg) form.append(`jpeg-${n}`, jpeg, 'copy.jpg');
+			if (thumb) form.append(`thumb-${n}`, thumb, 'thumb.jpg');
 		});
 		const res = (await mediaPOST({
 			params: { id: draftId },
@@ -67,18 +68,18 @@ describe('image previews', () => {
 			items: Array<{
 				id: string;
 				storageKey: string;
-				meta: { preview?: { v: number }; jpeg?: { v: number } } | null;
+				meta: { preview?: { v: number }; jpeg?: { v: number }; thumb?: { v: number } } | null;
 			}>;
 		};
 		return body.items;
 	}
 
-	function serve(storageKey: string, query: string) {
+	function serve(storageKey: string, query: string, bindings: Record<string, unknown> = {}) {
 		return mediaGET({
 			params: { key: storageKey },
 			url: new URL(`http://localhost/api/media/${storageKey}${query}`),
 			request: new Request('http://localhost/x'),
-			locals: locals()
+			locals: { ...locals(), bindings }
 		} as never) as Promise<Response>;
 	}
 
@@ -138,10 +139,64 @@ describe('image previews', () => {
 		}
 	});
 
+	it('keeps the thumbnail sent with an image and serves it to Your media', async () => {
+		const draftId = await freshDraft();
+		const THUMB = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 9, 9]);
+		const [withThumb, without] = await upload(draftId, [
+			{
+				image: PNG,
+				preview: new Blob([JPEG], { type: 'image/jpeg' }),
+				thumb: new Blob([THUMB], { type: 'image/jpeg' })
+			},
+			{ image: PNG, preview: new Blob([JPEG], { type: 'image/jpeg' }) }
+		]);
+		const v = withThumb.meta?.thumb?.v;
+		expect(v).toBeTypeOf('number');
+		expect(await media.get(thumbCacheKey(withThumb.storageKey))).toEqual(THUMB);
+		expect(without.meta?.thumb).toBeUndefined();
+
+		expect(thumbUrl(withThumb)).toBe(`/api/media/${withThumb.storageKey}?thumb=${v}`);
+		// Without one, a tile shows what the composer shows.
+		expect(thumbUrl(without)).toBe(imageUrl(without));
+
+		// Served without the Images binding, and ahead of anything it would make.
+		const plain = await serve(withThumb.storageKey, `?thumb=${v}`);
+		expect(plain.headers.get('Content-Type')).toBe('image/jpeg');
+		expect(new Uint8Array(await plain.arrayBuffer())).toEqual(THUMB);
+		const unused = {
+			input: () => {
+				throw new Error('the stored thumbnail should be served');
+			}
+		};
+		const bound = await serve(withThumb.storageKey, `?thumb=${v}`, { IMAGES: unused });
+		expect(new Uint8Array(await bound.arrayBuffer())).toEqual(THUMB);
+		const fallback = await serve(without.storageKey, '?thumb=1');
+		expect(new Uint8Array(await fallback.arrayBuffer())).toEqual(PNG);
+
+		await deleteMediaObjects(media, [withThumb.storageKey]);
+		expect(await media.get(thumbCacheKey(withThumb.storageKey))).toBeNull();
+	});
+
+	it('drops a thumbnail that is not a small JPEG and still takes the image', async () => {
+		const draftId = await freshDraft();
+		const [png, huge] = await upload(draftId, [
+			{ image: PNG, thumb: new Blob([PNG], { type: 'image/jpeg' }) },
+			{ image: PNG, thumb: new Blob([JPEG, new Uint8Array(200_001)], { type: 'image/jpeg' }) }
+		]);
+		for (const item of [png, huge]) {
+			expect(item.meta).toBeNull();
+			expect(await media.get(thumbCacheKey(item.storageKey))).toBeNull();
+		}
+	});
+
 	it('comes along when the post is duplicated, and goes with the image', async () => {
 		const draftId = await freshDraft();
 		const [item] = await upload(draftId, [
-			{ image: PNG, preview: new Blob([JPEG], { type: 'image/jpeg' }) }
+			{
+				image: PNG,
+				preview: new Blob([JPEG], { type: 'image/jpeg' }),
+				thumb: new Blob([JPEG], { type: 'image/jpeg' })
+			}
 		]);
 		const res = (await duplicatePOST({
 			params: { id: draftId },
@@ -152,6 +207,7 @@ describe('image previews', () => {
 		const [copy] = await db.select().from(draftMedia).where(eq(draftMedia.draftId, draft.id));
 		expect(copy.storageKey).toBe(item.storageKey);
 		expect(JSON.parse(copy.metaJson ?? '{}').preview).toEqual(item.meta!.preview);
+		expect(JSON.parse(copy.metaJson ?? '{}').thumb).toEqual(item.meta!.thumb);
 		expect(await media.get(previewKey(copy.storageKey))).toEqual(JPEG);
 
 		await deleteMediaObjects(media, [item.storageKey]);

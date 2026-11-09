@@ -45,17 +45,16 @@ export const GET: RequestHandler = async ({ params, locals, request, url }) => {
 			const preview = await locals.media.get(previewKey(key));
 			if (preview) return jpegResponse(preview, PRIVATE_MEDIA_CACHE);
 		}
-		// Posts grid. Only a deployment that bound Cloudflare Images gets a
-		// smaller file; everyone else, and any encode that fails, gets the
-		// original. Skipping the attempt when the binding is absent avoids an
-		// extra storage read on every thumbnail.
-		const images = (locals.bindings as { IMAGES?: ImageResizer }).IMAGES ?? null;
-		if (
-			images &&
-			url.searchParams.get('thumb') === '1' &&
-			thumbCandidate(media.mime, media.width, media.height)
-		) {
-			const thumb = await storedThumbnail(locals.media, key, images);
+		// Your media's small copy: the one the browser made at upload, else one
+		// the Images binding makes now for a deployment that has it. Without
+		// either, the original is served.
+		if (url.searchParams.has('thumb') && !(media.mime || '').startsWith('video/')) {
+			const images = (locals.bindings as { IMAGES?: ImageResizer }).IMAGES ?? null;
+			const thumb = await storedThumbnail(
+				locals.media,
+				key,
+				images && thumbCandidate(media.mime, media.width, media.height) ? images : null
+			);
 			if (thumb) return jpegResponse(thumb, PRIVATE_MEDIA_CACHE);
 		}
 		return await serveMediaBytes(locals.media, key, request, {

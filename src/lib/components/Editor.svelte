@@ -58,7 +58,7 @@
 	import MediaPreview from './MediaPreview.svelte';
 	import SharePreview from './SharePreview.svelte';
 	import VideoCover from './video/VideoCover.svelte';
-	import { makeJpegCopy, makePreview, shrinkToFit } from '#lib/components/shrink-image.js';
+	import { makeImageCopies, shrinkToFit } from '#lib/components/shrink-image.js';
 	import { persistMediaLayout, type MediaMove } from '#lib/domain/media-sync.js';
 	import {
 		customizePlatformBody,
@@ -2103,10 +2103,10 @@
 			form.set('segmentIndex', String(segmentIndex));
 			for (const [n, f] of images.entries()) {
 				form.append('files', f);
-				const preview = await makePreview(f);
+				const { preview, jpeg, thumb } = await makeImageCopies(f);
 				if (preview) form.append(`preview-${n}`, preview, 'preview.jpg');
-				const jpeg = await makeJpegCopy(f);
 				if (jpeg) form.append(`jpeg-${n}`, jpeg, 'copy.jpg');
+				if (thumb) form.append(`thumb-${n}`, thumb, 'thumb.jpg');
 			}
 			const res = await fetch(`/api/drafts/${id}/media`, { method: 'POST', body: form });
 			const data = await res.json();

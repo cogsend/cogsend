@@ -130,73 +130,104 @@ export const PREVIEW_EDGE = 1280;
 // Below this an image is already light enough to show as it is.
 const PREVIEW_MIN_BYTES = 300_000;
 
-/**
- * A smaller JPEG of an image, for showing it; the original is what gets
- * published. Null when the image is already small, is animated (a still copy
- * would freeze it), or the browser cannot make a smaller one.
- */
-export async function makePreview(
-	file: File,
-	codec: ImageCodec = canvasCodec
-): Promise<Blob | null> {
-	const type = file.type.toLowerCase();
-	if (type !== 'image/png' && type !== 'image/jpeg' && type !== 'image/webp') return null;
-	if (file.size <= PREVIEW_MIN_BYTES) return null;
+/** Long edge of the copy shown in Your media: a tile on a 3x phone screen. */
+export const THUMB_EDGE = 480;
+
+/** Instagram's cap on a photo; the server refuses a larger copy. */
+export const JPEG_COPY_MAX_BYTES = 8_000_000;
+
+export type ImageCopies = {
+	/**
+	 * A smaller JPEG for showing the image; the original is what gets
+	 * published. None when the image is already light, or animated: a still
+	 * copy would freeze it.
+	 */
+	preview: Blob | null;
+	/**
+	 * A full-size JPEG of a PNG or WebP, for Instagram, which takes nothing
+	 * else and which the Worker cannot convert to. Made whatever is selected,
+	 * because the file is stored once and may go anywhere later. An animated
+	 * WebP gets its first frame: Instagram cannot show the animation either.
+	 */
+	jpeg: Blob | null;
+	/** A small JPEG for Your media; a GIF's is its first frame. */
+	thumb: Blob | null;
+};
+
+function fitWithin(image: { width: number; height: number }, edge: number) {
+	const scale = Math.min(1, edge / Math.max(image.width, image.height));
+	return {
+		width: Math.max(1, Math.round(image.width * scale)),
+		height: Math.max(1, Math.round(image.height * scale))
+	};
+}
+
+async function orNull<T>(make: () => Promise<T | null>): Promise<T | null> {
 	try {
-		if (type === 'image/webp' && (await isAnimatedWebp(file))) return null;
-		const image = await codec.decode(file);
-		if (!image) return null;
-		try {
-			const scale = Math.min(1, PREVIEW_EDGE / Math.max(image.width, image.height));
-			const blob = await codec.encode(image, {
-				width: Math.max(1, Math.round(image.width * scale)),
-				height: Math.max(1, Math.round(image.height * scale)),
-				type: 'image/jpeg',
-				quality: 0.8
-			});
-			return blob && blob.size > 0 && blob.size < file.size ? blob : null;
-		} finally {
-			image.close();
-		}
+		return await make();
 	} catch {
 		return null;
 	}
 }
 
-/** Instagram's cap on a photo; the server refuses a larger copy. */
-export const JPEG_COPY_MAX_BYTES = 8_000_000;
-
 /**
- * A full-size JPEG of a PNG or WebP, for Instagram, which takes nothing else
- * and which the Worker cannot convert to. Made at upload whatever is selected,
- * because the file is stored once and may go anywhere later. An animated WebP
- * gets its first frame: Instagram cannot show the animation either. Null for a
- * JPEG or GIF, or when the browser cannot make one small enough.
+ * Every copy the composer uploads beside an image, from one decode: reading a
+ * large photo is the slow part, so each copy after it costs only an encode.
+ * A copy the browser cannot make is left out, and the image uploads without it.
  */
-export async function makeJpegCopy(
+export async function makeImageCopies(
 	file: File,
 	codec: ImageCodec = canvasCodec
-): Promise<Blob | null> {
+): Promise<ImageCopies> {
+	const copies: ImageCopies = { preview: null, jpeg: null, thumb: null };
 	const type = file.type.toLowerCase();
-	if (type !== 'image/png' && type !== 'image/webp') return null;
+	const still = type === 'image/png' || type === 'image/jpeg' || type === 'image/webp';
+	if (!still && type !== 'image/gif') return copies;
 	try {
+		const animated =
+			type === 'image/gif' || (type === 'image/webp' && (await isAnimatedWebp(file)));
 		const image = await codec.decode(file);
-		if (!image) return null;
+		if (!image) return copies;
 		try {
-			for (const quality of [0.9, 0.8]) {
-				const blob = await codec.encode(image, {
-					width: image.width,
-					height: image.height,
-					type: 'image/jpeg',
-					quality
+			if (!animated && file.size > PREVIEW_MIN_BYTES) {
+				copies.preview = await orNull(async () => {
+					const blob = await codec.encode(image, {
+						...fitWithin(image, PREVIEW_EDGE),
+						type: 'image/jpeg',
+						quality: 0.8
+					});
+					return blob && blob.size > 0 && blob.size < file.size ? blob : null;
 				});
-				if (blob && blob.size > 0 && blob.size <= JPEG_COPY_MAX_BYTES) return blob;
 			}
-			return null;
+			if (type === 'image/png' || type === 'image/webp') {
+				copies.jpeg = await orNull(async () => {
+					for (const quality of [0.9, 0.8]) {
+						const blob = await codec.encode(image, {
+							width: image.width,
+							height: image.height,
+							type: 'image/jpeg',
+							quality
+						});
+						if (blob && blob.size > 0 && blob.size <= JPEG_COPY_MAX_BYTES) return blob;
+					}
+					return null;
+				});
+			}
+			if (animated || Math.max(image.width, image.height) > THUMB_EDGE) {
+				copies.thumb = await orNull(async () => {
+					const blob = await codec.encode(image, {
+						...fitWithin(image, THUMB_EDGE),
+						type: 'image/jpeg',
+						quality: 0.75
+					});
+					return blob && blob.size > 0 && blob.size < file.size ? blob : null;
+				});
+			}
 		} finally {
 			image.close();
 		}
 	} catch {
-		return null;
+		// Decoding failed: the image uploads alone, as it would without copies.
 	}
+	return copies;
 }
