@@ -33,3 +33,28 @@ export function draftExcerpt(body: string | null | undefined, max = 120): string
 	if (chars.length <= max) return text;
 	return chars.slice(0, max).join('').trimEnd() + '…';
 }
+
+/**
+ * A post's text for a list card, with its line breaks. A run of blank lines
+ * shows as one, and a post of many short lines stops at `maxLines`, which the
+ * character cap alone would let grow far taller than a card should.
+ */
+export function cardExcerpt(text: string | null | undefined, max = 500, maxLines = 8): string {
+	const body = (text || '')
+		.replace(/\r\n?/g, '\n')
+		.split('\n')
+		.map((line) => line.trimEnd())
+		.join('\n')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim();
+	if (!body) return 'Empty draft';
+	const lines = body.split('\n');
+	let out = lines.length > maxLines ? lines.slice(0, maxLines).join('\n').trimEnd() : body;
+	let cut = out !== body;
+	const chars = segmentGraphemes(out);
+	if (chars.length > max) {
+		out = chars.slice(0, max).join('').trimEnd();
+		cut = true;
+	}
+	return cut ? `${out}…` : out;
+}
