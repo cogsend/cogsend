@@ -9,6 +9,8 @@
 		meta: {
 			cover?: { v?: number } | null;
 			preview?: { v?: number } | null;
+			thumb?: { v?: number } | null;
+			animated?: boolean;
 			durationMs?: number | null;
 		} | null;
 	};
@@ -18,7 +20,7 @@
 	import { onMount } from 'svelte';
 	import { Check, ImageOff, Play } from '@lucide/svelte';
 	import { dialogFocus } from '#lib/components/dialog-focus.js';
-	import { coverUrl, imageUrl } from '#lib/domain/media-layout.js';
+	import { coverUrl, thumbUrl } from '#lib/domain/media-layout.js';
 	import { MAX_IMAGES_PER_SEGMENT } from '#lib/domain/media-limits.js';
 	import { formatDuration } from '#lib/domain/video-rules.js';
 
@@ -44,6 +46,8 @@
 	let broken = $state<string[]>([]);
 
 	const isVideo = (f: LibraryFile) => f.mime.toLowerCase().startsWith('video/');
+	const isAnimated = (f: LibraryFile) =>
+		f.mime.toLowerCase() === 'image/gif' || Boolean(f.meta?.animated);
 	const pickedFiles = $derived(
 		picked.flatMap((key) => files.filter((f) => f.storageKey === key).slice(0, 1))
 	);
@@ -72,6 +76,28 @@
 	}
 
 	onMount(() => void load(null));
+
+	const canObserve = typeof IntersectionObserver === 'function';
+	let scroller = $state<HTMLElement | null>(null);
+
+	/**
+	 * Load the next page as the end of the list comes into view. The marker is
+	 * re-created for each page, so a page too short to scroll still loads the
+	 * one after it.
+	 */
+	function loadNearEnd(node: HTMLElement) {
+		if (!canObserve) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((e) => e.isIntersecting) && next && !loading && !problem) {
+					void load(next);
+				}
+			},
+			{ root: scroller, rootMargin: '240px' }
+		);
+		observer.observe(node);
+		return { destroy: () => observer.disconnect() };
+	}
 
 	/** Why `f` cannot be picked now, mirroring what the server refuses. */
 	function blocked(f: LibraryFile): string | null {
@@ -137,7 +163,7 @@
 			alt text in this post without changing the others.
 		</p>
 
-		<div class="mt-3 min-h-0 flex-1 overflow-y-auto">
+		<div class="mt-3 min-h-0 flex-1 overflow-y-auto" bind:this={scroller}>
 			{#if !loaded && loading}
 				<p class="py-8 text-center text-xs font-medium text-stone-500">Loading…</p>
 			{:else if loaded && files.length === 0}
@@ -186,12 +212,19 @@
 									</span>
 								{:else}
 									<img
-										src={imageUrl(f)}
+										src={thumbUrl(f)}
 										alt=""
 										loading="lazy"
 										class="h-full w-full object-cover"
 										onerror={() => (broken = [...broken, f.storageKey])}
 									/>
+									{#if isAnimated(f)}
+										<span
+											class="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white"
+										>
+											GIF
+										</span>
+									{/if}
 								{/if}
 								{#if on}
 									<!-- Over the picture: a ring outside the tile is clipped by the scroll area. -->
@@ -209,15 +242,21 @@
 					{/each}
 				</ul>
 				{#if next}
+					{#key next}
+						<div use:loadNearEnd aria-hidden="true" class="h-px"></div>
+					{/key}
 					<div class="mt-3 flex justify-center">
-						<button
-							type="button"
-							onclick={() => void load(next)}
-							disabled={loading}
-							class="rounded-full border border-stone-200 px-3 py-1.5 text-xs font-bold text-stone-700 hover:border-stone-300 disabled:opacity-50"
-						>
-							{loading ? 'Loading…' : 'Load more'}
-						</button>
+						{#if loading}
+							<p class="py-1.5 text-xs font-medium text-stone-500">Loading…</p>
+						{:else if problem || !canObserve}
+							<button
+								type="button"
+								onclick={() => void load(next)}
+								class="rounded-full border border-stone-200 px-3 py-1.5 text-xs font-bold text-stone-700 hover:border-stone-300"
+							>
+								Load more
+							</button>
+						{/if}
 					</div>
 				{/if}
 			{/if}
