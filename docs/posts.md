@@ -14,6 +14,8 @@ the accounts it goes to, the text, its images or video, and when: **Will publish
 your own timezone and how far away it is, **Due** once that time has passed, **Started** while it is being sent, or **Published**, or when a draft was
 last edited. A video shows its cover and loads only when you press play.
 
+A thread shows its first post with its images, and **N more posts in this thread** under it. Pressing that lists the rest in order, each with its own text and images, and **Show less** folds them away again. A search that matches only a later post opens the thread so you can see the match.
+
 A post being sent right now is marked **Sending** and offers nothing to press until it is done; the list refreshes on its own every few seconds while anything is sending, and every half minute while a platform is processing a video. A send that stops answering — Cloudflare cut it off — is given up on after 7 minutes: the card leaves **Sending** with **Reschedule** and **Cancel** again, and the next tick retries it. After five such tries it lands in **Failed**, with a note to check the account before retrying, since it may have gone out.
 
 What a card offers depends on its state:
