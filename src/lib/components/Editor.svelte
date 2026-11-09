@@ -39,6 +39,7 @@
 		X_MAX_IMAGE_BYTES,
 		groupMediaBySegment,
 		imageOverCap,
+		imageTypeProblem,
 		instagramMediaProblems,
 		jpegCopyExpected,
 		mediaSizeProblem,
@@ -146,6 +147,7 @@
 		isFullyPublished
 	} from '#lib/domain/published-lock.js';
 	import { selectionDrift, summarizePost, type TargetSnapshot } from '#lib/domain/post-state.js';
+	import { isZernioConnection } from '#lib/domain/zernio.js';
 	import { setPostsNotice } from '#lib/components/posts-notice.js';
 	import { cancelWaitingExcept, handOff } from '#lib/components/publish-tracker.svelte.js';
 	import { showToast } from '#lib/components/toast.svelte.js';
@@ -505,6 +507,15 @@
 
 	const selectedPlatforms = $derived(
 		new Set(connections.filter((c) => selected.has(c.id)).map((c) => c.platform))
+	);
+	// Platforms with a selected account CogSend posts to itself; Zernio takes
+	// the file as it is and applies its own rules.
+	const directPlatforms = $derived(
+		new Set(
+			connections
+				.filter((c) => selected.has(c.id) && !isZernioConnection(c.metaJson))
+				.map((c) => c.platform)
+		)
 	);
 
 	// Global is held to the strictest limit among the selected accounts, and is
@@ -2069,7 +2080,6 @@
 		);
 		const threadsSelected = connections.some((c) => selected.has(c.id) && c.platform === 'threads');
 		const xSelected = connections.some((c) => selected.has(c.id) && c.platform === 'x');
-		const webpSelected = images.some((f) => f.type === 'image/webp') && linkedinSelected;
 		const overBluesky = images.filter((f) => f.size > BLUESKY_MAX_IMAGE_BYTES);
 		const overLinkedin = images.filter((f) => f.size > LINKEDIN_MAX_IMAGE_BYTES);
 		const advisories: string[] = [];
@@ -2081,17 +2091,7 @@
 		if (overLinkedin.length && linkedinSelected) {
 			advisories.push(`${overLinkedin[0].name} is over LinkedIn's 8MB image cap.`);
 		}
-		if (webpSelected) {
-			advisories.push(
-				'WebP images are rejected by LinkedIn — use JPEG, PNG, or GIF, or uncheck LinkedIn.'
-			);
-		}
-		const threadsBadType =
-			threadsSelected && images.some((f) => f.type !== 'image/jpeg' && f.type !== 'image/png');
 		const threadsOversize = threadsSelected && images.some((f) => f.size > THREADS_MAX_IMAGE_BYTES);
-		if (threadsBadType) {
-			advisories.push('Threads takes JPEG/PNG images only — others stay on your other accounts.');
-		}
 		if (threadsOversize) {
 			advisories.push("An image is over Threads' 8MB cap — compress it or uncheck Threads.");
 		}
@@ -2390,6 +2390,11 @@
 			const over = imageOverCap(platform, images);
 			if (over && !rows.has(platform))
 				rows.set(platform, { platform, level: 'error', message: over });
+		}
+		for (const platform of directPlatforms) {
+			const badType = imageTypeProblem(platform, images);
+			if (badType && !rows.has(platform))
+				rows.set(platform, { platform, level: 'error', message: badType });
 		}
 		if (threadWide && linkedinMediaProblem && !rows.has('linkedin')) {
 			rows.set('linkedin', { platform: 'linkedin', level: 'error', message: linkedinMediaProblem });

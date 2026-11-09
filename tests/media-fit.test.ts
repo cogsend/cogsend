@@ -7,7 +7,7 @@ import {
 	gridFor,
 	isVideoMedia
 } from '#lib/domain/media-layout.js';
-import { imageOverCap, mediaSizeProblem } from '#lib/domain/media-limits.js';
+import { imageOverCap, imageTypeProblem, mediaSizeProblem } from '#lib/domain/media-limits.js';
 import {
 	mayUnscheduleOthers,
 	outcomeOfRow,
@@ -115,6 +115,30 @@ describe('imageOverCap', () => {
 		expect(mediaSizeProblem(['mastodon', 'bluesky'], media)).toBe(
 			"An image is over Bluesky's 2MB limit — remove it or uncheck Bluesky"
 		);
+	});
+});
+
+describe('imageTypeProblem', () => {
+	const of = (...mimes: string[]) => mimes.map((mime) => ({ mime }));
+
+	it('says what LinkedIn and Threads refuse when publishing', () => {
+		expect(imageTypeProblem('linkedin', of('image/png', 'image/webp'))).toBe(
+			"LinkedIn doesn't take WebP images"
+		);
+		expect(imageTypeProblem('threads', of('image/gif'))).toBe(
+			'Threads takes JPEG and PNG images only'
+		);
+		expect(imageTypeProblem('threads', of('image/webp'))).toBe(
+			'Threads takes JPEG and PNG images only'
+		);
+	});
+
+	it('passes what they take, videos, and every other platform', () => {
+		expect(imageTypeProblem('linkedin', of('image/jpeg', 'image/png', 'image/gif'))).toBeNull();
+		expect(imageTypeProblem('threads', of('image/jpeg', 'IMAGE/PNG', 'video/mp4'))).toBeNull();
+		for (const platform of ['bluesky', 'mastodon', 'x', 'instagram']) {
+			expect(imageTypeProblem(platform, of('image/webp', 'image/gif'))).toBeNull();
+		}
 	});
 });
 

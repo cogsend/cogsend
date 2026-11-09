@@ -180,6 +180,25 @@ export function imageOverCap(
 	return null;
 }
 
+/**
+ * The first image `platform` would refuse for its file type, said plainly. The
+ * providers refuse the same images when publishing (linkedin.ts, threads.ts);
+ * Instagram's rules, which a JPEG copy can satisfy, are checked on their own.
+ */
+export function imageTypeProblem(platform: string, media: { mime: string }[]): string | null {
+	for (const m of media) {
+		const mime = (m.mime || '').toLowerCase();
+		if (mime.startsWith('video/')) continue;
+		if (platform === 'linkedin' && mime === 'image/webp') {
+			return "LinkedIn doesn't take WebP images";
+		}
+		if (platform === 'threads' && mime !== 'image/jpeg' && mime !== 'image/png') {
+			return 'Threads takes JPEG and PNG images only';
+		}
+	}
+	return null;
+}
+
 /** An attachment as far as Instagram's rules care. */
 export interface InstagramMediaFacts {
 	mime: string;
