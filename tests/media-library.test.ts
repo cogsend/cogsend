@@ -1,7 +1,15 @@
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId, type AppDb } from '#lib/server/db/client.js';
-import { draftMedia, drafts, users } from '#lib/server/db/schema.js';
+import { connections, draftMedia, drafts, publishTargets, users } from '#lib/server/db/schema.js';
 import { createTestDb, createTestMedia } from '#lib/server/db/test.js';
+import type { MediaStore } from '#lib/server/media.js';
+import { DELETE as draftDELETE } from '../src/routes/api/drafts/[id]/+server';
+import {
+	PATCH as mediaPATCH,
+	POST as mediaPOST
+} from '../src/routes/api/drafts/[id]/media/+server';
+import { POST as reusePOST } from '../src/routes/api/drafts/[id]/media/reuse/+server';
 import { GET as libraryGET } from '../src/routes/api/media/+server';
 
 const keyOf = (n: number, ext = 'png') =>
@@ -14,9 +22,9 @@ describe('your media', () => {
 	let otherUserId: string;
 	const store = createTestMedia();
 
-	const localsFor = (id = userId) => ({
+	const localsFor = (id = userId, media: MediaStore = store) => ({
 		db,
-		media: store,
+		media,
 		user: { id, email: 'lib@localhost', timezone: 'UTC', totpEnabled: true, mfaVerified: true }
 	});
 
@@ -167,11 +175,292 @@ describe('your media', () => {
 			const only = await addDraft();
 			await attach(only, keyOf(20), { at: 20_000 });
 			expect((await list()).body.items[0].storageKey).toBe(keyOf(20));
-			const { eq } = await import('drizzle-orm');
 			await db.delete(drafts).where(eq(drafts.id, only));
 			expect(
 				(await list()).body.items.map((i: { storageKey: string }) => i.storageKey)
 			).not.toContain(keyOf(20));
+		});
+	});
+
+	describe('attaching a file again', () => {
+		const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+		const MP4 = new Uint8Array([0, 0, 0, 8, 0x66, 0x74, 0x79, 0x70]);
+		let next = 100;
+
+		/** A file in R2 that `draftId` already uses. */
+		async function stored(
+			draftId: string,
+			opts: { mime?: string; alt?: string | null; meta?: object; segmentIndex?: number } = {}
+		) {
+			const video = (opts.mime ?? '').startsWith('video/');
+			const key = keyOf(next++, video ? 'mp4' : 'png');
+			await store.put(key, video ? MP4 : PNG, opts.mime ?? 'image/png');
+			await attach(draftId, key, { at: Date.now(), ...opts });
+			return key;
+		}
+
+		async function reuse(
+			draftId: string,
+			body: unknown,
+			opts: { owner?: string; media?: MediaStore } = {}
+		) {
+			const res = (await reusePOST({
+				params: { id: draftId },
+				request: new Request('http://localhost/api/drafts/x/media/reuse', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: typeof body === 'string' ? body : JSON.stringify(body)
+				}),
+				locals: localsFor(opts.owner, opts.media)
+			} as never)) as Response;
+			return { status: res.status, body: await res.json() };
+		}
+
+		const rowsOf = (draftId: string) =>
+			db.select().from(draftMedia).where(eq(draftMedia.draftId, draftId));
+
+		it('attaches the file with what its newest use knows, and stores nothing new', async () => {
+			const source = await addDraft();
+			const key = await stored(source, { alt: 'a red door', meta: { preview: { v: 3 } } });
+			const target = await addDraft();
+
+			const { status, body } = await reuse(target, { storageKey: key, segmentIndex: 1 });
+			expect(status).toBe(201);
+			expect(body.media).toMatchObject({
+				draftId: target,
+				storageKey: key,
+				mime: 'image/png',
+				size: 8,
+				width: 10,
+				height: 10,
+				altText: 'a red door',
+				segmentIndex: 1,
+				sortOrder: 0,
+				meta: { preview: { v: 3 } }
+			});
+			expect(await store.size!(key)).toBe(PNG.length);
+			const [sourceRow] = await rowsOf(source);
+			expect(body.media.id).not.toBe(sourceRow.id);
+		});
+
+		it('keeps alt text to each post', async () => {
+			const source = await addDraft();
+			const key = await stored(source, { alt: 'original' });
+			const target = await addDraft();
+			const { body } = await reuse(target, { storageKey: key, altText: '  for this post  ' });
+			expect(body.media.altText).toBe('for this post');
+
+			const res = (await mediaPATCH({
+				params: { id: target },
+				request: new Request('http://localhost/api/drafts/x/media', {
+					method: 'PATCH',
+					body: JSON.stringify({ mediaId: body.media.id, altText: 'changed here only' })
+				}),
+				locals: localsFor()
+			} as never)) as Response;
+			expect(res.status).toBe(200);
+			expect((await rowsOf(source))[0].altText).toBe('original');
+
+			const cleared = await reuse(await addDraft(), { storageKey: key, altText: null });
+			expect(cleared.body.media.altText).toBeNull();
+		});
+
+		it('puts the file after what the card already has', async () => {
+			const source = await addDraft();
+			const a = await stored(source);
+			const b = await stored(source);
+			const target = await addDraft();
+			await reuse(target, { storageKey: a });
+			const { body } = await reuse(target, { storageKey: b });
+			expect(body.media.sortOrder).toBe(1);
+		});
+
+		it("refuses a file that is not in one of the user's own posts", async () => {
+			const theirs = await addDraft(otherUserId);
+			const theirKey = await stored(theirs);
+			const target = await addDraft();
+			expect(await reuse(target, { storageKey: theirKey })).toMatchObject({ status: 404 });
+			expect(await reuse(target, { storageKey: keyOf(99_999) })).toMatchObject({ status: 404 });
+
+			const legacy = await addDraft();
+			await store.put('legacy-key-2', PNG, 'image/png');
+			await attach(legacy, 'legacy-key-2', { at: Date.now() });
+			expect(await reuse(target, { storageKey: 'legacy-key-2' })).toMatchObject({ status: 404 });
+			expect(await rowsOf(target)).toHaveLength(0);
+		});
+
+		it("refuses another account's post as the target", async () => {
+			const source = await addDraft();
+			const key = await stored(source);
+			const theirs = await addDraft(otherUserId);
+			expect(await reuse(theirs, { storageKey: key })).toMatchObject({ status: 404 });
+			expect(await rowsOf(theirs)).toHaveLength(0);
+		});
+
+		it('refuses a body without a key', async () => {
+			const target = await addDraft();
+			expect((await reuse(target, {})).status).toBe(400);
+			expect((await reuse(target, 'not json')).status).toBe(400);
+			expect((await reuse(target, [1])).status).toBe(400);
+		});
+
+		it('keeps a video alone on its card', async () => {
+			const source = await addDraft();
+			const image = await stored(source);
+			const video = await stored(source, { mime: 'video/mp4', meta: { durationMs: 4000 } });
+
+			const withImage = await addDraft();
+			await reuse(withImage, { storageKey: image });
+			const videoOnImage = await reuse(withImage, { storageKey: video });
+			expect(videoOnImage).toMatchObject({
+				status: 400,
+				body: { error: 'Videos cannot mix with images on the same post' }
+			});
+
+			const withVideo = await addDraft();
+			expect((await reuse(withVideo, { storageKey: video })).status).toBe(201);
+			expect(await reuse(withVideo, { storageKey: image })).toMatchObject({
+				status: 400,
+				body: { error: 'Videos cannot mix with images on the same post' }
+			});
+			expect(await reuse(withVideo, { storageKey: video })).toMatchObject({
+				status: 400,
+				body: { error: 'Only one video per post' }
+			});
+			// The next card is free.
+			expect((await reuse(withVideo, { storageKey: image, segmentIndex: 1 })).status).toBe(201);
+		});
+
+		it('holds a card to four images and a post to its cards', async () => {
+			const source = await addDraft();
+			const key = await stored(source);
+			const target = await addDraft();
+			for (let i = 0; i < 4; i++) {
+				expect((await reuse(target, { storageKey: key })).status).toBe(201);
+			}
+			expect(await reuse(target, { storageKey: key })).toMatchObject({
+				status: 400,
+				body: { error: 'Max 4 images per post' }
+			});
+			expect((await reuse(target, { storageKey: key, segmentIndex: 2 })).status).toBe(400);
+			expect(await rowsOf(target)).toHaveLength(4);
+		});
+
+		it('holds a post to its file limit', async () => {
+			const source = await addDraft();
+			const key = await stored(source);
+			const target = await addDraft(
+				userId,
+				Array.from({ length: 40 }, (_, i) => `p${i}`).join('\n\n---\n\n')
+			);
+			for (let i = 0; i < 32; i++) {
+				await attach(target, keyOf(50_000 + i), { at: 1, segmentIndex: Math.floor(i / 4) });
+			}
+			expect(await reuse(target, { storageKey: key, segmentIndex: 39 })).toMatchObject({
+				status: 413,
+				body: { error: 'Max 32 files per draft' }
+			});
+		});
+
+		it('works with the account at its file limit, since nothing new is stored', async () => {
+			const owner = await addUser('full@localhost');
+			const full = await addDraft(owner);
+			const rows = Array.from({ length: 1000 }, (_, i) => ({
+				id: newId(),
+				draftId: full,
+				storageKey: keyOf(200_000 + i),
+				mime: 'image/png',
+				size: 8,
+				sortOrder: i,
+				segmentIndex: 0,
+				createdAt: new Date(1)
+			}));
+			for (let i = 0; i < rows.length; i += 100) {
+				await db.insert(draftMedia).values(rows.slice(i, i + 100));
+			}
+			const key = keyOf(200_000);
+			await store.put(key, PNG, 'image/png');
+			const target = await addDraft(owner);
+
+			const form = new FormData();
+			form.append('files', new File([PNG], 'new.png', { type: 'image/png' }));
+			const upload = (await mediaPOST({
+				params: { id: target },
+				request: new Request('http://localhost/api/drafts/x/media', { method: 'POST', body: form }),
+				locals: localsFor(owner)
+			} as never)) as Response;
+			expect(upload.status).toBe(413);
+			expect((await reuse(target, { storageKey: key }, { owner })).status).toBe(201);
+		});
+
+		it('refuses a post that is already published', async () => {
+			const source = await addDraft();
+			const key = await stored(source);
+			const target = await addDraft();
+			const connId = newId();
+			const now = new Date();
+			await db.insert(connections).values({
+				id: connId,
+				userId,
+				platform: 'mastodon',
+				handle: 'me@example.social',
+				credentialsEncrypted: 'enc',
+				status: 'active',
+				createdAt: now,
+				updatedAt: now
+			});
+			await db.insert(publishTargets).values({
+				id: newId(),
+				draftId: target,
+				connectionId: connId,
+				status: 'published',
+				remotePostId: 'remote-1',
+				attemptCount: 1,
+				createdAt: now,
+				updatedAt: now
+			});
+			expect((await reuse(target, { storageKey: key })).status).toBe(409);
+			expect(await rowsOf(target)).toHaveLength(0);
+		});
+
+		it('refuses a file that is no longer in storage', async () => {
+			const source = await addDraft();
+			const key = await stored(source);
+			await store.delete(key);
+			const target = await addDraft();
+			expect(await reuse(target, { storageKey: key })).toMatchObject({ status: 404 });
+			expect(await rowsOf(target)).toHaveLength(0);
+		});
+
+		it('takes back the attachment when the file goes while it is being attached', async () => {
+			const source = await addDraft();
+			const key = await stored(source);
+			const target = await addDraft();
+			let checks = 0;
+			const racing: MediaStore = {
+				...store,
+				size: async (k) => (++checks > 1 ? null : store.size!(k))
+			};
+			const res = await reuse(target, { storageKey: key }, { media: racing });
+			expect(res).toMatchObject({ status: 409 });
+			expect(await rowsOf(target)).toHaveLength(0);
+		});
+
+		it('keeps the file while any post uses it, and deletes it with the last', async () => {
+			const source = await addDraft();
+			const key = await stored(source);
+			const target = await addDraft();
+			await reuse(target, { storageKey: key });
+
+			const remove = async (id: string) =>
+				((await draftDELETE({ params: { id }, locals: localsFor() } as never)) as Response).status;
+			expect(await remove(source)).toBe(200);
+			expect(await store.size!(key)).toBe(PNG.length);
+			expect((await list()).body.items.map((i: { storageKey: string }) => i.storageKey)).toContain(
+				key
+			);
+			expect(await remove(target)).toBe(200);
+			expect(await store.size!(key)).toBeNull();
 		});
 	});
 });
