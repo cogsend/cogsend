@@ -40,6 +40,16 @@ export function draftExcerpt(body: string | null | undefined, max = 120): string
  * character cap alone would let grow far taller than a card should.
  */
 export function cardExcerpt(text: string | null | undefined, max = 500, maxLines = 8): string {
+	const { text: out, cut } = cardExcerptCut(text, max, maxLines);
+	return cut ? `${out}…` : out;
+}
+
+/** `cardExcerpt` before its "…", and whether anything was cut off. */
+export function cardExcerptCut(
+	text: string | null | undefined,
+	max = 500,
+	maxLines = 8
+): { text: string; cut: boolean } {
 	const body = (text || '')
 		.replace(/\r\n?/g, '\n')
 		.split('\n')
@@ -47,7 +57,7 @@ export function cardExcerpt(text: string | null | undefined, max = 500, maxLines
 		.join('\n')
 		.replace(/\n{3,}/g, '\n\n')
 		.trim();
-	if (!body) return 'Empty draft';
+	if (!body) return { text: 'Empty draft', cut: false };
 	const lines = body.split('\n');
 	let out = lines.length > maxLines ? lines.slice(0, maxLines).join('\n').trimEnd() : body;
 	let cut = out !== body;
@@ -56,5 +66,5 @@ export function cardExcerpt(text: string | null | undefined, max = 500, maxLines
 		out = chars.slice(0, max).join('').trimEnd();
 		cut = true;
 	}
-	return cut ? `${out}…` : out;
+	return { text: out, cut };
 }

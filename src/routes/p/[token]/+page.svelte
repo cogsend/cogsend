@@ -1,5 +1,7 @@
 <script lang="ts">
 	import MediaPreview from '#lib/components/MediaPreview.svelte';
+	import LinkedText from '#lib/components/LinkedText.svelte';
+	import { linkParts } from '#lib/domain/linkify.js';
 	import { formatRelativeTime } from '#lib/domain/relative-time.js';
 
 	let { data } = $props();
@@ -58,7 +60,7 @@
 					>
 						{#if card.text}
 							<p class="text-[15px] leading-relaxed font-medium break-words whitespace-pre-wrap">
-								{card.text}
+								<LinkedText parts={linkParts(card.text)} />
 							</p>
 						{/if}
 						{#if card.media.length}

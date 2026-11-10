@@ -18,11 +18,13 @@
 	} from '@lucide/svelte';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import MediaPreview from '#lib/components/MediaPreview.svelte';
+	import LinkedText from '#lib/components/LinkedText.svelte';
 	import { markPublishSeen, publishActivity } from '#lib/components/publish-tracker.svelte.js';
 	import { platformColorClass } from '#lib/components/platform-color.js';
 	import SocialIcon from '#lib/components/SocialIcon.svelte';
 	import { displayHandle, platformName, platformRank } from '#lib/domain/platforms.js';
-	import { cardExcerpt, draftExcerpt } from '#lib/domain/excerpt.js';
+	import { draftExcerpt } from '#lib/domain/excerpt.js';
+	import { cardParts } from '#lib/domain/linkify.js';
 	import { safeHttpUrl } from '#lib/domain/links.js';
 	import { parseXPostUrl } from '#lib/domain/x-quote.js';
 	import { humanizeError } from '#lib/domain/human-error.js';
@@ -1312,7 +1314,7 @@
 					<p
 						class="mb-5 text-[14px] leading-relaxed font-medium break-words whitespace-pre-wrap text-stone-800"
 					>
-						{cardExcerpt(card.posts[0].text)}
+						<LinkedText parts={cardParts(card.posts[0].text)} />
 					</p>
 
 					{#if card.media.length > 0}
@@ -1335,7 +1337,7 @@
 						<p
 							class="mb-5 text-[14px] leading-relaxed font-medium break-words whitespace-pre-wrap text-stone-800"
 						>
-							{cardExcerpt(lead.text)}
+							<LinkedText parts={cardParts(lead.text)} />
 						</p>
 					{/if}
 					{#if leadMedia.length > 0}
@@ -1363,7 +1365,7 @@
 										<p
 											class="text-[14px] leading-relaxed font-medium break-words whitespace-pre-wrap text-stone-800"
 										>
-											{cardExcerpt(post.text)}
+											<LinkedText parts={cardParts(post.text)} />
 										</p>
 									{/if}
 									{#if postMedia.length > 0}
