@@ -33,7 +33,7 @@ test('a thread on Posts shows its first post, opens to the rest and follows the 
 			headers
 		});
 		expect(upload.ok(), await upload.text()).toBe(true);
-		await draft(`single ${tag}\n\n\n\nafter the gap`);
+		await draft(`single ${tag}\n\n\n\nafter the gap: https://example.com/x and cogsend.com.`);
 
 		await page.reload();
 		const card = page.getByTestId('post-card').filter({ hasText: `lead ${tag}` });
@@ -82,7 +82,14 @@ test('a thread on Posts shows its first post, opens to the rest and follows the 
 		// Line breaks show as written, with a run of blank lines kept to one.
 		await expect
 			.poll(() => single.locator('p', { hasText: 'after the gap' }).innerText())
-			.toBe(`single ${tag}\n\nafter the gap`);
+			.toBe(`single ${tag}\n\nafter the gap: https://example.com/x and cogsend.com.`);
+		// Its links open in a new tab, including one typed without https://.
+		const links = single.getByTestId('post-link');
+		await expect(links).toHaveText(['https://example.com/x', 'cogsend.com']);
+		await expect(links.nth(0)).toHaveAttribute('href', 'https://example.com/x');
+		await expect(links.nth(1)).toHaveAttribute('href', 'https://cogsend.com');
+		await expect(links.nth(1)).toHaveAttribute('target', '_blank');
+		await expect(links.nth(1)).toHaveAttribute('rel', 'noopener noreferrer nofollow');
 	} finally {
 		for (const id of created) await page.request.delete(`/api/drafts/${id}`, { headers });
 	}

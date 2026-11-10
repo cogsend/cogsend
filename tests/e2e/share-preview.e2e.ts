@@ -44,10 +44,16 @@ test('a preview link shows the saved draft to anyone until it is turned off', as
 
 	// The owner keeps writing; the next visit shows it.
 	await page.keyboard.press('Escape');
-	await fillUntilKept(card, `${PREFIX} second version`);
+	await fillUntilKept(card, `${PREFIX} second version, see cogsend.com`);
 	await expect(page.getByTestId('save-status')).toHaveText('Saved', { timeout: 15000 });
 	await viewer.reload();
-	await expect(viewer.getByTestId('share-card-0')).toHaveText(`${PREFIX} second version`);
+	await expect(viewer.getByTestId('share-card-0')).toHaveText(
+		`${PREFIX} second version, see cogsend.com`
+	);
+	await expect(viewer.getByTestId('share-card-0').getByTestId('post-link')).toHaveAttribute(
+		'href',
+		'https://cogsend.com'
+	);
 
 	// Reopening the panel shows the same link rather than making another.
 	await clickUntilVisible(page, page.getByTestId('share-toggle'), page.getByTestId('share-panel'));
