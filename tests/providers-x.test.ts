@@ -461,3 +461,24 @@ describe('xProvider.refreshIfNeeded', () => {
 		).rejects.toMatchObject({ status: 401 });
 	});
 });
+
+describe('xWeightedLength with a link typed without https://', () => {
+	it('counts it as 23 like X, or as typed when longer, never less than X', () => {
+		expect(xWeightedLength('cogsend.com')).toBe(23);
+		expect(xWeightedLength('see cogsend.com.')).toBe(4 + 23 + 1);
+		const long = 'cogsend.com/docs/posts-and-insights';
+		expect(xWeightedLength(long)).toBe(long.length);
+	});
+
+	it('leaves what is not a link as typed, and an https link at 23', () => {
+		expect(xWeightedLength('cogsend. com')).toBe(12);
+		expect(xWeightedLength('node.js me@cogsend.com')).toBe(22);
+		expect(xWeightedLength('https://cogsend.com and cogsend.com')).toBe(23 + 5 + 23);
+	});
+
+	it('refuses a post near 280 once a bare domain counts as 23', () => {
+		const text = `${'a'.repeat(265)} cogsend.com`;
+		expect(text.length).toBe(277);
+		expect(validateXText(text).ok).toBe(false);
+	});
+});

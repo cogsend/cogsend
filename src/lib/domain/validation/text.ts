@@ -1,6 +1,7 @@
 import { utf8ByteLength } from '../bytes';
 import { blueskyRichText, type BlueskyLinkStyle } from '../bluesky-links';
 import { cleanUrl } from '../links';
+import { findRichText } from '../rich-text';
 import { splitThreadSegments } from '../thread-segments';
 
 export function countGraphemes(text: string): number {
@@ -214,22 +215,40 @@ function xTextWeight(text: string): number {
  * are 2 per code point. A grapheme count would block posts with long links that
  * X takes, and pass CJK posts that X refuses at publish.
  *
- * A link typed without a scheme (`example.com`) is counted as typed: X only
- * links those for its own list of top-level domains.
+ * A link typed without a scheme (`example.com`) counts as 23 too, or as typed
+ * when longer: X links those for its own list of top-level domains, which is
+ * close to but not the same as the one used here, so the count may come out a
+ * little over X's and never under it.
  */
 export function xWeightedLength(text: string): number {
 	if (!text) return 0;
 	const normalized = text.normalize('NFC');
+	const links: Array<{ start: number; end: number; weight: (typed: string) => number }> = [];
 	const re = /https?:\/\/[^\s]+/gi;
-	let weight = 0;
-	let last = 0;
 	let match: RegExpExecArray | null;
 	while ((match = re.exec(normalized)) !== null) {
 		// Trailing punctuation ("see this.") belongs to the sentence, not the link.
 		const url = cleanUrl(match[0]);
 		if (!/^https?:\/\/[^/]/i.test(url)) continue;
-		weight += xTextWeight(normalized.slice(last, match.index)) + X_URL_WEIGHT;
-		last = match.index + url.length;
+		links.push({ start: match.index, end: match.index + url.length, weight: () => X_URL_WEIGHT });
+	}
+	for (const entity of findRichText(normalized)) {
+		if (entity.type !== 'link' || !entity.bare) continue;
+		if (links.some((l) => entity.start < l.end && l.start < entity.end)) continue;
+		links.push({
+			start: entity.start,
+			end: entity.end,
+			weight: (typed) => Math.max(X_URL_WEIGHT, xTextWeight(typed))
+		});
+	}
+	links.sort((a, b) => a.start - b.start);
+	let weight = 0;
+	let last = 0;
+	for (const link of links) {
+		weight +=
+			xTextWeight(normalized.slice(last, link.start)) +
+			link.weight(normalized.slice(link.start, link.end));
+		last = link.end;
 	}
 	return weight + xTextWeight(normalized.slice(last));
 }
