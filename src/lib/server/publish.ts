@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { isLocalAppUrl } from '#lib/domain/app-url.js';
 import { safeHttpUrl } from '#lib/domain/links.js';
+import { blueskyMentionHandles, MAX_MENTION_LOOKUPS } from '#lib/domain/bluesky-links.js';
 import { LEASE_REFRESH_MS, STALE_CLAIM_MS } from '#lib/domain/due-jobs.js';
 import type { PublishResult } from '#lib/server/providers/types.js';
 import {
@@ -334,6 +335,11 @@ export function publishCallEstimate(platform: string, content: NormalizedPost): 
 			platformCalls += images.length + segments.length;
 			// A link card: page fetch (and a redirect), image fetch, blob upload.
 			platformCalls += segments.filter((s) => !(s.media ?? []).length && hasLink(s)).length * 4;
+			// A lookup per account mentioned, up to the provider's cap.
+			platformCalls += Math.min(
+				MAX_MENTION_LOOKUPS,
+				new Set(segments.flatMap((s) => blueskyMentionHandles(s.text || ''))).size
+			);
 			break;
 		case 'linkedin':
 			platformCalls += images.length * 2 + 1;

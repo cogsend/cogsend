@@ -1,9 +1,14 @@
 import { utf8ByteLength } from './bytes';
+import { findRichText } from './rich-text';
 import { isZernioConnection } from './zernio';
 
-export type BlueskyLinkFacet = {
+export type BlueskyFacet = {
 	index: { byteStart: number; byteEnd: number };
-	features: Array<{ $type: string; uri: string }>;
+	features: Array<
+		| { $type: 'app.bsky.richtext.facet#link'; uri: string }
+		| { $type: 'app.bsky.richtext.facet#tag'; tag: string }
+		| { $type: 'app.bsky.richtext.facet#mention'; did: string }
+	>;
 };
 
 /**
@@ -12,10 +17,6 @@ export type BlueskyLinkFacet = {
  * kept, an account's opt-in for posts with several long links.
  */
 export type BlueskyLinkStyle = 'full' | 'short' | 'compact';
-
-const LINK_RE = /https?:\/\/[^\s]+/gi;
-// Trailing punctuation belongs to the sentence (`see this.`), not the link.
-const TRAILING_PUNCT_RE = /[.,);:!?]+$/;
 
 /**
  * The text Bluesky's own app posts in place of a link (`toShortUrl` in
@@ -58,28 +59,55 @@ export function longestBlueskyLinkStyle(styles: BlueskyLinkStyle[]): BlueskyLink
 }
 
 /**
- * The record text and link facets for a post. Bluesky checks its 300 limit
- * against the record text, so unless `links` is `full` each link is posted
- * shorter, and its facet still points at the full URL.
+ * The record text and facets for a post: its links, hashtags and the mentions
+ * `mentions` resolved (handle to DID). Bluesky checks its 300 limit against the
+ * record text, so unless `links` is `full` each link is posted shorter, and its
+ * facet still points at the full URL. A link typed without `https://` keeps its
+ * text, as in Bluesky's app, and a mention nobody resolved stays plain text.
  */
 export function blueskyRichText(
 	text: string,
-	{ links }: { links: BlueskyLinkStyle }
-): { text: string; facets: BlueskyLinkFacet[] } {
-	const facets: BlueskyLinkFacet[] = [];
+	{ links, mentions }: { links: BlueskyLinkStyle; mentions?: ReadonlyMap<string, string> }
+): { text: string; facets: BlueskyFacet[] } {
+	const facets: BlueskyFacet[] = [];
 	let out = '';
 	let last = 0;
-	for (const match of text.matchAll(LINK_RE)) {
-		const url = match[0].replace(TRAILING_PUNCT_RE, '');
-		out += text.slice(last, match.index);
-		const shown = links === 'full' ? url : shortenBlueskyUrl(url, links);
+	for (const entity of findRichText(text)) {
+		let feature: BlueskyFacet['features'][number];
+		if (entity.type === 'link') {
+			feature = { $type: 'app.bsky.richtext.facet#link', uri: entity.uri };
+		} else if (entity.type === 'tag') {
+			feature = { $type: 'app.bsky.richtext.facet#tag', tag: entity.tag };
+		} else {
+			const did = mentions?.get(entity.handle);
+			if (!did) continue;
+			feature = { $type: 'app.bsky.richtext.facet#mention', did };
+		}
+		const typed = text.slice(entity.start, entity.end);
+		const shown =
+			entity.type === 'link' && !entity.bare && links !== 'full'
+				? shortenBlueskyUrl(entity.uri, links)
+				: typed;
+		out += text.slice(last, entity.start);
 		const byteStart = utf8ByteLength(out);
 		out += shown;
 		facets.push({
 			index: { byteStart, byteEnd: byteStart + utf8ByteLength(shown) },
-			features: [{ $type: 'app.bsky.richtext.facet#link', uri: url }]
+			features: [feature]
 		});
-		last = match.index + url.length;
+		last = entity.end;
 	}
 	return { text: out + text.slice(last), facets };
+}
+
+/**
+ * Mentions looked up per post. Each lookup is a call, and a request on Workers
+ * Free gets 50 for everything, so the rest go out as plain text.
+ */
+export const MAX_MENTION_LOOKUPS = 8;
+
+/** The handles a post mentions, lower-cased and unique, in order. */
+export function blueskyMentionHandles(text: string): string[] {
+	const handles = findRichText(text).flatMap((e) => (e.type === 'mention' ? [e.handle] : []));
+	return [...new Set(handles)];
 }

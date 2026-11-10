@@ -16,6 +16,7 @@ import { ensureSchemaOnce } from '#lib/server/db/init-sql.js';
 import { connections, drafts, publishTargets, users } from '#lib/server/db/schema.js';
 import { createTestDb, createTestMedia, TEST_ENV } from '#lib/server/db/test.js';
 import { publishCallEstimate, publishTarget, PUBLISH_RESERVE_CALLS } from '#lib/server/publish.js';
+import { MAX_MENTION_LOOKUPS } from '#lib/domain/bluesky-links.js';
 import { runSchedulerTick } from '#lib/server/scheduler.js';
 import type { FetchLike } from '#lib/server/providers/types.js';
 
@@ -114,6 +115,20 @@ describe('counting wrappers', () => {
 });
 
 describe('publishCallEstimate', () => {
+	it('adds a Bluesky lookup per account mentioned, up to the cap', () => {
+		const plain = publishCallEstimate('bluesky', { text: 'hi' });
+		expect(
+			publishCallEstimate('bluesky', {
+				text: '@a.bsky.social',
+				thread: [{ text: '@a.bsky.social @b.bsky.social' }, { text: '@A.bsky.social #tag' }]
+			})
+		).toBe(
+			publishCallEstimate('bluesky', { text: 'a', thread: [{ text: 'a' }, { text: 'b' }] }) + 2
+		);
+		const many = Array.from({ length: 12 }, (_, i) => `@u${i}.bsky.social`).join(' ');
+		expect(publishCallEstimate('bluesky', { text: many })).toBe(plain + MAX_MENTION_LOOKUPS);
+	});
+
 	const image = { mime: 'image/png', size: 1000, storageKey: 'k' };
 	it('grows with segments and attachments', () => {
 		const one = publishCallEstimate('mastodon', { text: 'hi' });

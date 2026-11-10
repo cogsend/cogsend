@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { blueskyRichText, shortenBlueskyUrl } from '#lib/domain/bluesky-links.js';
+import {
+	blueskyRichText,
+	MAX_MENTION_LOOKUPS,
+	shortenBlueskyUrl
+} from '#lib/domain/bluesky-links.js';
 import { blueskyTextLength, validateBlueskyText } from '#lib/domain/validation/text.js';
 import { blueskyProvider } from '#lib/server/providers/bluesky.js';
 import { zernioProviderFor } from '#lib/server/providers/zernio.js';
@@ -73,7 +77,7 @@ describe('blueskyRichText', () => {
 			{ links: 'short' }
 		);
 		expect(text).toBe('(see example.com/blog/2026/11...). Also bsky.app/3jk7x4irgv52..., ok');
-		expect(facets.map((f) => f.features[0].uri)).toEqual([
+		expect(facets.map((f) => (f.features[0] as { uri: string }).uri)).toEqual([
 			LONG_LINK,
 			'https://bsky.app/3jk7x4irgv52r2313y182h9'
 		]);
@@ -88,7 +92,7 @@ describe('blueskyRichText', () => {
 		const { text, facets } = blueskyRichText(typed, { links: 'full' });
 		expect(text).toBe(typed);
 		expect(facetText(text, facets[0])).toBe(LONG_LINK);
-		expect(facets[0].features[0].uri).toBe(LONG_LINK);
+		expect((facets[0].features[0] as { uri: string }).uri).toBe(LONG_LINK);
 	});
 
 	it('changes nothing in a post without links', () => {
@@ -155,5 +159,145 @@ describe('publishing a link to Bluesky', () => {
 			}
 		]);
 		expect(posted.embed?.external?.uri).toBe(LONG_LINK);
+	});
+});
+
+describe('Bluesky hashtags, mentions and links without https://', () => {
+	const DID = 'did:plc:alice';
+
+	it('tags hashtags and links a bare domain, keeping its text', () => {
+		const { text, facets } = blueskyRichText('new #release at cogsend.com today', {
+			links: 'short'
+		});
+		expect(text).toBe('new #release at cogsend.com today');
+		expect(facets.map((f) => [facetText(text, f), f.features[0]])).toEqual([
+			['#release', { $type: 'app.bsky.richtext.facet#tag', tag: 'release' }],
+			['cogsend.com', { $type: 'app.bsky.richtext.facet#link', uri: 'https://cogsend.com' }]
+		]);
+	});
+
+	it('mentions only a handle that was resolved', () => {
+		const typed = 'thanks @alice.bsky.social and @bob.bsky.social';
+		const mentions = new Map([['alice.bsky.social', DID]]);
+		const { text, facets } = blueskyRichText(typed, { links: 'short', mentions });
+		expect(text).toBe(typed);
+		expect(facets.map((f) => [facetText(text, f), f.features[0]])).toEqual([
+			['@alice.bsky.social', { $type: 'app.bsky.richtext.facet#mention', did: DID }]
+		]);
+		expect(blueskyRichText(typed, { links: 'short' }).facets).toEqual([]);
+	});
+
+	it('places tags and mentions after a shortened link on the posted text', () => {
+		const mentions = new Map([['alice.bsky.social', DID]]);
+		const { text, facets } = blueskyRichText(`👋 ${LONG_LINK} #news @alice.bsky.social`, {
+			links: 'short',
+			mentions
+		});
+		expect(text).toBe('👋 example.com/blog/2026/11... #news @alice.bsky.social');
+		expect(facets.map((f) => facetText(text, f))).toEqual([
+			'example.com/blog/2026/11...',
+			'#news',
+			'@alice.bsky.social'
+		]);
+	});
+
+	it('counts the same length as before: tags, mentions and bare domains are posted as typed', () => {
+		const post = 'a #tag @alice.bsky.social cogsend.com/a/very/long/path/that/stays';
+		expect(blueskyTextLength(post, { links: 'short' })).toBe(post.length);
+	});
+});
+
+describe('resolving Bluesky mentions when publishing', () => {
+	type Posted = { text: string; facets?: Array<{ features: Array<Record<string, string>> }> };
+
+	function pds(handles: Record<string, string | number>) {
+		const posted: Posted[] = [];
+		const lookups: string[] = [];
+		const fetchImpl: FetchLike = async (input, init) => {
+			const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+			if (url.includes('createSession')) {
+				return Response.json({ accessJwt: 'a', refreshJwt: 'r', did: 'did:plc:x', handle: 'x' });
+			}
+			if (url.includes('resolveHandle')) {
+				const handle = new URL(url).searchParams.get('handle')!;
+				lookups.push(handle);
+				const answer = handles[handle];
+				if (answer === undefined)
+					return Response.json({ error: 'InvalidRequest' }, { status: 400 });
+				if (typeof answer === 'number') throw new Error('network down');
+				return Response.json({ did: answer });
+			}
+			if (url.includes('createRecord')) {
+				posted.push((JSON.parse(String(init?.body)) as { record: Posted }).record);
+				return Response.json({
+					uri: `at://did:plc:x/app.bsky.feed.post/${posted.length}`,
+					cid: 'c'
+				});
+			}
+			return new Response('not mocked', { status: 404 });
+		};
+		return { fetchImpl, posted, lookups };
+	}
+
+	const mentionDids = (post: Posted) =>
+		(post.facets ?? []).flatMap((f) => f.features.map((x) => x.did).filter(Boolean));
+
+	it('links a mention that resolves and leaves the others as text, without failing', async () => {
+		const { fetchImpl, posted } = pds({
+			'alice.bsky.social': 'did:plc:alice',
+			'down.example.com': 0
+		});
+		const result = await blueskyProvider.publish(
+			{ text: 'hi @alice.bsky.social @ghost.bsky.social @down.example.com' },
+			{ handle: 'x', appPassword: 'p' },
+			undefined,
+			fetchImpl
+		);
+		expect(result.remotePostId).toBeTruthy();
+		expect(mentionDids(posted[0])).toEqual(['did:plc:alice']);
+	});
+
+	it('looks each handle up once for a whole thread, before posting anything', async () => {
+		const { fetchImpl, posted, lookups } = pds({ 'alice.bsky.social': 'did:plc:alice' });
+		await blueskyProvider.publish(
+			{
+				text: 'one @alice.bsky.social',
+				thread: [{ text: 'one @alice.bsky.social' }, { text: 'two @Alice.bsky.social' }]
+			},
+			{ handle: 'x', appPassword: 'p' },
+			undefined,
+			fetchImpl
+		);
+		expect(lookups).toEqual(['alice.bsky.social']);
+		expect(posted.map(mentionDids)).toEqual([['did:plc:alice'], ['did:plc:alice']]);
+	});
+
+	it('stops looking up after the cap, and skips lookups when calls are short', async () => {
+		const handles = Object.fromEntries(
+			Array.from({ length: 10 }, (_, i) => [`u${i}.bsky.social`, `did:plc:u${i}`])
+		);
+		const text = Object.keys(handles)
+			.map((h) => `@${h}`)
+			.join(' ');
+		const many = pds(handles);
+		await blueskyProvider.publish(
+			{ text },
+			{ handle: 'x', appPassword: 'p' },
+			undefined,
+			many.fetchImpl
+		);
+		expect(many.lookups).toHaveLength(MAX_MENTION_LOOKUPS);
+		expect(mentionDids(many.posted[0])).toHaveLength(MAX_MENTION_LOOKUPS);
+
+		const short = pds(handles);
+		await blueskyProvider.publish(
+			{ text },
+			{ handle: 'x', appPassword: 'p' },
+			undefined,
+			short.fetchImpl,
+			{ callsLeft: () => 12 }
+		);
+		expect(short.lookups).toEqual([]);
+		expect(short.posted[0].text).toBe(text);
 	});
 });

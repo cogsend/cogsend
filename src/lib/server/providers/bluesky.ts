@@ -5,8 +5,10 @@ import { isBlockedInstanceHost } from '#lib/domain/instance-host.js';
 import { validateBlueskyText } from '#lib/domain/validation/text.js';
 import {
 	blueskyLinkStyleFor,
+	blueskyMentionHandles,
 	blueskyRichText,
-	type BlueskyLinkFacet,
+	MAX_MENTION_LOOKUPS,
+	type BlueskyFacet,
 	type BlueskyLinkStyle
 } from '#lib/domain/bluesky-links.js';
 import { BLUESKY_MAX_IMAGE_BYTES } from '#lib/domain/media-limits.js';
@@ -172,7 +174,7 @@ async function createPostRecord(
 	post: {
 		text: string;
 		createdAt: string;
-		facets?: BlueskyLinkFacet[];
+		facets?: BlueskyFacet[];
 		embed?: unknown;
 		reply?: { root: { uri: string; cid: string }; parent: { uri: string; cid: string } };
 	},
@@ -471,6 +473,42 @@ async function uploadVideo(
 	throw processingError('Bluesky', { segment: segmentIndex, storageKey, state: { jobId } });
 }
 
+const MENTION_LOOKUP_MS = 5_000;
+// Calls the post itself still needs after the lookups (records, uploads).
+const MENTION_CALL_MARGIN = 10;
+
+/**
+ * The DIDs of the accounts a thread mentions, for its mention facets. A handle
+ * that fails to resolve, or is past the cap, is left out and its mention goes
+ * out as plain text, as in Bluesky's app: a mention never fails a post.
+ */
+export async function resolveMentionDids(
+	creds: ConnectionCredentials,
+	texts: string[],
+	fetchImpl: FetchLike,
+	callsLeft: () => number = () => Infinity
+): Promise<Map<string, string>> {
+	const dids = new Map<string, string>();
+	const handles = [...new Set(texts.flatMap(blueskyMentionHandles))].slice(0, MAX_MENTION_LOOKUPS);
+	if (!handles.length || callsLeft() < handles.length + MENTION_CALL_MARGIN) return dids;
+	await Promise.all(
+		handles.map(async (handle) => {
+			try {
+				const res = await fetchImpl(
+					`${pds(creds)}/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(handle)}`,
+					{ signal: AbortSignal.timeout(MENTION_LOOKUP_MS) }
+				);
+				if (!res.ok) return;
+				const { did } = (await res.json()) as { did?: unknown };
+				if (typeof did === 'string' && did.startsWith('did:')) dids.set(handle, did);
+			} catch {
+				// Unresolved: the mention stays plain text.
+			}
+		})
+	);
+	return dids;
+}
+
 async function publishOne(
 	content: NormalizedPost,
 	creds: ConnectionCredentials,
@@ -478,7 +516,8 @@ async function publishOne(
 	reply?: { root: { uri: string; cid: string }; parent: { uri: string; cid: string } },
 	rkey?: string,
 	video?: { segmentIndex: number; opts: PublishOpts },
-	links: BlueskyLinkStyle = 'short'
+	links: BlueskyLinkStyle = 'short',
+	mentions?: ReadonlyMap<string, string>
 ): Promise<{ uri?: string; cid?: string }> {
 	let session = await ensureSession(creds, fetchImpl);
 	const media = content.media ?? [];
@@ -520,7 +559,7 @@ async function publishOne(
 		}
 	}
 	// The link card above reads the full URL; the record gets the shorter text.
-	const { text, facets } = blueskyRichText(content.text || '', { links });
+	const { text, facets } = blueskyRichText(content.text || '', { links, mentions });
 	try {
 		return await createPostRecord(
 			session,
@@ -646,6 +685,15 @@ export const blueskyProvider: PlatformProvider = {
 			? { uri: segmentIds[segmentIds.length - 1], cid: cidAt(segmentCids.length - 1) }
 			: null;
 
+		// Before the first record, so running short of calls can only cost the
+		// mentions their links, never a half-posted thread.
+		const mentions = await resolveMentionDids(
+			creds,
+			segments.slice(startAt).map((s) => s.text || ''),
+			fetchImpl,
+			opts?.callsLeft
+		);
+
 		for (let i = startAt; i < segments.length; i++) {
 			try {
 				const reply = root && parent ? { root, parent } : undefined;
@@ -663,7 +711,8 @@ export const blueskyProvider: PlatformProvider = {
 						segmentIndex: i,
 						opts
 					},
-					links
+					links,
+					mentions
 				);
 				// The count matters even when the ids are missing: the checkpoint
 				// is what stops a retry from reposting a segment.

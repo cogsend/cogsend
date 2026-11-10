@@ -53,7 +53,10 @@ describe('compact Bluesky links', () => {
 			'marktisdaleart.etsy.com/...',
 			'linktr.ee/markonart'
 		]);
-		expect(facets.map((f) => f.features[0].uri)).toEqual([ETSY, 'https://linktr.ee/markonart']);
+		expect(facets.map((f) => (f.features[0] as { uri: string }).uri)).toEqual([
+			ETSY,
+			'https://linktr.ee/markonart'
+		]);
 	});
 
 	it('takes each account’s style from its meta, Zernio always in full', () => {
