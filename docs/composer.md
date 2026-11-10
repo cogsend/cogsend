@@ -17,9 +17,11 @@ To start another post mid-thought, press **Write** at the top right. It saves th
 
 ## A thread is a list of cards
 
-Each card is one post, with its own character counter and its own images. The counter uses the strictest limit among the accounts you picked, counted the way that platform counts: graphemes for most, while Mastodon and X count every link as 23 characters, and X also counts CJK characters and each emoji as 2.
+Each card is one post, with its own character counter and its own images. The counter uses the strictest limit among the accounts you picked, counted the way that platform counts: graphemes for most, while Mastodon and X count every link starting with `https://` or `http://` as 23 characters. X also counts an address typed without either, such as `cogsend.com`, as at least 23, and counts CJK characters and each emoji as 2.
 
 Bluesky posts a link the way its own app does: the post shows the site and the start of the path, such as `example.com/blog/2026/11...`, and the link still opens the full address. The counter counts that shorter text, so a long link no longer uses up most of Bluesky's 300 characters. An account with [compact links](accounts.md#compact-links-on-bluesky) on shows only the site, `example.com/...`. A post going to several Bluesky accounts is counted for the one whose links come out longest, so it fits on all of them. A Bluesky account connected through [Zernio](zernio.md) gets the link as typed, and counts it in full.
+
+A Bluesky account connected directly also links what Bluesky's own app links: `#hashtags`, an address typed without `https://` such as `cogsend.com`, which keeps the text you typed, and `@mentions` of a handle such as `@alice.bsky.social`, which notify that account. A handle that doesn't exist stays plain text, as do mentions past the eighth in a post.
 
 - **+ Thread** adds a card; the × on a card removes it.
 - Type `---` in a card to split it there. The text after the marker moves into a

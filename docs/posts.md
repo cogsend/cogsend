@@ -12,7 +12,7 @@ the address, so reloading or sharing the link keeps them, and coming back from
 editing a post returns you to the same tab, account and search. Every card shows
 the accounts it goes to, the text, its images or video, and when: **Will publish** with the time in
 your own timezone and how far away it is, **Due** once that time has passed, **Started** while it is being sent, or **Published**, or when a draft was
-last edited. A video shows its cover and loads only when you press play.
+last edited. A link in the text opens in a new tab, here and on a [preview link](#preview-links). A video shows its cover and loads only when you press play.
 
 A thread shows its first post with its images, and **N more posts in this thread** under it. Pressing that lists the rest in order, each with its own text and images, and **Show less** folds them away again. A search that matches only a later post opens the thread so you can see the match.
 
