@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { replaceState } from '$app/navigation';
+	import { page } from '$app/state';
 	import { ChartColumn, X } from '@lucide/svelte';
 	import AccountAvatar from '#lib/components/AccountAvatar.svelte';
 	import { humanizeError } from '#lib/domain/human-error.js';
 	import { sessionExpiredIfUnauthorized } from '#lib/components/session-expired.js';
 	import { displayHandle, platformName } from '#lib/domain/platforms.js';
-	import { formatRelativeTime } from '#lib/domain/relative-time.js';
+	import { formatFullLocalWithZone, formatRelativeTime } from '#lib/domain/relative-time.js';
 	import { browserTimeZone } from '#lib/domain/time-zone.js';
 
 	type Range = 7 | 30 | 90;
@@ -113,6 +115,11 @@
 	function pickRange(next: Range) {
 		if (next === range) return;
 		range = next;
+		// The address keeps the range, so a reload or a shared link shows it.
+		const url = new URL(page.url.href);
+		if (next === 30) url.searchParams.delete('days');
+		else url.searchParams.set('days', String(next));
+		replaceState(url, page.state);
 		void load(next);
 	}
 
@@ -143,8 +150,14 @@
 	});
 
 	const totalAttempts = $derived((stats?.totals.published ?? 0) + (stats?.totals.failed ?? 0));
+	// Connected accounts are listed even when idle, so they alone are not
+	// activity: with nothing sent in either period and nothing waiting, the
+	// page says how to start instead of drawing rows of zeros.
 	const hasActivity = $derived(
-		totalAttempts > 0 || (stats?.totals.scheduled ?? 0) > 0 || (stats?.accounts.length ?? 0) > 0
+		totalAttempts > 0 ||
+			(stats?.totals.scheduled ?? 0) > 0 ||
+			(stats?.previous.published ?? 0) + (stats?.previous.failed ?? 0) > 0 ||
+			(stats?.accounts.some((a) => a.lastPublishedAt !== null) ?? false)
 	);
 
 	function countDelta(current: number, previous: number): string {
@@ -459,6 +472,20 @@
 			<p class="max-w-sm text-[13px] leading-relaxed font-medium text-stone-500">
 				Publish a few posts and their delivery stats will show up here.
 			</p>
+			<div class="mt-6 flex flex-wrap justify-center gap-2">
+				<a
+					href="/compose"
+					class="inline-flex rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white transition-all hover:bg-stone-800"
+					>Write a post</a
+				>
+				{#if stats.accounts.length === 0}
+					<a
+						href="/accounts"
+						class="inline-flex rounded-full border border-stone-300 bg-white px-6 py-2.5 text-[13px] font-bold text-stone-900 transition-all hover:bg-stone-100"
+						>Connect an account</a
+					>
+				{/if}
+			</div>
 		</div>
 	{:else if stats}
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="insights-stats">
@@ -558,7 +585,12 @@
 						This period
 						<span class="text-stone-900 tabular-nums">{legendCurrent}</span>
 					</span>
-					<span class="flex items-center gap-1.5 text-[11px] font-bold text-stone-500">
+					<!-- On a phone the bars show this period alone, so its key goes too. -->
+					<span
+						class="items-center gap-1.5 text-[11px] font-bold text-stone-500 {style === 'bars'
+							? 'hidden sm:flex'
+							: 'flex'}"
+					>
 						{#if style === 'bars'}
 							<span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-stone-300"></span>
 						{:else}
@@ -608,8 +640,9 @@
 										class="min-w-0 flex-1 rounded-t-[3px] bg-stone-900"
 										style="height:{barHeight(bucket.published)}"
 									></div>
+									<!-- Two bars a day do not fit a phone: there the current one gets the room. -->
 									<div
-										class="min-w-0 flex-1 rounded-t-[3px] bg-stone-300"
+										class="hidden min-w-0 flex-1 rounded-t-[3px] bg-stone-300 sm:block"
 										style="height:{barHeight(previousBuckets[i]?.published ?? 0)}"
 									></div>
 								</div>
@@ -838,8 +871,25 @@
 								Published
 							</p>
 						</div>
+						{#if account.failed > 0}
+							<a
+								href="/posts?tab=failed&account={encodeURIComponent(account.connectionId)}"
+								class="rounded-lg text-right hover:underline"
+								data-testid="insight-account-failed"
+							>
+								<p class="text-[15px] font-extrabold text-red-700">{account.failed}</p>
+								<p class="mt-0.5 text-[10px] font-bold tracking-widest text-red-700 uppercase">
+									Failed
+								</p>
+							</a>
+						{/if}
 						<div class="min-w-14 text-right">
-							<p class="text-[15px] font-extrabold text-stone-900">
+							<p
+								class="text-[15px] font-extrabold text-stone-900"
+								title={account.lastPublishedAt
+									? formatFullLocalWithZone(new Date(account.lastPublishedAt))
+									: undefined}
+							>
 								{lastPost(account)}
 							</p>
 							<p class="mt-0.5 text-[10px] font-bold tracking-widest text-stone-500 uppercase">
