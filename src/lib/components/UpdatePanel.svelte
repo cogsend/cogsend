@@ -759,16 +759,19 @@
 					</div>
 				</details>
 
-				{#if progress.length}
-					<ol
-						class="list-inside list-decimal space-y-0.5 text-stone-700"
-						data-testid="update-progress"
-					>
-						{#each progress as line, index (index)}
-							<li>{line}</li>
-						{/each}
-					</ol>
-				{/if}
+				<!-- Present before the first step, so a screen reader hears each one as it lands. -->
+				<div aria-live="polite" aria-relevant="additions">
+					{#if progress.length}
+						<ol
+							class="list-inside list-decimal space-y-0.5 text-stone-700"
+							data-testid="update-progress"
+						>
+							{#each progress as line, index (index)}
+								<li>{line}</li>
+							{/each}
+						</ol>
+					{/if}
+				</div>
 				{#if error}
 					<p class="font-bold text-red-600" role="alert">{error}</p>
 				{/if}
