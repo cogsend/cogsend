@@ -37,7 +37,7 @@ describe('humanizeError', () => {
 		// showed the reader the literal string "oauth_expired".
 		expect(humanizeError('oauth_expired')).toMatch(/expired/);
 		expect(humanizeError('oauth_expired')).toMatch(/30 minutes/);
-		expect(humanizeError('oauth_expired')).toMatch(/Connect new/);
+		expect(humanizeError('oauth_expired')).toMatch(/Connect account/);
 		expect(humanizeError('missing_code')).toMatch(/authorization code/);
 		expect(humanizeError('oauth_failed')).toMatch(/try again/i);
 		// The lookup is exact, so a provider message that merely mentions one of

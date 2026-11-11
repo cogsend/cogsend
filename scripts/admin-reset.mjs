@@ -114,7 +114,7 @@ async function main() {
 	if (email !== account.email) {
 		fail(
 			`the account is ${account.email}; this script rewrites it rather than moving it.\n` +
-				'Sign in and change the address in Settings → Login if you want a different one.'
+				'Sign in and change the address in Settings → Account if you want a different one.'
 		);
 	}
 

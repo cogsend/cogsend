@@ -43,7 +43,7 @@ export function buildAgentPrompt(
 		`2. ${setup.consoleRequirement}`,
 		`3. In ${setup.redirectField}, add exactly this redirect URI, character for character:`,
 		`   ${callbackUri(id, origin)}`,
-		`4. Open ${origin}/accounts in a new tab, choose "Connect new", pick ${name}, and type the app's credentials into these fields there:`,
+		`4. Open ${origin}/accounts in a new tab, choose "Connect account", pick ${name}, and type the app's credentials into these fields there:`,
 		fields,
 		'   Then press "Save and connect", and stop there: approving the connection on the next page is mine to do.',
 		...(note ? [`   Note: ${note}`] : []),

@@ -8,7 +8,7 @@ import { isThreadsAuthFailure, isThreadsMediaFetchFailure } from './threads-erro
  * connection that had since succeeded.
  */
 const OAUTH_CALLBACK_ERRORS: Record<string, string> = {
-	oauth_expired: `That connect attempt expired — a connect link is good for ${OAUTH_PENDING_TTL_MINUTES} minutes. Press Connect new and try again.`,
+	oauth_expired: `That connect attempt expired — a connect link is good for ${OAUTH_PENDING_TTL_MINUTES} minutes. Press Connect account and try again.`,
 	missing_code: 'The provider did not send an authorization code back. Start the connection again.',
 	oauth_failed: 'Could not finish connecting — try again.'
 };

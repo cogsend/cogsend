@@ -757,7 +757,7 @@ async function main() {
 		if (existingAccount.email && existingAccount.email !== adminEmail) {
 			fail(
 				`--reset-login rewrites ${existingAccount.email}, it does not move it to ${adminEmail}.\n` +
-					'Sign in and change the address in Settings → Login.'
+					'Sign in and change the address in Settings → Account.'
 			);
 		}
 		adminPassword = value('--admin-password', null) ?? '';
@@ -797,7 +797,7 @@ async function main() {
 						ui.dim('shown once — store it in a password manager')
 					])
 				);
-				note('change it later in Settings → Login, or with `npm run admin:reset`');
+				note('change it later in Settings → Account, or with `npm run admin:reset`');
 			}
 		}
 	}
@@ -910,7 +910,7 @@ async function main() {
   ${ui.bold('Next')}
     ${ui.green('·')} sign in${siteUrl ? ` at ${ui.url(siteUrl)}` : ''} as ${ui.value(adminEmail || 'the account you created')}
       ${totpEnrolled ? 'The authenticator you enrolled is unchanged.' : 'You will be asked to set up an authenticator app; save the backup codes.'}
-    ${ui.green('·')} connect accounts from ${ui.bold('Accounts → Connect new')}
+    ${ui.green('·')} connect accounts from ${ui.bold('Accounts → Connect account')}
     ${ui.green('·')} scheduled posts publish themselves: the Worker's cron trigger runs every
       minute (AUTH_SECRET and SCHEDULER_SECRET are derived from APP_ENCRYPTION_KEY).
       If the deploy could not attach the trigger — an account holds only five on the

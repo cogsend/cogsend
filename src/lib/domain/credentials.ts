@@ -3,7 +3,7 @@
  * password has to be.
  *
  * They live here rather than inside a route because the same rules have to hold
- * in two places: the app (Settings → Login, in `api/account`) and the CLI that
+ * in two places: the app (Settings → Account, in `api/account`) and the CLI that
  * creates the account (`scripts/lib/account.mjs`). A .mjs script cannot import
  * from src, so that file mirrors these, and a unit test compares the two
  * implementations case by case: a rule can only change in both at once.
