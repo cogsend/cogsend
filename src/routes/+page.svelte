@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { PenSquare, UserPlus, XCircle } from '@lucide/svelte';
+	import { plural } from '#lib/domain/plural.js';
+	import { formatRelativeTime } from '#lib/domain/relative-time.js';
 
 	let { data } = $props();
 
@@ -10,6 +12,13 @@
 		if (!local) return 'there';
 		return local.charAt(0).toUpperCase() + local.slice(1);
 	});
+
+	// A past time is already said by the "waiting to send" pill.
+	const nextPost = $derived(
+		data.nextScheduledAt && data.nextScheduledAt > Date.now()
+			? formatRelativeTime(new Date(data.nextScheduledAt))
+			: null
+	);
 
 	const health = $derived.by(() => {
 		if (data.stuckPublishing > 0) {
@@ -44,8 +53,10 @@
 <div
 	class="-mt-10 flex min-h-[60vh] w-full flex-1 flex-col items-center justify-center text-center"
 >
-	<div
-		class="mb-6 inline-flex items-center gap-2 rounded-full border border-stone-200/50 bg-stone-100/80 px-3 py-1.5 shadow-sm"
+	<a
+		href="/settings/scheduling"
+		data-testid="scheduler-health"
+		class="mb-6 inline-flex items-center gap-2 rounded-full border border-stone-200/50 bg-stone-100/80 px-3 py-1.5 shadow-sm transition-colors hover:border-stone-300 hover:bg-stone-100"
 	>
 		<span
 			aria-hidden="true"
@@ -63,14 +74,31 @@
 					: 'text-amber-700'}"
 			title={data.schedulerError ?? undefined}>{health.label}</span
 		>
-	</div>
+		<span class="sr-only">— open scheduled publishing settings</span>
+	</a>
 
 	<h1 class="mb-4 text-5xl leading-[1.05] font-extrabold tracking-tight text-stone-900 sm:text-6xl">
 		Welcome back, <br /><span class="text-stone-500">{firstName}</span>
 	</h1>
-	<p class="mt-2 max-w-sm text-[15px] leading-relaxed font-medium text-stone-500">
-		You currently have <strong class="font-bold text-stone-900">{data.scheduledCount}</strong>
-		scheduled posts and <strong class="font-bold text-stone-900">{data.draftCount}</strong> drafts.
+	<p
+		class="mt-2 max-w-sm text-[15px] leading-relaxed font-medium text-stone-500"
+		data-testid="home-counts"
+	>
+		You currently have
+		<a
+			href="/posts?tab=scheduled"
+			class="font-bold text-stone-900 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-900"
+			>{plural(data.scheduledCount, 'scheduled post', 'scheduled posts')}</a
+		>
+		and
+		<a
+			href="/posts?tab=drafts"
+			class="font-bold text-stone-900 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-900"
+			>{plural(data.draftCount, 'draft', 'drafts')}</a
+		>.
+		{#if nextPost}
+			<span class="mt-1 block text-[13px]" data-testid="home-next-post">Next post {nextPost}.</span>
+		{/if}
 	</p>
 
 	{#if data.failedCount > 0}

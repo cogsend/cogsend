@@ -1,9 +1,14 @@
-import { and, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, min, ne, sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { batchQueries } from '#lib/server/db/client.js';
 import { connections, drafts, publishTargets } from '#lib/server/db/schema.js';
 import { requireUser } from '#lib/server/require.js';
 import { schedulerHealth } from '#lib/server/scheduler.js';
+
+function toMs(value: Date | number | null | undefined): number | null {
+	if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.getTime();
+	return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals.user);
@@ -19,7 +24,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 				.from(drafts)
 				.where(and(eq(drafts.userId, user.id), eq(drafts.status, 'draft'))),
 			locals.db
-				.select({ n: sql<number>`count(*)` })
+				// One post sent to three accounts is one scheduled post, as on Posts.
+				.select({
+					n: sql<number>`count(distinct ${publishTargets.draftId})`,
+					nextAt: min(publishTargets.scheduledFor)
+				})
 				.from(publishTargets)
 				.where(
 					and(
@@ -47,7 +56,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	]);
 	const [draftRows, scheduledRows, failedRows, connectionRows] = counts as [
 		{ n: number }[],
-		{ n: number }[],
+		{ n: number; nextAt: Date | number | null }[],
 		{ n: number }[],
 		{ n: number }[]
 	];
@@ -55,6 +64,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		user: locals.user,
 		displayName: user.displayName ?? null,
 		scheduledCount: scheduledRows[0]?.n ?? 0,
+		nextScheduledAt: toMs(scheduledRows[0]?.nextAt),
 		draftCount: draftRows[0]?.n ?? 0,
 		failedCount: failedRows[0]?.n ?? 0,
 		connectionCount: connectionRows[0]?.n ?? 0,
