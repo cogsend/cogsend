@@ -4,9 +4,12 @@ import { requireUser } from '#lib/server/require.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals.user);
+	// A Deploy-button install has no checkout to run `secrets:put` from.
+	const install = locals.bindings?.COGSEND_INSTALL === 'button' ? 'button' : 'other';
 	try {
 		return {
 			...(await listConnections(locals.db, locals.env, user.id)),
+			install,
 			loadFailed: false
 		};
 	} catch (err) {
@@ -20,6 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			sources: { linkedin: null, threads: null, instagram: null, x: null },
 			savedClientIds: { linkedin: null, threads: null, instagram: null, x: null },
 			appUrl: locals.env.APP_URL,
+			install,
 			loadFailed: true
 		};
 	}

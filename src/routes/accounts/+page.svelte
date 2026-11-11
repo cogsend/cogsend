@@ -115,6 +115,17 @@
 	let msg = $state<string | null>(null);
 	// svelte-ignore state_referenced_locally
 	let err = $state<string | null>(data.loadFailed ? 'Could not load accounts' : null);
+	// The connect dialog says what went wrong inside it; the banner behind the
+	// backdrop repeating it was the same news twice, half hidden.
+	let dialogErr = $state<string | null>(null);
+	function report(message: string) {
+		if (showConnectDialog) dialogErr = message;
+		else err = message;
+	}
+	function clearErrors() {
+		err = null;
+		dialogErr = null;
+	}
 	let loading = $state(false);
 	// First-load flag: while true show skeleton rows instead of the
 	// "No accounts yet" empty state (avoids flash on every visit).
@@ -134,6 +145,8 @@
 	// The deployment's own APP_URL, for the redirect URI the provider needs.
 	// svelte-ignore state_referenced_locally
 	let appUrl = $state(data.appUrl ?? '');
+	// svelte-ignore state_referenced_locally
+	const buttonInstall = data.install === 'button';
 	let connectCloseBtn: HTMLButtonElement | null = $state(null);
 	let zernioApiKey = $state('');
 	let zernioProfiles = $state<Array<{ id: string; name: string }>>([]);
@@ -232,7 +245,7 @@
 	async function connectBluesky(e: Event) {
 		e.preventDefault();
 		loading = true;
-		err = null;
+		clearErrors();
 		msg = null;
 		try {
 			const res = await fetch('/api/connections/bluesky', {
@@ -247,7 +260,7 @@
 			closeConnectDialog();
 			await load();
 		} catch (e) {
-			err = humanizeError(e instanceof Error ? e.message : 'Failed');
+			report(humanizeError(e instanceof Error ? e.message : 'Failed'));
 		} finally {
 			loading = false;
 		}
@@ -258,7 +271,7 @@
 		body: Record<string, string>
 	) {
 		loading = true;
-		err = null;
+		clearErrors();
 		try {
 			const res = await fetch(`/api/connections/${platform}`, {
 				method: 'POST',
@@ -280,7 +293,7 @@
 			}
 			window.location.href = payload.authorizeUrl;
 		} catch (e) {
-			err = humanizeError(e instanceof Error ? e.message : 'Failed');
+			report(humanizeError(e instanceof Error ? e.message : 'Failed'));
 			loading = false;
 		}
 	}
@@ -288,14 +301,14 @@
 	async function connectMastodon(e: Event) {
 		e.preventDefault();
 		loading = true;
-		err = null;
+		clearErrors();
 		await connectOAuth('mastodon', { instanceUrl });
 	}
 
 	async function loadZernioAccounts(e?: Event) {
 		e?.preventDefault();
 		loading = true;
-		err = null;
+		clearErrors();
 		try {
 			const res = await fetch('/api/connections/zernio/accounts', {
 				method: 'POST',
@@ -310,7 +323,7 @@
 			zernioSelected = (zernioAccounts ?? []).filter((a) => !a.imported).map((a) => a.id);
 			if (!zernioConnectProfile) zernioConnectProfile = zernioProfiles[0]?.id ?? '';
 		} catch (e) {
-			err = humanizeError(e instanceof Error ? e.message : 'Could not reach Zernio');
+			report(humanizeError(e instanceof Error ? e.message : 'Could not reach Zernio'));
 		} finally {
 			loading = false;
 		}
@@ -318,7 +331,7 @@
 
 	async function importZernioAccounts() {
 		loading = true;
-		err = null;
+		clearErrors();
 		try {
 			const res = await fetch('/api/connections/zernio/import', {
 				method: 'POST',
@@ -336,7 +349,7 @@
 			closeConnectDialog();
 			await load();
 		} catch (e) {
-			err = humanizeError(e instanceof Error ? e.message : 'Could not import');
+			report(humanizeError(e instanceof Error ? e.message : 'Could not import'));
 		} finally {
 			loading = false;
 		}
@@ -344,7 +357,7 @@
 
 	async function connectThroughZernio(platform: string, profileId: string) {
 		loading = true;
-		err = null;
+		clearErrors();
 		try {
 			const res = await fetch('/api/connections/zernio/connect', {
 				method: 'POST',
@@ -359,7 +372,7 @@
 			if (!res.ok) throw new Error(payload.error || 'Could not start the connection');
 			window.location.href = payload.authorizeUrl;
 		} catch (e) {
-			err = humanizeError(e instanceof Error ? e.message : 'Could not start the connection');
+			report(humanizeError(e instanceof Error ? e.message : 'Could not start the connection'));
 			loading = false;
 		}
 	}
@@ -396,14 +409,14 @@
 
 	function openConnectDialog() {
 		// A new attempt supersedes whatever the last one reported.
-		err = null;
+		clearErrors();
 		modalForm = 'none';
 		setupPanel = null;
 		showConnectDialog = true;
 	}
 
 	function showSetupPanel(platform: OAuthPlatformId) {
-		err = null;
+		clearErrors();
 		appForm = {};
 		appFormError = null;
 		modalForm = 'none';
@@ -469,6 +482,7 @@
 
 	function closeConnectDialog() {
 		showConnectDialog = false;
+		dialogErr = null;
 		modalForm = 'none';
 		setupPanel = null;
 	}
@@ -611,7 +625,7 @@
 		const params = page.url.searchParams;
 		const connected = params.get('connected');
 		const failure = params.get('error');
-		if (connected) msg = `Connected ${connected}`;
+		if (connected) msg = `Connected ${platformName(connected)}`;
 		if (failure) err = humanizeError(failure);
 		// Read once, then drop them from the address bar. The callback redirect
 		// is a full page load, so a stale `?error=` used to be replayed on every
@@ -624,6 +638,22 @@
 		}
 	});
 </script>
+
+{#snippet zernioCallout(platform: OAuthPlatformId)}
+	<p
+		class="rounded-xl border border-dashed border-stone-300 px-3 py-2.5 text-xs font-medium text-stone-600"
+		data-testid="setup-zernio-callout"
+	>
+		Don't want to set up an app?
+		<button
+			type="button"
+			onclick={() => openZernioForm(platform)}
+			class="font-bold text-stone-900 underline"
+			>Connect {platformName(platform)} through Zernio</button
+		>
+		instead.{platform === 'x' ? '' : ' Free plan available.'}
+	</p>
+{/snippet}
 
 {#snippet accountSwitch(on: boolean, labelledby: string, busy: boolean, toggle: () => void)}
 	<button
@@ -752,7 +782,7 @@
 											class="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold tracking-widest text-amber-700 uppercase"
 											data-testid="account-status-{account.id}"
 										>
-											{account.status}
+											{account.status === 'expired' ? 'Expired' : 'Needs attention'}
 										</span>
 									{/if}
 								</h3>
@@ -961,6 +991,9 @@
 								here.
 							{/if}
 						</p>
+						{#if buttonInstall && !savedHere}
+							{@render zernioCallout(setupPanel)}
+						{/if}
 						<div
 							class="divide-y divide-stone-200/80 overflow-hidden rounded-xl border border-stone-200/80"
 						>
@@ -1071,55 +1104,60 @@
 									</div>
 								</form>
 							</details>
-							<details class="group">
-								<summary
-									data-testid="setup-step-3"
-									class="flex cursor-pointer list-none items-center gap-2.5 p-3 text-xs font-bold text-stone-900 hover:bg-stone-50 [&::-webkit-details-marker]:hidden"
-								>
-									<span
-										class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white"
-										>3</span
+							<!-- Secrets need a checkout or the dashboard; a Deploy-button
+							     install has the form above, which needs neither. -->
+							{#if !buttonInstall}
+								<details class="group">
+									<summary
+										data-testid="setup-step-3"
+										class="flex cursor-pointer list-none items-center gap-2.5 p-3 text-xs font-bold text-stone-900 hover:bg-stone-50 [&::-webkit-details-marker]:hidden"
 									>
-									Or set them as Worker secrets
-									<ChevronDown
-										class="ml-auto h-4 w-4 shrink-0 text-stone-400 transition-transform group-open:rotate-180"
-									/>
-								</summary>
-								<div class="space-y-2 px-3 pb-3 text-xs font-medium text-stone-600">
-									<p>
-										Put {#each missing as secret, index (secret)}{index > 0 ? ' and ' : ''}<code
-												class="font-mono text-[11px] text-stone-900">{secret}</code
-											>{/each} in
-										<code class="font-mono text-[11px] text-stone-900">.dev.vars</code> — uncomment the
-										line if it is already there, otherwise add it — then run
-									</p>
-									{#if alreadySet.length}
-										<p>
-											Already set on the Worker:
-											{#each alreadySet as secret, index (secret)}{index > 0 ? ', ' : ''}<code
-													class="font-mono text-[11px] text-stone-900">{secret}</code
-												>{/each}.
-										</p>
-									{/if}
-									<div
-										class="flex items-center gap-1 rounded-xl border border-stone-200/80 bg-stone-50 py-1 pr-1 pl-3"
-									>
-										<code
-											class="min-w-0 flex-1 overflow-x-auto font-mono text-[11px] whitespace-nowrap text-stone-900 select-all"
-											data-testid="setup-command">{command}</code
+										<span
+											class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-stone-900 text-[10px] text-white"
+											>3</span
 										>
-										<CopyButton value={command} ariaLabel="Copy the secrets command" />
+										Or set them as Worker secrets
+										<ChevronDown
+											class="ml-auto h-4 w-4 shrink-0 text-stone-400 transition-transform group-open:rotate-180"
+										/>
+									</summary>
+									<div class="space-y-2 px-3 pb-3 text-xs font-medium text-stone-600">
+										<p>
+											Put {#each missing as secret, index (secret)}{index > 0 ? ' and ' : ''}<code
+													class="font-mono text-[11px] text-stone-900">{secret}</code
+												>{/each} in
+											<code class="font-mono text-[11px] text-stone-900">.dev.vars</code> — uncomment
+											the line if it is already there, otherwise add it — then run
+										</p>
+										{#if alreadySet.length}
+											<p>
+												Already set on the Worker:
+												{#each alreadySet as secret, index (secret)}{index > 0 ? ', ' : ''}<code
+														class="font-mono text-[11px] text-stone-900">{secret}</code
+													>{/each}.
+											</p>
+										{/if}
+										<div
+											class="flex items-center gap-1 rounded-xl border border-stone-200/80 bg-stone-50 py-1 pr-1 pl-3"
+										>
+											<code
+												class="min-w-0 flex-1 overflow-x-auto font-mono text-[11px] whitespace-nowrap text-stone-900 select-all"
+												data-testid="setup-command">{command}</code
+											>
+											<CopyButton value={command} ariaLabel="Copy the secrets command" />
+										</div>
+										<p class="text-[11px] text-stone-500">
+											No checkout on this machine? Add them in the Cloudflare dashboard instead:
+											Workers → your Worker → Settings → Variables and Secrets, then press Deploy.
+										</p>
+										<p class="text-[11px] text-stone-500">
+											Then reload this page: secrets go live as soon as the command finishes, with
+											no redeploy step. Worker secrets take precedence over credentials entered
+											above.
+										</p>
 									</div>
-									<p class="text-[11px] text-stone-500">
-										No checkout on this machine? Add them in the Cloudflare dashboard instead:
-										Workers → your Worker → Settings → Variables and Secrets, then press Deploy.
-									</p>
-									<p class="text-[11px] text-stone-500">
-										Then reload this page: secrets go live as soon as the command finishes, with no
-										redeploy step. Worker secrets take precedence over credentials entered above.
-									</p>
-								</div>
-							</details>
+								</details>
+							{/if}
 						</div>
 						{#if setup.note}
 							<p class="text-xs font-medium text-stone-500">{setup.note}</p>
@@ -1131,22 +1169,15 @@
 							class="inline-block text-[13px] font-bold text-stone-900 underline"
 							>Full {platformName(setupPanel)} steps</a
 						>
-						<p
-							class="rounded-xl border border-dashed border-stone-300 px-3 py-2.5 text-xs font-medium text-stone-600"
-							data-testid="setup-zernio-callout"
-						>
-							Don't want to set up an app?
-							<button
-								type="button"
-								onclick={() => openZernioForm(setupPanel ?? undefined)}
-								class="font-bold text-stone-900 underline"
-								>Connect {platformName(setupPanel)} through Zernio</button
-							>
-							instead.{setupPanel === 'x' ? '' : ' Free plan available.'}
-						</p>
+						{#if !buttonInstall || savedHere}
+							{@render zernioCallout(setupPanel)}
+						{/if}
 					</div>
 				{/key}
 			{:else if modalForm === 'none'}
+				{#if dialogErr}
+					<p class="mb-3 text-sm text-red-600" role="alert">{dialogErr}</p>
+				{/if}
 				<div class="grid gap-3">
 					{#each availablePlatforms as platform (platform.id)}
 						<button
@@ -1269,8 +1300,8 @@
 						required
 						autocomplete="off"
 					/>
-					{#if err}
-						<p class="text-sm text-red-600">{err}</p>
+					{#if dialogErr}
+						<p class="text-sm text-red-600" role="alert">{dialogErr}</p>
 					{/if}
 					<button
 						type="submit"
@@ -1289,9 +1320,10 @@
 					>
 					<h3 class="text-[17px] font-extrabold tracking-tight text-stone-900">Zernio</h3>
 					<p class="text-xs font-medium text-stone-500">
-						Zernio publishes with its own approved apps, so X, Threads, LinkedIn and Bluesky connect
-						without a developer app of your own. It has a free plan (X needs a card), and posts
-						still live and schedule here.
+						Zernio publishes with its own approved apps, so X, Threads, Instagram and LinkedIn
+						connect without a developer app of your own, and a Bluesky account already in Zernio can
+						be imported. It has a free plan (X needs a card), and posts still live and schedule
+						here.
 						<a
 							href={zernioLink({ placement: 'accounts-dialog' })}
 							target="_blank"
@@ -1409,8 +1441,8 @@
 							</p>
 						</div>
 					{/if}
-					{#if err}
-						<p class="text-sm text-red-600">{err}</p>
+					{#if dialogErr}
+						<p class="text-sm text-red-600" role="alert">{dialogErr}</p>
 					{/if}
 				</div>
 			{:else}
@@ -1433,8 +1465,8 @@
 						class="w-full rounded-xl border border-stone-200/80 bg-stone-50 px-3 py-2.5 text-sm font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 						required
 					/>
-					{#if err}
-						<p class="text-sm text-red-600">{err}</p>
+					{#if dialogErr}
+						<p class="text-sm text-red-600" role="alert">{dialogErr}</p>
 					{/if}
 					<button
 						type="submit"
