@@ -663,7 +663,7 @@
 		aria-labelledby={labelledby}
 		disabled={busy}
 		onclick={toggle}
-		class="relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out disabled:opacity-50 {on
+		class="relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out disabled:opacity-50 pointer-coarse:after:absolute pointer-coarse:after:-inset-3 pointer-coarse:after:content-[''] {on
 			? 'bg-stone-900'
 			: 'bg-stone-200'}"
 	>
@@ -802,7 +802,7 @@
 							<button
 								type="button"
 								onclick={() => (pendingDisconnect = { id: account.id, label })}
-								class="shrink-0 rounded-full px-3 py-1.5 text-[12px] font-bold text-stone-500 transition-colors hover:bg-red-50 hover:text-red-600"
+								class="shrink-0 rounded-full px-3 py-1.5 text-[12px] font-bold text-stone-500 transition-colors hover:bg-red-50 hover:text-red-600 pointer-coarse:min-h-11"
 								aria-label={`Disconnect ${label}`}
 							>
 								Disconnect
@@ -819,14 +819,14 @@
 									type="button"
 									onclick={() => reconnectAccount(account)}
 									disabled={verifying === account.id || loading}
-									class="rounded-full bg-stone-900 px-3.5 py-1.5 text-[12px] font-bold text-white transition-colors hover:bg-stone-800 disabled:opacity-50"
+									class="rounded-full bg-stone-900 px-3.5 py-1.5 text-[12px] font-bold text-white transition-colors hover:bg-stone-800 disabled:opacity-50 pointer-coarse:min-h-11"
 									>Reconnect</button
 								>
 								<button
 									type="button"
 									onclick={() => verify(account.id)}
 									disabled={verifying === account.id}
-									class="font-bold text-stone-700 underline underline-offset-2 hover:text-stone-900 disabled:opacity-50"
+									class="font-bold text-stone-700 underline underline-offset-2 hover:text-stone-900 disabled:opacity-50 pointer-coarse:min-h-11 pointer-coarse:px-2"
 									>{verifying === account.id ? 'Checking…' : 'Check'}</button
 								>
 							</div>

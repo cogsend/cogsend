@@ -1359,7 +1359,8 @@
 						data-sveltekit-replacestate
 						data-sveltekit-reset="false"
 						aria-current={activeTab === tab ? 'page' : undefined}
-						class="rounded-lg px-4 py-1.5 text-[13px] font-bold transition-all {activeTab === tab
+						class="rounded-lg px-4 py-1.5 text-[13px] font-bold transition-all pointer-coarse:py-2.5 {activeTab ===
+						tab
 							? 'bg-white text-stone-900 shadow-sm'
 							: 'text-stone-500 hover:text-stone-900'}"
 					>
@@ -1883,7 +1884,7 @@
 						<div class="flex rounded-lg bg-stone-100 p-1">
 							<button
 								type="button"
-								class="flex-1 rounded-md py-1.5 text-[12px] font-bold transition-colors {rescheduleMode ===
+								class="flex-1 rounded-md py-1.5 text-[12px] font-bold transition-colors pointer-coarse:py-2.5 {rescheduleMode ===
 								'relative'
 									? 'bg-white text-stone-900 shadow-sm'
 									: 'text-stone-500 hover:text-stone-900'}"
@@ -1896,7 +1897,7 @@
 							</button>
 							<button
 								type="button"
-								class="flex-1 rounded-md py-1.5 text-[12px] font-bold transition-colors {rescheduleMode ===
+								class="flex-1 rounded-md py-1.5 text-[12px] font-bold transition-colors pointer-coarse:py-2.5 {rescheduleMode ===
 								'absolute'
 									? 'bg-white text-stone-900 shadow-sm'
 									: 'text-stone-500 hover:text-stone-900'}"

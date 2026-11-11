@@ -398,7 +398,8 @@
 					type="button"
 					aria-pressed={range === value}
 					onclick={() => pickRange(value)}
-					class="rounded-xl px-3.5 py-1.5 text-[13px] font-bold transition-colors {range === value
+					class="rounded-xl px-3.5 py-1.5 text-[13px] font-bold transition-colors pointer-coarse:py-2.5 {range ===
+					value
 						? 'bg-white text-stone-900 shadow-sm'
 						: 'text-stone-500 hover:text-stone-900'}"
 				>
@@ -550,7 +551,8 @@
 						type="button"
 						aria-pressed={style === 'cum'}
 						onclick={() => (style = 'cum')}
-						class="rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors {style === 'cum'
+						class="rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors pointer-coarse:py-2.5 {style ===
+						'cum'
 							? 'bg-white text-stone-900 shadow-sm'
 							: 'text-stone-500 hover:text-stone-900'}"
 					>
@@ -560,7 +562,8 @@
 						type="button"
 						aria-pressed={style === 'bars'}
 						onclick={() => (style = 'bars')}
-						class="rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors {style === 'bars'
+						class="rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors pointer-coarse:py-2.5 {style ===
+						'bars'
 							? 'bg-white text-stone-900 shadow-sm'
 							: 'text-stone-500 hover:text-stone-900'}"
 					>
