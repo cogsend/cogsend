@@ -131,6 +131,18 @@ test('signs in and enrolls 2fa', async () => {
 	}
 	await expect(page).toHaveURL(/\/login\/setup-2fa$/);
 	const secret = (await page.locator('code').first().innerText()).replace(/\s+/g, '');
+	// Copy says whether it worked: either the button says so, or the page does.
+	await page.getByRole('button', { name: 'Copy all backup codes' }).click();
+	await expect(
+		page
+			.getByRole('button', { name: 'Copy all backup codes' })
+			.filter({ hasText: 'Copied' })
+			.or(page.getByRole('alert').filter({ hasText: 'Could not copy' }))
+	).toBeVisible();
+	// The codes can be saved as a file too.
+	const download = page.waitForEvent('download');
+	await page.getByTestId('download-backup-codes').click();
+	expect((await download).suggestedFilename()).toBe('backup-codes.txt');
 	await page.getByText('I saved these backup codes').click();
 	// Codes can straddle a 30s boundary: retry with a fresh code.
 	for (let attempt = 0; attempt < 3; attempt++) {

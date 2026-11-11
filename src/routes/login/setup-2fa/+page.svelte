@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { downloadText } from '#lib/components/download-text.js';
+	import { backupCodesFile } from '#lib/domain/backup-codes.js';
+	import { humanizeError } from '#lib/domain/human-error.js';
 
 	let secret = $state('');
 	let qrSvg = $state('');
@@ -10,20 +13,29 @@
 	let error = $state<string | null>(null);
 	let loading = $state(true);
 	let confirming = $state(false);
+	// Set up could not start: said here, since sending the person back to
+	// sign in again would only bring them to the same failure.
+	let startError = $state<string | null>(null);
+	let copied = $state<'secret' | 'codes' | null>(null);
+	let copyFailed = $state(false);
 
 	onMount(async () => {
 		try {
 			const res = await fetch('/api/auth/totp/enroll/start', { method: 'POST' });
-			const data = await res.json();
-			if (!res.ok) {
+			const data = await res.json().catch(() => ({}));
+			if (res.status === 401) {
 				await goto('/login');
+				return;
+			}
+			if (!res.ok) {
+				startError = humanizeError(data.error || 'Could not start the authenticator setup');
 				return;
 			}
 			secret = data.secret;
 			qrSvg = data.qrSvg;
 			backupCodes = data.backupCodes;
 		} catch {
-			await goto('/login');
+			startError = humanizeError('fetch failed');
 		} finally {
 			loading = false;
 		}
@@ -54,8 +66,19 @@
 		}
 	}
 
-	async function copy(text: string) {
-		await navigator.clipboard.writeText(text);
+	async function copy(text: string, what: 'secret' | 'codes') {
+		try {
+			await navigator.clipboard.writeText(text);
+			copied = what;
+			copyFailed = false;
+		} catch {
+			copied = null;
+			copyFailed = true;
+		}
+	}
+
+	function downloadCodes() {
+		downloadText('backup-codes.txt', backupCodesFile(backupCodes, window.location.host));
 	}
 </script>
 
@@ -70,6 +93,13 @@
 
 		{#if loading}
 			<p class="text-center text-sm text-stone-500">Preparing your codes…</p>
+		{:else if startError}
+			<div
+				class="space-y-3 rounded-[2rem] border border-stone-200/80 bg-white p-6 text-center shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)]"
+			>
+				<p class="text-sm text-red-600" role="alert">{startError}</p>
+				<a href="/login" class="text-xs text-stone-500 underline">Back to sign in</a>
+			</div>
 		{:else}
 			<div
 				class="space-y-5 rounded-[2rem] border border-stone-200/80 bg-white p-6 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)]"
@@ -95,8 +125,9 @@
 						<button
 							type="button"
 							aria-label="Copy secret key"
-							onclick={() => copy(secret.replace(/\s+/g, ''))}
-							class="text-xs text-stone-500 underline">Copy</button
+							onclick={() => copy(secret.replace(/\s+/g, ''), 'secret')}
+							class="text-xs text-stone-500 underline"
+							>{copied === 'secret' ? 'Copied' : 'Copy'}</button
 						>
 					</div>
 				</div>
@@ -110,12 +141,27 @@
 							<li class="rounded-lg bg-stone-50 px-2 py-1">{c}</li>
 						{/each}
 					</ul>
-					<button
-						type="button"
-						aria-label="Copy all backup codes"
-						onclick={() => copy(backupCodes.join('\n'))}
-						class="mt-2 text-xs text-stone-500 underline">Copy all</button
-					>
+					<div class="mt-2 flex items-center gap-4">
+						<button
+							type="button"
+							aria-label="Copy all backup codes"
+							onclick={() => copy(backupCodes.join('\n'), 'codes')}
+							class="text-xs text-stone-500 underline"
+							>{copied === 'codes' ? 'Copied' : 'Copy all'}</button
+						>
+						<button
+							type="button"
+							onclick={downloadCodes}
+							class="text-xs text-stone-500 underline"
+							data-testid="download-backup-codes">Download .txt</button
+						>
+					</div>
+					{#if copyFailed}
+						<p class="mt-1 text-xs text-red-600" role="alert">
+							Could not copy — select the codes and copy them yourself, or download them.
+						</p>
+					{/if}
+					<p class="sr-only" aria-live="polite">{copied ? 'Copied to clipboard' : ''}</p>
 				</div>
 				<form onsubmit={confirm} class="space-y-3">
 					<label class="flex cursor-pointer items-center gap-2 text-xs text-stone-500">

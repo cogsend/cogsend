@@ -17,3 +17,14 @@ export function generateBackupCodes(count = BACKUP_CODE_COUNT): string[] {
 export function normalizeBackupCode(raw: string): string {
 	return raw.toUpperCase().replace(/[^A-Z2-7]/g, '');
 }
+
+/** The text of a saved backup-codes file: where they sign in, then one code a line. */
+export function backupCodesFile(codes: readonly string[], host: string): string {
+	return [
+		`Backup codes for ${host}`,
+		'Each code signs in once, in place of the authenticator.',
+		'',
+		...codes,
+		''
+	].join('\n');
+}
