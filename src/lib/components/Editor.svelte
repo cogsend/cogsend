@@ -375,6 +375,19 @@
 	let threadsTopic = $state(seededThreadsTopic);
 	let focusedSegment = $state(0);
 	let uploadingSegment = $state<number | null>(null);
+	// What the busy card is doing, for the tile that stands in for the images.
+	let uploadingLabel = $state('');
+	// Images dropped while another upload runs wait their turn instead of
+	// being turned away; each is checked again (room, videos) when it starts.
+	let uploadQueue: { segmentIndex: number; files: File[]; generation: number }[] = [];
+	function runQueuedUpload() {
+		while (uploadQueue.length) {
+			const next = uploadQueue.shift()!;
+			if (next.generation !== editorGeneration || next.segmentIndex > segments.length - 1) continue;
+			void attachFilesToSegment(next.segmentIndex, next.files);
+			return;
+		}
+	}
 	// The card a file is being dragged over, for its highlight.
 	let dropTarget = $state<number | null>(null);
 	let videoJobs = $state<VideoJob[]>([]);
@@ -1789,15 +1802,10 @@
 	 */
 	async function startNewPost() {
 		if (startingNew) return;
-		if (
-			publishing ||
-			discarding ||
-			unscheduling ||
-			uploadingSegment !== null ||
-			videoJobs.length ||
-			loadingDraftId
-		) {
-			showToast('Please wait…', 'warn');
+		// A save in flight is not a reason to wait here: the new post saves it.
+		const waitingFor = busyWaitMessage({ saving: false });
+		if (waitingFor || unscheduling || loadingDraftId) {
+			showToast(waitingFor ?? 'Wait for this post to finish loading', 'warn');
 			return;
 		}
 		startingNew = true;
@@ -2041,6 +2049,10 @@
 		}
 	}
 
+	// The post is saved before its first file can be stored under it.
+	const UPLOAD_SAVE_FAILED =
+		'Could not save the post before uploading — check your connection and try again';
+
 	async function attachFilesToSegment(segmentIndex: number, files: File[]) {
 		if (editLocked) return;
 		const picked = files.filter((f) => isMediaFile(f.type));
@@ -2078,7 +2090,8 @@
 		// One upload at a time: the busy state is shared, and the first upload
 		// to finish would clear it while another is still going.
 		if (uploadingSegment !== null) {
-			showToast('Wait for the upload to finish', 'warn');
+			uploadQueue.push({ segmentIndex, files: picked, generation: editorGeneration });
+			showToast('Queued — it uploads after the current one', 'success');
 			return;
 		}
 		// Checked before any work, so a pick of too many keeps the ones that
@@ -2092,9 +2105,18 @@
 		// Shrink to Bluesky's cap, the strictest one, whatever is selected now:
 		// the file is stored once and may be published anywhere later.
 		uploadingSegment = segmentIndex;
+		const count = Math.min(room, picked.length);
+		uploadingLabel = count === 1 ? 'Uploading 1 image…' : `Uploading ${count} images…`;
 		const images: File[] = [];
-		for (const f of picked.slice(0, room)) {
-			images.push(await shrinkToFit(f, BLUESKY_MAX_IMAGE_BYTES));
+		try {
+			for (const f of picked.slice(0, room)) {
+				images.push(await shrinkToFit(f, BLUESKY_MAX_IMAGE_BYTES));
+			}
+		} catch {
+			uploadingSegment = null;
+			showToast('Could not read that image — try another file', 'error');
+			runQueuedUpload();
+			return;
 		}
 		const blueskySelected = connections.some((c) => selected.has(c.id) && c.platform === 'bluesky');
 		const linkedinSelected = connections.some(
@@ -2142,7 +2164,7 @@
 		const generation = editorGeneration;
 		try {
 			const id = await persistAll(true);
-			if (!id) throw new Error('Could not create draft for upload');
+			if (!id) throw new Error(UPLOAD_SAVE_FAILED);
 			const form = new FormData();
 			form.set('segmentIndex', String(segmentIndex));
 			for (const [n, f] of images.entries()) {
@@ -2179,9 +2201,10 @@
 				showToast(attached, 'success');
 			}
 		} catch (e) {
-			showToast(e instanceof Error ? e.message : 'Upload failed', 'error');
+			showToast(humanizeError(e instanceof Error ? e.message : 'Upload failed'), 'error');
 		} finally {
 			uploadingSegment = null;
+			runQueuedUpload();
 		}
 	}
 
@@ -2210,12 +2233,13 @@
 		}
 		libraryBusy = true;
 		uploadingSegment = segmentIndex;
+		uploadingLabel = files.length === 1 ? 'Attaching 1 file…' : `Attaching ${files.length} files…`;
 		const generation = editorGeneration;
 		const added: MediaItem[] = [];
 		let failure: string | null = null;
 		try {
 			const id = await persistAll(true);
-			if (!id) throw new Error('Could not create draft for upload');
+			if (!id) throw new Error(UPLOAD_SAVE_FAILED);
 			for (const file of files) {
 				const res = await fetch(`/api/drafts/${id}/media/reuse`, {
 					method: 'POST',
@@ -2232,6 +2256,7 @@
 			libraryBusy = false;
 			libraryFor = null;
 			uploadingSegment = null;
+			runQueuedUpload();
 		}
 		// Left for another post meanwhile: what was attached belongs to the
 		// one it was sent with, which keeps it.
@@ -2285,7 +2310,7 @@
 			}
 			if (signal.aborted) return;
 			const id = await persistAll(true);
-			if (!id) throw new Error('Could not create draft for upload');
+			if (!id) throw new Error(UPLOAD_SAVE_FAILED);
 			if (signal.aborted || generation !== editorGeneration) return;
 			updateVideoJob(job.id, { phase: 'uploading', progress: 0 });
 			const item = await uploadVideo<MediaItem>(id, {
@@ -2342,7 +2367,10 @@
 			coverFor = null;
 			showToast('Cover saved', 'success');
 		} catch (e) {
-			showToast(e instanceof Error ? e.message : 'Could not save the cover', 'error');
+			showToast(
+				humanizeError(e instanceof Error ? e.message : 'Could not save the cover'),
+				'error'
+			);
 		} finally {
 			coverBusy = false;
 		}
@@ -2363,7 +2391,10 @@
 			media = media.map((m) => (m.id === mediaId ? { ...m, meta } : m));
 			coverFor = null;
 		} catch (e) {
-			showToast(e instanceof Error ? e.message : 'Could not remove the cover', 'error');
+			showToast(
+				humanizeError(e instanceof Error ? e.message : 'Could not remove the cover'),
+				'error'
+			);
 		} finally {
 			coverBusy = false;
 		}
@@ -2557,9 +2588,19 @@
 		};
 	});
 
+	/** What the composer is busy with, named so the wait makes sense. */
+	function busyWaitMessage(check = { saving: true }): string | null {
+		if (publishing) return 'Wait for publishing to finish';
+		if (uploadingSegment !== null || videoJobs.length) return 'Wait for the upload to finish';
+		if (check.saving && saving) return 'Wait for the save to finish';
+		if (discarding) return 'Wait for the discard to finish';
+		return null;
+	}
+
 	function requestDiscard() {
-		if (discarding || saving || publishing || uploadingSegment !== null || videoJobs.length) {
-			showToast('Please wait…', 'warn');
+		const waitingFor = busyWaitMessage();
+		if (waitingFor) {
+			showToast(waitingFor, 'warn');
 			return;
 		}
 		if (!canDiscard) return;
@@ -2569,7 +2610,7 @@
 	async function confirmDiscard() {
 		if (discarding) return;
 		if (saving || publishing) {
-			showToast('Please wait…', 'warn');
+			showToast(busyWaitMessage() ?? 'Wait a moment', 'warn');
 			return;
 		}
 		const id = draftId;
@@ -2625,7 +2666,7 @@
 			// for another image while this request was in flight stays.
 			if (pendingMediaRemove === mediaId) pendingMediaRemove = null;
 		} catch (e) {
-			showToast(e instanceof Error ? e.message : 'Failed to remove image', 'error');
+			showToast(humanizeError(e instanceof Error ? e.message : 'Failed to remove image'), 'error');
 		} finally {
 			mediaRemoving = mediaRemoving.filter((id) => id !== mediaId);
 		}
@@ -2855,6 +2896,9 @@
 		}
 		if (uploadingSegment === index) uploadingSegment = null;
 		else if (uploadingSegment !== null && uploadingSegment > index) uploadingSegment -= 1;
+		uploadQueue = uploadQueue
+			.filter((q) => q.segmentIndex !== index)
+			.map((q) => (q.segmentIndex > index ? { ...q, segmentIndex: q.segmentIndex - 1 } : q));
 		revealTrailing = null;
 		setActiveBody(joinThreadSegments(removeSegment(segments, index)));
 		focusedSegment = Math.max(0, Math.min(index, segments.length - 2));
@@ -3865,6 +3909,17 @@
 										{/if}
 									{/snippet}
 								</MediaPreview>
+							</div>
+						{/if}
+
+						{#if uploadingSegment === index && uploadingLabel}
+							<div
+								class="mt-3 flex items-center gap-2 rounded-xl border border-dashed border-stone-200 bg-stone-50 px-3 py-3 text-[12px] font-bold text-stone-500"
+								role="status"
+								data-testid="upload-tile-{index}"
+							>
+								<LoaderCircle class="h-4 w-4 animate-spin" />
+								{uploadingLabel}
 							</div>
 						{/if}
 
