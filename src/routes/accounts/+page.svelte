@@ -625,19 +625,36 @@
 	});
 </script>
 
+{#snippet accountSwitch(on: boolean, labelledby: string, busy: boolean, toggle: () => void)}
+	<button
+		type="button"
+		role="switch"
+		aria-checked={on}
+		aria-labelledby={labelledby}
+		disabled={busy}
+		onclick={toggle}
+		class="relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out disabled:opacity-50 {on
+			? 'bg-stone-900'
+			: 'bg-stone-200'}"
+	>
+		<span
+			class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {on
+				? 'translate-x-4'
+				: 'translate-x-0'}"
+		></span>
+	</button>
+{/snippet}
+
 <div class="mx-auto flex w-full max-w-2xl flex-1 flex-col">
 	<div class="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-		<div>
-			<p class="text-[11px] font-bold tracking-widest text-stone-500 uppercase">Integrations</p>
-			<h1 class="mt-2 text-3xl font-extrabold tracking-tight text-stone-900">Connected Accounts</h1>
-		</div>
+		<h1 class="text-3xl font-extrabold tracking-tight text-stone-900">Accounts</h1>
 		<button
 			type="button"
 			onclick={openConnectDialog}
-			class="inline-flex items-center gap-2 rounded-full bg-stone-900 px-5 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800"
+			class="inline-flex items-center gap-2 self-start rounded-full bg-stone-900 px-5 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800 md:self-auto"
 		>
 			<Plus class="h-4 w-4" />
-			<span>Connect new</span>
+			<span>Connect account</span>
 		</button>
 	</div>
 
@@ -686,142 +703,163 @@
 		{:else}
 			{#each connections as account, index (account.id)}
 				{@const needsReconnect = account.status !== 'active'}
+				{@const label =
+					accountLabel(account.displayName, account.handle, account.instanceUrl) ||
+					platformName(account.platform)}
 				<div
-					class="group flex flex-col justify-between gap-4 p-4 transition-colors hover:bg-stone-50/50 sm:flex-row sm:items-center sm:px-6 sm:py-4 {index !==
+					class="flex items-start gap-4 p-4 transition-colors hover:bg-stone-50/50 sm:px-6 {index !==
 					connections.length - 1
 						? 'border-b border-stone-100'
 						: ''}"
 				>
-					<div class="flex items-center gap-4">
-						<AccountAvatar
-							platform={account.platform}
-							handle={account.handle}
-							displayName={account.displayName}
-							avatarUrl={account.avatarUrl}
-							size={44}
-							title={accountLabel(account.displayName, account.handle, account.instanceUrl) ||
-								undefined}
-						/>
-						<div>
-							<h3 class="text-[15px] leading-tight font-extrabold tracking-tight text-stone-900">
-								{platformName(account.platform)}
-								{#if viaZernio(account)}
-									<span
-										class="ml-1 rounded bg-stone-100 px-1.5 py-0.5 align-middle text-[10px] font-bold tracking-widest text-stone-500 uppercase"
-										>via Zernio</span
-									>
-								{/if}
-							</h3>
-							<p
-								class="mt-0.5 text-[13px] font-medium text-stone-500"
-								title={accountLabel(account.displayName, account.handle, account.instanceUrl) ||
-									undefined}
-							>
-								{#if account.platform === 'linkedin' && account.displayName}
-									{account.displayName}
-								{:else}
-									{accountLabel(account.displayName, account.handle)}
-								{/if}
-								{account.instanceUrl ? ` · ${displayHost(account.instanceUrl)}` : ''}
-							</p>
-							{#if account.platform === 'x' && !viaZernio(account) && !needsReconnect}
-								{@const long = (account.metaJson?.maxCharacters ?? 280) > 280}
-								<p
-									class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-medium text-stone-500"
-									data-testid="x-long-posts-{account.id}"
+					<AccountAvatar
+						platform={account.platform}
+						handle={account.handle}
+						displayName={account.displayName}
+						avatarUrl={account.avatarUrl}
+						size={44}
+						title={accountLabel(account.displayName, account.handle, account.instanceUrl) ||
+							undefined}
+					/>
+					<div class="min-w-0 flex-1">
+						<div class="flex items-start justify-between gap-3">
+							<div class="min-w-0">
+								<h3
+									class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] leading-tight font-extrabold tracking-tight text-stone-900"
 								>
-									<span>
-										Long posts {long ? 'on, up to 25,000 characters' : 'off, 280 characters'} ·
-										{longPostSource(account)}
-									</span>
-									<button
-										type="button"
-										onclick={() => setLongPosts(account, !long)}
-										disabled={savingSwitch === account.id}
-										class="font-bold text-stone-900 underline"
-										>{long ? 'Turn off' : 'Turn on'}</button
-									>
-									{#if typeof account.metaJson?.longPosts === 'boolean'}
-										<button
-											type="button"
-											onclick={() => setLongPosts(account, null)}
-											disabled={savingSwitch === account.id}
-											class="font-bold text-stone-500 underline">Use what X reports</button
+									{platformName(account.platform)}
+									{#if viaZernio(account)}
+										<span
+											class="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-bold tracking-widest text-stone-500 uppercase"
+											>via Zernio</span
 										>
 									{/if}
-									<button
-										type="button"
-										onclick={() => verify(account.id, 'Checked with X')}
-										disabled={verifying === account.id}
-										class="font-bold text-stone-500 underline"
-										>{verifying === account.id ? 'Checking…' : 'Check plan'}</button
-									>
-								</p>
-							{/if}
-							{#if account.platform === 'bluesky' && !viaZernio(account) && !needsReconnect}
-								{@const compact = account.metaJson?.compactLinks === true}
+									{#if needsReconnect}
+										<span
+											class="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold tracking-widest text-amber-700 uppercase"
+											data-testid="account-status-{account.id}"
+										>
+											{account.status}
+										</span>
+									{/if}
+								</h3>
 								<p
-									class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-medium text-stone-500"
-									data-testid="bluesky-compact-links-{account.id}"
+									class="mt-0.5 truncate text-[13px] font-medium text-stone-500"
+									title={accountLabel(account.displayName, account.handle, account.instanceUrl) ||
+										undefined}
 								>
-									<span>
-										Compact links {compact
-											? 'on, a long link shows only its site'
-											: 'off, a long link shows its site and the start of the address'}
-									</span>
-									<button
-										type="button"
-										onclick={() => setCompactLinks(account, !compact)}
-										disabled={savingSwitch === account.id}
-										class="font-bold text-stone-900 underline"
-										>{compact ? 'Turn off' : 'Turn on'}</button
-									>
+									{#if account.platform === 'linkedin' && account.displayName}
+										{account.displayName}
+									{:else}
+										{accountLabel(account.displayName, account.handle)}
+									{/if}
+									{account.instanceUrl ? ` · ${displayHost(account.instanceUrl)}` : ''}
 								</p>
-							{/if}
+							</div>
+							<button
+								type="button"
+								onclick={() => (pendingDisconnect = { id: account.id, label })}
+								class="shrink-0 rounded-full px-3 py-1.5 text-[12px] font-bold text-stone-500 transition-colors hover:bg-red-50 hover:text-red-600"
+								aria-label={`Disconnect ${label}`}
+							>
+								Disconnect
+							</button>
 						</div>
-					</div>
-					<div class="mt-2 flex items-center justify-between gap-3 sm:mt-0 sm:justify-end">
 						{#if needsReconnect}
-							<span
-								class="rounded bg-amber-50 px-2 py-0.5 text-[10px] font-bold tracking-widest text-amber-700 uppercase"
+							<div
+								class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-200/60 bg-amber-50/60 px-3 py-2.5 text-[12px] font-medium text-amber-900"
 							>
-								{account.status}
-							</span>
-							<button
-								type="button"
-								onclick={() => reconnectAccount(account)}
-								disabled={verifying === account.id || loading}
-								class="text-xs font-bold text-stone-900 underline">Reconnect</button
-							>
-							<button
-								type="button"
-								onclick={() => verify(account.id)}
-								disabled={verifying === account.id}
-								class="text-xs font-bold text-stone-500 underline"
-								>{verifying === account.id ? 'Checking…' : 'Check'}</button
-							>
-						{:else}
-							<span
-								class="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold tracking-widest text-emerald-700 uppercase shadow-sm"
-							>
-								Connected
-							</span>
+								<span class="w-full min-w-0 sm:w-auto sm:flex-1"
+									>This account can't post until it is reconnected.</span
+								>
+								<button
+									type="button"
+									onclick={() => reconnectAccount(account)}
+									disabled={verifying === account.id || loading}
+									class="rounded-full bg-stone-900 px-3.5 py-1.5 text-[12px] font-bold text-white transition-colors hover:bg-stone-800 disabled:opacity-50"
+									>Reconnect</button
+								>
+								<button
+									type="button"
+									onclick={() => verify(account.id)}
+									disabled={verifying === account.id}
+									class="font-bold text-stone-700 underline underline-offset-2 hover:text-stone-900 disabled:opacity-50"
+									>{verifying === account.id ? 'Checking…' : 'Check'}</button
+								>
+							</div>
 						{/if}
-						<button
-							type="button"
-							onclick={() =>
-								(pendingDisconnect = {
-									id: account.id,
-									label:
-										accountLabel(account.displayName, account.handle, account.instanceUrl) ||
-										account.platform
-								})}
-							class="flex h-8 w-8 items-center justify-center rounded-full text-stone-500 transition-colors hover:bg-red-50 hover:text-red-600"
-							aria-label={`Disconnect ${accountLabel(account.displayName, account.handle, account.instanceUrl) || platformName(account.platform)}`}
-							title={`Disconnect ${accountLabel(account.displayName, account.handle, account.instanceUrl) || platformName(account.platform)}`}
-						>
-							<X class="h-4 w-4" />
-						</button>
+						{#if account.platform === 'x' && !viaZernio(account) && !needsReconnect}
+							{@const long = (account.metaJson?.maxCharacters ?? 280) > 280}
+							<div
+								class="mt-3 flex items-start justify-between gap-4 rounded-xl bg-stone-50 px-3 py-2.5"
+								data-testid="x-long-posts-{account.id}"
+							>
+								<div class="min-w-0 text-[12px] font-medium text-stone-500">
+									<p
+										id="x-long-posts-label-{account.id}"
+										class="text-[13px] font-bold text-stone-900"
+									>
+										Long posts
+									</p>
+									<p>
+										{long ? 'Up to 25,000 characters' : '280 characters'} · {longPostSource(
+											account
+										)}
+									</p>
+									<p class="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+										{#if typeof account.metaJson?.longPosts === 'boolean'}
+											<button
+												type="button"
+												onclick={() => setLongPosts(account, null)}
+												disabled={savingSwitch === account.id}
+												class="font-bold text-stone-700 underline underline-offset-2 hover:text-stone-900 disabled:opacity-50"
+												>Use what X reports</button
+											>
+										{/if}
+										<button
+											type="button"
+											onclick={() => verify(account.id, 'Checked with X')}
+											disabled={verifying === account.id}
+											class="font-bold text-stone-700 underline underline-offset-2 hover:text-stone-900 disabled:opacity-50"
+											>{verifying === account.id ? 'Checking…' : 'Check plan'}</button
+										>
+									</p>
+								</div>
+								{@render accountSwitch(
+									long,
+									`x-long-posts-label-${account.id}`,
+									savingSwitch === account.id,
+									() => setLongPosts(account, !long)
+								)}
+							</div>
+						{/if}
+						{#if account.platform === 'bluesky' && !viaZernio(account) && !needsReconnect}
+							{@const compact = account.metaJson?.compactLinks === true}
+							<div
+								class="mt-3 flex items-start justify-between gap-4 rounded-xl bg-stone-50 px-3 py-2.5"
+								data-testid="bluesky-compact-links-{account.id}"
+							>
+								<div class="min-w-0 text-[12px] font-medium text-stone-500">
+									<p
+										id="bluesky-compact-links-label-{account.id}"
+										class="text-[13px] font-bold text-stone-900"
+									>
+										Compact links
+									</p>
+									<p>
+										{compact
+											? 'A long link shows only its site.'
+											: 'A long link shows its site and the start of the address.'}
+									</p>
+								</div>
+								{@render accountSwitch(
+									compact,
+									`bluesky-compact-links-label-${account.id}`,
+									savingSwitch === account.id,
+									() => setCompactLinks(account, !compact)
+								)}
+							</div>
+						{/if}
 					</div>
 				</div>
 			{/each}
@@ -859,18 +897,16 @@
 						id="connect-dialog-title"
 						class="text-2xl font-extrabold tracking-tight text-stone-900"
 					>
-						Add Integration
+						Connect an account
 					</h2>
-					<p class="mt-1.5 text-[13px] font-medium text-stone-500">
-						Select a platform to connect to your workspace.
-					</p>
+					<p class="mt-1.5 text-[13px] font-medium text-stone-500">Pick the platform it is on.</p>
 				</div>
 				<button
 					type="button"
 					bind:this={connectCloseBtn}
 					onclick={closeConnectDialog}
 					class="ml-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-stone-50 text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-900"
-					aria-label="Close add integration dialog"
+					aria-label="Close"
 				>
 					<X class="h-5 w-5" />
 				</button>
