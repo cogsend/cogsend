@@ -2263,17 +2263,21 @@
 			libraryBusy = false;
 			libraryFor = null;
 			uploadingSegment = null;
-			runQueuedUpload();
 		}
 		// Left for another post meanwhile: what was attached belongs to the
 		// one it was sent with, which keeps it.
-		if (generation !== editorGeneration) return;
+		if (generation !== editorGeneration) {
+			runQueuedUpload();
+			return;
+		}
 		if (added.length) {
 			media = [
 				...media,
 				...added.map((it) => ({ ...it, segmentIndex: it.segmentIndex ?? segmentIndex }))
 			];
 		}
+		// Only now: an upload waiting its turn counts the room left on the card.
+		runQueuedUpload();
 		if (failure) {
 			showToast(failure, 'error');
 			return;

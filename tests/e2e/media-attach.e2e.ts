@@ -156,3 +156,36 @@ test('Your media can try again after a failed load', async ({ page }) => {
 	await page.unroute((url) => url.pathname === '/api/media');
 	await library.getByRole('button', { name: 'Cancel' }).click();
 });
+
+test('images picked while Your media attaches count what it attached', async ({ page }) => {
+	await waitForLiveComposer(page);
+	await page.getByTestId('segment-input-0').fill('queued behind Your media');
+	const media = await storedDraft(page);
+	const input = page.getByTestId('file-input-0');
+	await input.setInputFiles([dot(1)]);
+	await expect.poll(async () => (await media()).length, { timeout: 30000 }).toBe(1);
+	const [first] = await media();
+
+	// Hold the attach until the next pick is queued behind it.
+	let release!: () => void;
+	const held = new Promise<void>((resolve) => (release = resolve));
+	await page.route('**/api/drafts/*/media/reuse', async (route) => {
+		await held;
+		await route.continue();
+	});
+	await page.getByTestId('library-0').click();
+	const library = page.getByTestId('media-library');
+	await library.locator(`[data-key="${first.storageKey}"]`).click();
+	await library.getByRole('button', { name: 'Attach', exact: true }).click();
+	await expect(page.getByText('Attaching 1 file…').first()).toBeVisible();
+	await input.setInputFiles([2, 3, 4, 5].map(dot));
+	await expect(page.getByText('Queued — it uploads after the current one').first()).toBeVisible();
+	release();
+
+	// Two on the card once the attach lands, so two of the four fit.
+	await expect(
+		page.getByText('2 images attached · 2 left out, a post takes 4').first()
+	).toBeVisible({ timeout: 30000 });
+	await expect.poll(async () => (await media()).length, { timeout: 30000 }).toBe(4);
+	await page.unroute('**/api/drafts/*/media/reuse');
+});
