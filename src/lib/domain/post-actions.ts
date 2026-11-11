@@ -56,13 +56,13 @@ export function emptyPostsHeading(tab: PostsTab): string {
 
 export function emptyPostsBody(tab: PostsTab): string {
 	if (tab === 'all') {
-		return "You don't have any posts right now. Go to the composer to write a new one!";
+		return "You don't have any posts yet. Write one in the composer.";
 	}
 	if (tab === 'drafts') {
-		return "You don't have any drafts right now. Go to the composer to write a new one!";
+		return "You don't have any drafts. A post you save without sending waits here.";
 	}
 	if (tab === 'failed') {
-		return "Nothing failed to publish. You're all caught up!";
+		return 'Nothing failed to publish.';
 	}
-	return `You don't have any ${tab} posts right now. Go to the composer to write a new one!`;
+	return `You don't have any ${tab} posts right now.`;
 }

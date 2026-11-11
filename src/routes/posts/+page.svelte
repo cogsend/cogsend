@@ -33,6 +33,7 @@
 	import { PROCESSING_MARK } from '#lib/domain/video-rules.js';
 	import { sessionExpiredIfUnauthorized } from '#lib/components/session-expired.js';
 	import { takePostsNotice } from '#lib/components/posts-notice.js';
+	import { showToast } from '#lib/components/toast.svelte.js';
 	import { menuNav } from '#lib/components/menu-nav.js';
 	import {
 		formatDayTime,
@@ -130,7 +131,6 @@
 		whenLabel: 'scheduled' | 'published' | 'updated';
 		/** How a finished post went; null while nothing has finished. */
 		outcome: CardOutcome | null;
-		overdue?: boolean;
 		platforms: {
 			name: string;
 			connectionId?: string;
@@ -147,10 +147,6 @@
 		error: string | null;
 		draftId: string;
 		targetId: string | null;
-		/** Absolute local time + zone, computed once at card build (not per render). */
-		whenText: string;
-		/** Full local timestamp for the tooltip, computed once at card build. */
-		whenTitle: string;
 		/** All attachments flattened across thread segments, display-sorted. */
 		media: PostMedia[];
 		/** What publishing sends, one entry per thread post; one entry for a single post. */
@@ -228,10 +224,23 @@
 	// What the composer just did with the post that sent you here.
 	let notice = $state(takePostsNotice());
 	let busy = $state<string | null>(null);
+	// What went wrong with an action on one card, shown on that card. Keyed by
+	// draft: the card's own key follows its newest target, which a retry or a
+	// refresh can change.
+	let cardErrors = $state<Record<string, string>>({});
+	function setCardError(draftId: string, message: string | null) {
+		const { [draftId]: _dropped, ...rest } = cardErrors;
+		cardErrors = message ? { ...rest, [draftId]: message } : rest;
+	}
+	// Relative times ("in 5m") move on without rebuilding the cards.
+	let now = $state(Date.now());
 	let pendingCancel = $state<{
 		ids: string[];
 		label: string;
 		cardKey: string;
+		draftId: string;
+		/** Every account still waiting, not one of them. */
+		whole: boolean;
 		title?: string;
 		confirmLabel?: string;
 	} | null>(null);
@@ -393,7 +402,10 @@
 		return (error ?? '').includes(PROCESSING_MARK);
 	}
 
-	function whenDisplay(when: string | Date | null | undefined): {
+	function whenDisplay(
+		when: string | Date | null | undefined,
+		at: number
+	): {
 		text: string;
 		title: string;
 	} {
@@ -403,7 +415,7 @@
 		// The zone is named once under the list, so a card stays one short line
 		// on a phone; the tooltip keeps the full timestamp with it.
 		return {
-			text: `${formatRelativeTime(d)} · ${formatDayTime(d)}`,
+			text: `${formatRelativeTime(d, new Date(at))} · ${formatDayTime(d)}`,
 			title: formatFullLocalWithZone(d)
 		};
 	}
@@ -449,8 +461,6 @@
 					error: null,
 					draftId: d.id,
 					targetId: null,
-					whenText: whenDisplay(d.updatedAt).text,
-					whenTitle: whenDisplay(d.updatedAt).title,
 					...cardMedia(body, d.media)
 				};
 			});
@@ -514,7 +524,6 @@
 
 			const body = primary.draft.baseBody || primary.draft.title || '';
 			const when = primary.scheduledFor ?? primary.updatedAt ?? null;
-			const whenShown = whenDisplay(when);
 			return {
 				key: `target-${primary.id}`,
 				kind: 'target' as const,
@@ -528,7 +537,6 @@
 					? ('scheduled' as const)
 					: ('published' as const),
 				outcome: cardOutcome(group),
-				overdue: when != null && toTime(when) <= Date.now(),
 				platforms,
 				// Fallbacks in case we need a general error
 				remoteUrl: safeHttpUrl(primary.remoteUrl),
@@ -537,8 +545,6 @@
 					: null,
 				draftId: primary.draft.id,
 				targetId: primary.id,
-				whenText: whenShown.text,
-				whenTitle: whenShown.title,
 				...cardMedia(body, primary.draft.media)
 			};
 		});
@@ -588,11 +594,34 @@
 	// While anything is on its way out, Posts follows it without a reload:
 	// quickly while a send is in flight, slowly while a platform processes a
 	// video, which only moves on with the scheduler's next run.
+	// A post about to go out, or just due, is watched until it has gone. Past
+	// ten minutes overdue the scheduler is the problem, and the health line on
+	// the home page says so, so Posts stops asking.
+	const dueSoon = $derived(
+		upcomingCards.some((c) => {
+			if (c.status !== 'scheduled' || !c.when) return false;
+			const left = toTime(c.when) - now;
+			return left < 120_000 && left > -600_000;
+		})
+	);
 	const refreshEvery = $derived.by((): number | null => {
 		if (publishActivity.inFlight > 0 || upcomingCards.some((c) => c.status === 'sending')) {
 			return 5_000;
 		}
-		return upcomingCards.some((c) => c.status === 'processing') ? 30_000 : null;
+		return upcomingCards.some((c) => c.status === 'processing') || dueSoon ? 30_000 : null;
+	});
+	$effect(() => {
+		const timer = setInterval(() => {
+			if (document.visibilityState === 'visible') now = Date.now();
+		}, 30_000);
+		const onVisible = () => {
+			if (document.visibilityState === 'visible') now = Date.now();
+		};
+		document.addEventListener('visibilitychange', onVisible);
+		return () => {
+			clearInterval(timer);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
 	});
 	$effect(() => {
 		const every = refreshEvery;
@@ -656,13 +685,22 @@
 		return account.handle ? displayHandle(account.handle) : platformName(account.platform);
 	}
 
-	const cards = $derived.by(() => {
-		if (activeTab === 'scheduled') return upcomingCards;
-		if (activeTab === 'published') return publishedCards;
-		if (activeTab === 'failed') return failedCards;
-		if (activeTab === 'drafts') return draftsOnlyCards;
+	function cardsFor(tab: PostsTab): Card[] {
+		if (tab === 'scheduled') return upcomingCards;
+		if (tab === 'published') return publishedCards;
+		if (tab === 'failed') return failedCards;
+		if (tab === 'drafts') return draftsOnlyCards;
 		return [...upcomingCards, ...historyCards, ...draftsOnlyCards];
-	});
+	}
+
+	/** The account filter and the search, which the tab counts follow too. */
+	function filtered(list: Card[]): Card[] {
+		const q = debouncedQuery.trim().toLowerCase();
+		return list.filter((c) => {
+			if (accountFilter && !c.platforms.some((p) => p.connectionId === accountFilter)) return false;
+			return !q || c.body.toLowerCase().includes(q);
+		});
+	}
 
 	// A filter whose account no longer has any loaded posts (e.g. its last
 	// card was cancelled, or an old link names it) would strand the list on an
@@ -673,11 +711,7 @@
 	});
 
 	const visible = $derived.by(() => {
-		const q = debouncedQuery.trim().toLowerCase();
-		const list = cards.filter((c) => {
-			if (accountFilter && !c.platforms.some((p) => p.connectionId === accountFilter)) return false;
-			return !q || c.body.toLowerCase().includes(q);
-		});
+		const list = filtered(cardsFor(activeTab));
 		// Newest first on every tab.
 		list.sort((a, b) => b.sortKey - a.sortKey);
 		return list;
@@ -712,12 +746,14 @@
 		toggle.scrollIntoView({ block: 'nearest' });
 	}
 
+	const tabCounts = $derived(
+		Object.fromEntries(TAB_VALUES.map((tab) => [tab, filtered(cardsFor(tab)).length])) as Record<
+			PostsTab,
+			number
+		>
+	);
 	function countFor(tab: PostsTab): number {
-		if (tab === 'scheduled') return upcomingCards.length;
-		if (tab === 'published') return publishedCards.length;
-		if (tab === 'failed') return failedCards.length;
-		if (tab === 'drafts') return draftsOnlyCards.length;
-		return upcomingCards.length + historyCards.length + draftsOnlyCards.length;
+		return tabCounts[tab];
 	}
 
 	// Scheduled has no older page: `before` walks history, and every post still
@@ -962,8 +998,10 @@
 		op: 'cancel' | 'retry' | 'reschedule',
 		ids: string[],
 		fallback: string,
+		draftId: string,
 		extra?: Record<string, string>
 	): Promise<boolean> {
+		setCardError(draftId, null);
 		// A rejected fetch (offline, DNS blip) must surface as a banner instead of
 		// escaping into the callers, where it skipped the busy reset and left the
 		// card's button disabled forever.
@@ -975,19 +1013,20 @@
 				body: JSON.stringify({ op, ids, ...extra })
 			});
 		} catch {
-			error = humanizeError('fetch failed');
+			setCardError(draftId, humanizeError('fetch failed'));
 			return false;
 		}
+		if (sessionExpiredIfUnauthorized(res)) return false;
 		const payload = await res.json().catch(() => ({}));
 		if (!res.ok) {
-			error = humanizeError(payload.error || fallback);
+			setCardError(draftId, humanizeError(payload.error || fallback));
 			return false;
 		}
 		const failed = (payload.results ?? []).filter((r: { ok: boolean }) => !r.ok) as {
 			error?: string;
 		}[];
 		if (failed.length) {
-			error = humanizeError(failed[0]?.error || fallback);
+			setCardError(draftId, humanizeError(failed[0]?.error || fallback));
 			return false;
 		}
 		return true;
@@ -995,16 +1034,25 @@
 
 	async function confirmCancel() {
 		if (!pendingCancel) return;
-		const ids = pendingCancel.ids;
-		const cardKey = pendingCancel.cardKey;
+		const { ids, cardKey, draftId, whole, label } = pendingCancel;
 		pendingCancel = null;
 		busy = cardKey;
-		error = null;
 		// finally: the button always comes back, even if the call itself blows up.
-		const done = await bulkTargets('cancel', ids, 'Could not cancel').finally(() => {
+		const done = await bulkTargets('cancel', ids, 'Could not cancel', draftId).finally(() => {
 			busy = null;
 		});
-		if (done) await load({ keepError: true });
+		if (!done) return;
+		await load({ keepError: true });
+		if (!whole) {
+			showToast(`Removed ${label} from this post`);
+		} else if (allDrafts.some((d) => d.id === draftId && d.status === 'draft')) {
+			showToast('Unscheduled — moved to Drafts', 'success', {
+				label: 'Open drafts',
+				href: '/posts?tab=drafts'
+			});
+		} else {
+			showToast('Unscheduled');
+		}
 	}
 
 	// Per-platform retry reuses the same bulk endpoint with a single id, so
@@ -1012,24 +1060,24 @@
 	// are never touched (server skips rows with remotePostId).
 	let busyTarget = $state<string | null>(null);
 
-	async function retryAll(cardKey: string, ids: string[]) {
+	async function retryAll(cardKey: string, draftId: string, ids: string[]) {
 		if (!ids.length) return;
 		busy = cardKey;
-		error = null;
-		await bulkTargets('retry', ids, 'Retry failed').finally(() => {
+		const done = await bulkTargets('retry', ids, 'Retry failed', draftId).finally(() => {
 			busy = null;
 		});
 		await load({ keepError: true });
+		if (done) showToast('Sent again');
 	}
 
-	async function retryOne(targetId: string) {
+	async function retryOne(draftId: string, targetId: string) {
 		if (!targetId) return;
 		busyTarget = targetId;
-		error = null;
-		await bulkTargets('retry', [targetId], 'Retry failed').finally(() => {
+		const done = await bulkTargets('retry', [targetId], 'Retry failed', draftId).finally(() => {
 			busyTarget = null;
 		});
 		await load({ keepError: true });
+		if (done) showToast('Sent again');
 	}
 
 	// Per-platform discard reuses the whole-card cancel confirm + bulk
@@ -1045,31 +1093,53 @@
 			ids: [platform.targetId],
 			label: name,
 			cardKey: card.key,
+			draftId: card.draftId,
+			whole: false,
 			title: `Remove ${platformName(platform.name)} from this post?`,
 			confirmLabel: 'Remove'
 		};
 	}
 
-	async function rescheduleAll(cardKey: string, ids: string[]) {
+	async function rescheduleAll(cardKey: string, draftId: string, ids: string[]) {
 		if (!ids.length) return;
-		if (!isFutureScheduleValue(rescheduleAt, new Date())) {
-			error = 'Pick a time in the future';
-			return;
-		}
-		const runAt = scheduleValueToIso(rescheduleAt, new Date());
+		// Confirm is disabled for a past time; this catches one that turned past
+		// while the panel stood open.
+		const runAt = isFutureScheduleValue(rescheduleAt, new Date())
+			? scheduleValueToIso(rescheduleAt, new Date())
+			: null;
 		if (!runAt) {
-			error = 'Pick a time in the future';
+			setCardError(draftId, 'Pick a time in the future');
 			return;
 		}
 		busy = cardKey;
-		error = null;
-		const done = await bulkTargets('reschedule', ids, 'Could not reschedule', { runAt }).finally(
-			() => {
-				busy = null;
-			}
-		);
-		if (done) rescheduleId = null;
+		const done = await bulkTargets('reschedule', ids, 'Could not reschedule', draftId, {
+			runAt
+		}).finally(() => {
+			busy = null;
+		});
+		if (done) closeReschedule();
 		await load({ keepError: true });
+		if (done) showToast(`Rescheduled for ${formatLocalDateTimeWithZone(rescheduleAt)}`);
+	}
+
+	let rescheduleTrigger: HTMLElement | null = null;
+	function closeReschedule() {
+		rescheduleId = null;
+		const trigger = rescheduleTrigger;
+		rescheduleTrigger = null;
+		// The trigger is gone when the card moved; then focus stays where it is.
+		if (trigger?.isConnected) trigger.focus();
+	}
+	/** Focus lands inside the panel, so a keyboard user is where they asked to be. */
+	function rescheduleFocus(node: HTMLElement) {
+		node.querySelector<HTMLElement>('button, input, select')?.focus();
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key !== 'Escape') return;
+			event.stopPropagation();
+			closeReschedule();
+		};
+		node.addEventListener('keydown', onKey);
+		return { destroy: () => node.removeEventListener('keydown', onKey) };
 	}
 
 	const minRescheduleAt = $derived.by(() => {
@@ -1227,7 +1297,7 @@
 					onclick={() => void load()}
 					class="rounded-full px-2 py-0.5 text-xs font-bold text-red-700 transition-colors hover:bg-red-100"
 				>
-					Retry
+					Reload
 				</button>
 				<button
 					type="button"
@@ -1324,6 +1394,8 @@
 			{/each}
 		{/if}
 		{#each visible as card (card.key)}
+			{@const shown = whenDisplay(card.when, now)}
+			{@const overdue = card.when != null && toTime(card.when) <= now}
 			{@const badge = statusBadge(card.status)}
 			<div
 				class="flex flex-col rounded-[2rem] border border-stone-200/80 bg-white p-5 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] transition-all hover:border-stone-300 hover:shadow-[0_8px_30px_-12px_rgb(28_25_23/0.1)] sm:p-6"
@@ -1562,7 +1634,7 @@
 										<button
 											type="button"
 											disabled={busyTarget === platform.targetId || busy === card.key}
-											onclick={() => void retryOne(platform.targetId!)}
+											onclick={() => void retryOne(card.draftId, platform.targetId!)}
 											class="-my-3 inline-flex min-h-11 items-center text-[12px] font-bold text-stone-900 underline-offset-2 transition-colors hover:underline disabled:opacity-50"
 										>
 											{busyTarget === platform.targetId ? 'Retrying…' : 'Retry'}
@@ -1600,7 +1672,7 @@
 										<button
 											type="button"
 											disabled={busyTarget === platform.targetId || busy === card.key}
-											onclick={() => void retryOne(platform.targetId!)}
+											onclick={() => void retryOne(card.draftId, platform.targetId!)}
 											class="-my-3 inline-flex min-h-11 items-center text-[12px] font-bold text-stone-900 underline-offset-2 transition-colors hover:underline disabled:opacity-50"
 										>
 											{busyTarget === platform.targetId ? 'Retrying…' : 'Retry now'}
@@ -1621,7 +1693,23 @@
 				{:else if card.error}
 					<p class="mb-4 text-xs text-red-600">{humanizeError(card.error)}</p>
 				{/if}
-				<!-- remoteUrl removed in favor of clickable platform icons -->
+				{#if cardErrors[card.draftId]}
+					<div
+						class="mb-4 flex items-start justify-between gap-3 rounded-xl bg-red-50 px-3 py-2"
+						role="alert"
+						data-testid="card-error"
+					>
+						<p class="text-[12px] font-bold text-red-700">{cardErrors[card.draftId]}</p>
+						<button
+							type="button"
+							onclick={() => setCardError(card.draftId, null)}
+							aria-label="Dismiss"
+							class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-red-500 hover:bg-red-100 hover:text-red-700"
+						>
+							<X class="h-3 w-3" />
+						</button>
+					</div>
+				{/if}
 
 				<!-- Post Footer -->
 				<div
@@ -1630,25 +1718,25 @@
 					<p class="text-[12px] font-bold text-stone-500">
 						{#if card.status === 'sending' && card.when}
 							Started
-							<span class="text-stone-900" title={card.whenTitle}>{card.whenText}</span>
-						{:else if card.whenLabel === 'scheduled' && card.when && card.overdue}
+							<span class="text-stone-900" title={shown.title}>{shown.text}</span>
+						{:else if card.whenLabel === 'scheduled' && card.when && overdue}
 							Due
-							<span class="text-stone-900" title={card.whenTitle}>{card.whenText}</span>
+							<span class="text-stone-900" title={shown.title}>{shown.text}</span>
 						{:else if card.whenLabel === 'scheduled' && card.when}
 							Will publish
-							<span class="text-stone-900" title={card.whenTitle}>{card.whenText}</span>
+							<span class="text-stone-900" title={shown.title}>{shown.text}</span>
 						{:else if card.whenLabel === 'published' && card.when && card.outcome?.kind === 'failed'}
 							Failed
-							<span class="text-stone-900" title={card.whenTitle}>{card.whenText}</span>
+							<span class="text-stone-900" title={shown.title}>{shown.text}</span>
 						{:else if card.whenLabel === 'published' && card.when && card.outcome?.kind === 'partial'}
 							Published to {card.outcome.published} of {card.outcome.total} ·
-							<span class="text-stone-900" title={card.whenTitle}>{card.whenText}</span>
+							<span class="text-stone-900" title={shown.title}>{shown.text}</span>
 						{:else if card.whenLabel === 'published' && card.when}
 							Published
-							<span class="text-stone-900" title={card.whenTitle}>{card.whenText}</span>
+							<span class="text-stone-900" title={shown.title}>{shown.text}</span>
 						{:else if card.when}
 							Edited
-							<span class="text-stone-900" title={card.whenTitle}>{card.whenText}</span>
+							<span class="text-stone-900" title={shown.title}>{shown.text}</span>
 						{/if}
 					</p>
 
@@ -1687,7 +1775,8 @@
 							{#if badge !== 'processing'}
 								<button
 									type="button"
-									onclick={() => {
+									onclick={(event) => {
+										rescheduleTrigger = event.currentTarget;
 										rescheduleId = card.targetId;
 										rescheduleMode = 'relative';
 
@@ -1719,7 +1808,9 @@
 										(pendingCancel = {
 											ids: cancelTargetIds(card.platforms),
 											label: draftExcerpt(card.body, 60) || 'post',
-											cardKey: card.key
+											cardKey: card.key,
+											draftId: card.draftId,
+											whole: true
 										})}
 									class="{cardAction} text-red-500 hover:text-red-700"
 								>
@@ -1747,7 +1838,7 @@
 							<button
 								type="button"
 								disabled={cardBusy || failedIds.length === 0}
-								onclick={() => void retryAll(card.key, failedIds)}
+								onclick={() => void retryAll(card.key, card.draftId, failedIds)}
 								class="{cardAction} text-stone-900 underline-offset-2 hover:underline"
 							>
 								{cardBusy
@@ -1782,8 +1873,13 @@
 				</div>
 
 				{#if rescheduleId === card.targetId && card.targetId}
-					{@const rescheduleValid = isFutureScheduleValue(rescheduleAt, new Date())}
-					<div class="mt-3 flex flex-col gap-2">
+					{@const rescheduleValid = isFutureScheduleValue(rescheduleAt, new Date(now))}
+					<div
+						class="mt-3 flex flex-col gap-2"
+						role="group"
+						aria-label="Reschedule"
+						use:rescheduleFocus
+					>
 						<div class="flex rounded-lg bg-stone-100 p-1">
 							<button
 								type="button"
@@ -1860,21 +1956,27 @@
 						{#if rescheduleValid}
 							<p class="text-[11px] font-bold text-stone-500" data-testid="reschedule-preview">
 								Will publish {formatLocalDateTimeWithZone(rescheduleAt)} ({formatRelativeTime(
-									rescheduleAt
+									rescheduleAt,
+									new Date(now)
 								)})
+							</p>
+						{:else}
+							<p class="text-[11px] font-bold text-amber-700" data-testid="reschedule-invalid">
+								Pick a time in the future
 							</p>
 						{/if}
 						<div class="flex flex-wrap items-center gap-2">
 							<button
 								type="button"
-								onclick={() => void rescheduleAll(card.key, rescheduleTargetIds(card.platforms))}
-								disabled={busy === card.key}
-								class="rounded-full bg-stone-900 px-4 py-1.5 text-xs font-bold text-white hover:bg-stone-800"
+								onclick={() =>
+									void rescheduleAll(card.key, card.draftId, rescheduleTargetIds(card.platforms))}
+								disabled={busy === card.key || !rescheduleValid}
+								class="rounded-full bg-stone-900 px-4 py-1.5 text-xs font-bold text-white hover:bg-stone-800 disabled:opacity-50 pointer-coarse:min-h-11"
 								>Confirm</button
 							>
 							<button
 								type="button"
-								onclick={() => (rescheduleId = null)}
+								onclick={closeReschedule}
 								class="rounded-full border border-stone-200 px-4 py-1.5 text-xs font-bold text-stone-500 hover:text-stone-900"
 								>Keep</button
 							>
@@ -1905,7 +2007,15 @@
 						{emptyPostsBody(activeTab)}
 					{/if}
 				</p>
-				{#if !debouncedQuery}
+				{#if debouncedQuery || accountFilter}
+					<!-- Nothing to write: the posts exist, the filter hides them. -->
+				{:else if activeTab === 'failed'}
+					<a
+						href={postsHref({ tab: 'scheduled' })}
+						class="mt-6 inline-flex rounded-full border border-stone-300 bg-white px-6 py-2.5 text-[13px] font-bold text-stone-900 transition-all hover:bg-stone-100"
+						>See scheduled</a
+					>
+				{:else}
 					<a
 						href="/compose"
 						class="mt-6 inline-flex rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white transition-all hover:bg-stone-800"
