@@ -230,8 +230,9 @@ test('a wrong tag never costs the post its save, and stops it going out', async 
 	await expect(page.getByTestId('save-status')).not.toContainText('Not saved');
 	expect(await threadsVariant(page, draftId)).toBeNull();
 
+	await expect(page.getByTestId('publish-blocker')).toHaveText('Topic tags cannot contain . or &');
 	await page.getByTestId('publish-now').click();
-	await expect(page.getByText('Topic tags cannot contain . or &')).toBeVisible();
+	await expect(page.getByTestId('publish-toast')).toContainText('Topic tags cannot contain . or &');
 	await expect(page.getByTestId('publish-confirm-destinations')).toHaveCount(0);
 
 	await clickUntilVisible(
