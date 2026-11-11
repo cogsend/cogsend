@@ -65,7 +65,7 @@ A failed request answers a JSON object with an `error` property.
 
 ### Lists
 
-`GET /api/drafts` answers 200 drafts at a time and `GET /api/queue` 100 deliveries, or up to 500 with `?limit=`. Each answer has `hasMore` and a `next` cursor: send `next` back as `?before=` for the page after, until `next` is `null`. Paging the queue walks back through its published and failed deliveries only: the waiting ones come on the first page, so a queue with more than 100 waiting needs a larger `?limit=`. `?q=` keeps only posts whose text contains it, ignoring case, up to 200 characters, and combines with `?before=`. A malformed cursor or a longer search answers **400**.
+`GET /api/drafts` answers 200 drafts at a time and `GET /api/queue` 100 deliveries, or up to 500 with `?limit=`. Each answer has `hasMore` and a `next` cursor: send `next` back as `?before=` for the page after, until `next` is `null`. The queue lists what is waiting first, soonest first, then its published and failed deliveries, newest first, and its pages follow that order. When a page ends partway through a post's waiting deliveries, `waitingTotals` maps that post's draft id to how many of its deliveries are waiting in all. `?q=` keeps only posts whose text contains it, ignoring the case of A to Z, up to 200 characters, and combines with `?before=`. A malformed cursor or a longer search answers **400**.
 
 ## MCP server
 
