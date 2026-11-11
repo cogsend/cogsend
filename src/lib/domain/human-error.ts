@@ -77,13 +77,12 @@ export function humanizedCause(raw: string | null | undefined): string | null {
 	if (s.includes('scheduler') || s.includes('redis') || s.includes('queue')) {
 		return 'Scheduler is delayed — scheduled posts will send on the next tick';
 	}
-	if (
-		s.includes('timeout') ||
-		s.includes('timed out') ||
-		s.includes('econnrefused') ||
-		s.includes('fetch failed') ||
-		s.includes('enotfound')
-	) {
+	// A timeout means the other side was reached but answered too slowly, so
+	// "check your connection" points the reader at the wrong thing.
+	if (s.includes('timeout') || s.includes('timed out')) {
+		return 'Took too long to answer — try again';
+	}
+	if (s.includes('econnrefused') || s.includes('fetch failed') || s.includes('enotfound')) {
 		return 'Could not reach the network — check connection and try again';
 	}
 	if (s.includes('instance host') || s.includes('host not allowed')) {

@@ -25,6 +25,11 @@ describe('humanizeError', () => {
 		expect(humanizeError('429 rate limit exceeded')).toMatch(/rate limited/i);
 		expect(humanizeError('fetch failed')).toMatch(/reach the network/i);
 	});
+	it('says a timeout was slow, not that the network is down', () => {
+		expect(humanizeError('Provider request timed out')).toBe('Took too long to answer — try again');
+		expect(humanizeError('Media processing timed out')).not.toMatch(/network/i);
+		expect(humanizeError('getaddrinfo ENOTFOUND bsky.social')).toMatch(/reach the network/i);
+	});
 	it('keeps useful media and character errors', () => {
 		expect(humanizeError('Image must be 16MB or smaller')).toMatch(/16MB/);
 		expect(humanizeError('300 graphemes on this post')).toMatch(/grapheme/);

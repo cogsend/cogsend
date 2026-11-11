@@ -32,8 +32,8 @@ describe('handleError', () => {
 	});
 
 	it('keeps the fixed copy for a failure it recognises', async () => {
-		// A provider timeout is a 5xx, but "check your connection" is the useful
-		// thing to say — only unrecognised text (SQL, response bodies) is hidden.
+		// A provider timeout is a 5xx, but saying it was slow is useful — only
+		// unrecognised text (SQL, response bodies) is hidden.
 		const logged = captureConsole();
 		const res = handleError(
 			Object.assign(new Error('Provider request timed out'), { status: 504 })
@@ -42,7 +42,7 @@ describe('handleError', () => {
 		expect(loggedLines(logged).join('\n')).toContain('Provider request timed out');
 		expect(res.status).toBe(504);
 		expect((await res.json()) as { error: string }).toEqual({
-			error: 'Could not reach the network — check connection and try again'
+			error: 'Took too long to answer — try again'
 		});
 	});
 
