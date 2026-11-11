@@ -729,6 +729,29 @@
 			(blueskyBytesOver > 0 &&
 				(selectedPlatforms.has('bluesky') || isPlatformCustomized(overrides, 'bluesky')))
 	);
+	// Which platform and which post, so the fix is a glance away. LinkedIn and
+	// Instagram flatten a thread into one post, so there it is the whole text.
+	const overLimitMessage = $derived.by(() => {
+		const perPost: Partial<Record<PlatformId, (s: string) => number>> = {
+			bluesky: (s) => countForPlatform(s, 'bluesky'),
+			mastodon: (s) => countForPlatform(s, 'mastodon'),
+			threads: countGraphemes,
+			x: xWeightedLength
+		};
+		for (const p of PLATFORM_ORDER) {
+			if (!selectedPlatforms.has(p)) continue;
+			const { len, max } = counters[p];
+			if (len <= max) continue;
+			const count = perPost[p];
+			const posts = count ? splitThreadSegments(effectivePlatformBody(baseBody, overrides, p)) : [];
+			const i = count ? posts.findIndex((post) => count(post) > max) : -1;
+			if (count && posts.length > 1 && i >= 0) {
+				return `${platformName(p)}: post ${i + 1} is ${count(posts[i]) - max} over the limit`;
+			}
+			return `${platformName(p)}: ${len - max} over the limit`;
+		}
+		return 'A post is over the character limit';
+	});
 
 	function getPlatformStatus(platform: PlatformId) {
 		const isCustomized = isPlatformCustomized(overrides, platform);
@@ -1376,19 +1399,54 @@
 		return persistClean();
 	}
 
-	function pollBlocked(): boolean {
-		if (!mastoPoll || !mastoPollError) return false;
-		if (![...selected].some((id) => connections.find((c) => c.id === id)?.platform === 'mastodon'))
-			return false;
-		showToast(mastoPollError, 'warn');
-		return true;
+	/**
+	 * What would make the platforms refuse this post, in the order Publish and
+	 * Schedule have always checked it. One list, so the line above the dock and
+	 * the buttons can never disagree.
+	 */
+	function firstPublishProblem(connectionIds: string[]): string | null {
+		const to = (platform: string) => connectionIds.some((id) => platformOf(id) === platform);
+		if (threadsLinksOver && to('threads')) {
+			return `Threads allows max ${THREADS_MAX_LINKS} links per post (${threadsLinkCount} in one post)`;
+		}
+		if (xCashtagsOver && to('x')) return X_CASHTAG_MESSAGE;
+		if (instagramTextProblem && to('instagram')) return instagramTextProblem;
+		if (linkedinMediaOver && to('linkedin')) {
+			return linkedinMediaProblem ?? 'LinkedIn cannot take this media';
+		}
+		if (instagramMediaProblem && to('instagram')) return instagramMediaProblem;
+		const sizeProblem = mediaSizeProblem(
+			connectionIds.map(platformOf).filter((p) => p !== undefined),
+			media
+		);
+		if (sizeProblem) return sizeProblem;
+		if (videoJobs.length) return 'Wait for the video to finish uploading';
+		if (videoProblem) return videoProblem;
+		if (overSelectedLimit) return overLimitMessage;
+		if (mastoPoll && mastoPollError && to('mastodon')) return mastoPollError;
+		if (threadsTopicError && selectedThreadsAccounts.length > 0) return threadsTopicError;
+		return null;
 	}
 
-	function topicBlocked(): boolean {
-		if (!threadsTopicError || selectedThreadsAccounts.length === 0) return false;
-		showToast(threadsTopicError, 'warn');
-		return true;
-	}
+	// Said where the person is looking, before they press anything. Hidden on
+	// an empty new post, where every check would fire at once.
+	const publishBlocker = $derived.by(() => {
+		if (editLocked || loadFailedId || (!draftId && !baseBody.trim())) return null;
+		const ids = [...selected];
+		if (!ids.length) return null;
+		return unconnectedProblem(ids) ?? firstPublishProblem(ids);
+	});
+	// Read out once per kind of problem, not on every keystroke that changes
+	// how far over the limit a post is.
+	let blockerAnnouncement = $state('');
+	let blockerKind: string | null = null;
+	$effect(() => {
+		const message = publishBlocker;
+		const kind = message === null ? null : message === overLimitMessage ? 'limit' : message;
+		if (kind === blockerKind) return;
+		blockerKind = kind;
+		blockerAnnouncement = message ?? '';
+	});
 
 	// saving=true while the pre-publish persist is in flight. The dialog opens
 	// synchronously (before any await) so the Publish button feels instant;
@@ -1427,50 +1485,11 @@
 			showToast(unconnected, 'warn');
 			return;
 		}
-		if (threadsLinksOver && connectionIds.some((id) => platformOf(id) === 'threads')) {
-			showToast(
-				`Threads allows max ${THREADS_MAX_LINKS} links per post (${threadsLinkCount} in one post)`,
-				'warn'
-			);
+		const problem = firstPublishProblem(connectionIds);
+		if (problem) {
+			showToast(problem, 'warn');
 			return;
 		}
-		if (xCashtagsOver && connectionIds.some((id) => platformOf(id) === 'x')) {
-			showToast(X_CASHTAG_MESSAGE, 'warn');
-			return;
-		}
-		if (instagramTextProblem && connectionIds.some((id) => platformOf(id) === 'instagram')) {
-			showToast(instagramTextProblem, 'warn');
-			return;
-		}
-		if (linkedinMediaOver && connectionIds.some((id) => platformOf(id) === 'linkedin')) {
-			showToast(linkedinMediaProblem ?? 'LinkedIn cannot take this media', 'warn');
-			return;
-		}
-		if (instagramMediaProblem && connectionIds.some((id) => platformOf(id) === 'instagram')) {
-			showToast(instagramMediaProblem, 'warn');
-			return;
-		}
-		const sizeProblem = mediaSizeProblem(
-			connectionIds.map(platformOf).filter((p) => p !== undefined),
-			media
-		);
-		if (sizeProblem) {
-			showToast(sizeProblem, 'warn');
-			return;
-		}
-		if (videoJobs.length) {
-			showToast('Wait for the video to finish uploading', 'warn');
-			return;
-		}
-		if (videoProblem) {
-			showToast(videoProblem, 'warn');
-			return;
-		}
-		if (overSelectedLimit) {
-			showToast('A post is over the character limit', 'warn');
-			return;
-		}
-		if (pollBlocked() || topicBlocked()) return;
 		// Skip-ask fast path: give instant button feedback (publishing=true)
 		// before the save round-trips, then publish without a dialog.
 		if (skipAsk) {
@@ -1963,48 +1982,13 @@
 			return;
 		}
 		// Mirror the publish guards: scheduling a post that cannot publish just
-		// parks a guaranteed failure in the queue.
-		if (threadsLinksOver) {
-			showToast(
-				`Threads allows max ${THREADS_MAX_LINKS} links per post (${threadsLinkCount} in one post)`,
-				'warn'
-			);
+		// parks a guaranteed failure in the queue. The whole selection, as
+		// before: its flags are what the cards show.
+		const problem = firstPublishProblem([...selected]);
+		if (problem) {
+			showToast(problem, 'warn');
 			return;
 		}
-		if (xCashtagsOver) {
-			showToast(X_CASHTAG_MESSAGE, 'warn');
-			return;
-		}
-		if (instagramTextProblem) {
-			showToast(instagramTextProblem, 'warn');
-			return;
-		}
-		if (linkedinMediaOver) {
-			showToast(linkedinMediaProblem ?? 'LinkedIn cannot take this media', 'warn');
-			return;
-		}
-		if (instagramMediaProblem) {
-			showToast(instagramMediaProblem, 'warn');
-			return;
-		}
-		const sizeProblem = mediaSizeProblem(selectedPlatforms, media);
-		if (sizeProblem) {
-			showToast(sizeProblem, 'warn');
-			return;
-		}
-		if (videoJobs.length) {
-			showToast('Wait for the video to finish uploading', 'warn');
-			return;
-		}
-		if (videoProblem) {
-			showToast(videoProblem, 'warn');
-			return;
-		}
-		if (overSelectedLimit) {
-			showToast('A post is over the character limit', 'warn');
-			return;
-		}
-		if (pollBlocked() || topicBlocked()) return;
 		const runAt = scheduleValueToIso(scheduleCombined, now);
 		if (!runAt) {
 			showToast('Pick a time in the future', 'warn');
@@ -4137,6 +4121,15 @@
 		<div
 			class="pointer-events-none fixed bottom-[max(2rem,env(safe-area-inset-bottom))] left-1/2 z-30 w-full max-w-2xl -translate-x-1/2 px-4 sm:px-6"
 		>
+			{#if publishBlocker}
+				<p
+					data-testid="publish-blocker"
+					class="mx-auto mb-2 w-fit max-w-full rounded-full border border-amber-200 bg-amber-50/95 px-3 py-1 text-center text-[12px] font-bold text-amber-800 shadow-sm backdrop-blur"
+				>
+					{publishBlocker}
+				</p>
+			{/if}
+			<p class="sr-only" aria-live="polite">{blockerAnnouncement}</p>
 			<div class="flex items-center justify-center gap-4">
 				<!-- Left side: Account Selector -->
 				<div class="accounts-popover-container pointer-events-auto relative flex items-center">
