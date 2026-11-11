@@ -162,11 +162,11 @@
 				{#if drift.removed.length}
 					{names(drift.removed)}
 					{drift.removed.length === 1 ? 'is' : 'are'} still scheduled even though
-					{drift.removed.length === 1 ? "it's" : "they're"} unticked.
+					{drift.removed.length === 1 ? "it's" : "they're"} unchecked.
 				{/if}
 				{#if drift.added.length}
 					{names(drift.added)}
-					{drift.added.length === 1 ? 'is' : 'are'} ticked but
+					{drift.added.length === 1 ? 'is' : 'are'} checked but
 					{drift.added.length === 1 ? "isn't" : "aren't"} scheduled.
 				{/if}
 				Update the schedule to apply your changes.

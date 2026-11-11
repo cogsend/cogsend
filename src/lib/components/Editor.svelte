@@ -2038,7 +2038,7 @@
 			const count = sendIds.length;
 			const removed: string[] = Array.isArray(data.cancelled) ? data.cancelled : [];
 			const message =
-				`${rescheduling ? 'Rescheduled' : 'Scheduled'} ${schedulePreview ? `for ${schedulePreview} ` : ''}to ${count} ${count === 1 ? 'destination' : 'destinations'}` +
+				`${rescheduling ? 'Rescheduled' : 'Scheduled'} ${schedulePreview ? `for ${schedulePreview} ` : ''}to ${count} ${count === 1 ? 'account' : 'accounts'}` +
 				(removed.length ? ` · removed from ${removed.map(destinationName).join(', ')}` : '');
 			scheduleOpen = false;
 			// The draft now carries this time; reopening should show it.
@@ -3758,6 +3758,7 @@
 		{#if saveIndicator}
 			<p
 				data-testid="save-status"
+				title="Saves as you type · ⌘/Ctrl + S saves now"
 				class="{canShare
 					? ''
 					: 'ml-auto'} flex items-center gap-1 text-[12px] font-bold whitespace-nowrap {saveIndicator ===
@@ -4406,6 +4407,7 @@
 					<button
 						type="button"
 						data-testid="publish-now"
+						title="Publish (⌘/Ctrl + Enter)"
 						class="flex cursor-pointer items-center gap-2 rounded-l-full px-6 py-2.5 text-[13px] font-bold transition-all hover:bg-stone-800 disabled:opacity-60"
 						disabled={publishing || unscheduling}
 						aria-busy={publishButtonBusy}
@@ -4453,9 +4455,7 @@
 								<h4 class="mb-1 text-[14px] font-extrabold text-stone-900">Confirm post</h4>
 								<p class="text-[12px] font-medium text-stone-500">
 									Publishing to {pendingAccounts.length}
-									{pendingAccounts.length === 1
-										? 'destination'
-										: 'destinations'}{publishReplacesSchedule
+									{pendingAccounts.length === 1 ? 'account' : 'accounts'}{publishReplacesSchedule
 										? ' now instead of at the scheduled time'
 										: ''}.
 								</p>
@@ -4465,7 +4465,7 @@
 										class="mt-1 text-[12px] font-medium text-amber-700"
 									>
 										{unscheduledByPublish.map(destinationName).join(', ')}
-										{unscheduledByPublish.length === 1 ? 'is' : 'are'} unticked, so
+										{unscheduledByPublish.length === 1 ? 'is' : 'are'} unchecked, so
 										{unscheduledByPublish.length === 1 ? 'it' : 'they'} will be unscheduled.
 									</p>
 								{/if}

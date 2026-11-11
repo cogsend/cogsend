@@ -137,7 +137,7 @@ test('publishing hands the post off, clears the composer at once, and reports ba
 	await fillUntilKept(page.getByTestId('segment-input-0'), `${PREFIX} the next one`);
 
 	answer();
-	await expect(page.getByTestId('publish-toast')).toContainText('Published to 1 destination');
+	await expect(page.getByTestId('publish-toast')).toContainText('Published to 1 account');
 	await expect(page.getByTestId('toast-action')).toHaveAttribute('href', '/posts?tab=published');
 	await expect(page.getByTestId('segment-input-0')).toHaveValue(`${PREFIX} the next one`);
 });

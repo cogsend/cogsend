@@ -174,7 +174,7 @@ describe('publish outcome', () => {
 		});
 		expect(
 			summarizePublish([out('a', { status: 'preempted', skipped: true })], nameOf)
-		).toMatchObject({ message: 'Published to 1 destination', tone: 'success' });
+		).toMatchObject({ message: 'Published to 1 account', tone: 'success' });
 
 		const cancelled = out('b', { status: 'cancelled', error: 'Target cancelled' });
 		expect(cancelled).toEqual({ connectionId: 'b', status: 'cancelled', error: null });
@@ -184,7 +184,7 @@ describe('publish outcome', () => {
 			action: { label: 'View posts', href: '/posts' }
 		});
 		expect(summarizePublish([out('a', { status: 'published' }), cancelled], nameOf).message).toBe(
-			'Published to 1 destination · cancelled on Threads · b'
+			'Published to 1 account · cancelled on Threads · b'
 		);
 		expect(summarizeProgress([cancelled], ['a'], nameOf)?.message).toBe(
 			'Cancelled on Threads · b · still sending to Bluesky · a'
@@ -233,7 +233,7 @@ describe('publish outcome', () => {
 	it('reports a clean publish, and one already out', () => {
 		const sent = summarizePublish([out('a', { status: 'published' })], nameOf);
 		expect(sent).toMatchObject({
-			message: 'Published to 1 destination',
+			message: 'Published to 1 account',
 			tone: 'success',
 			action: { label: 'View', href: '/posts?tab=published' }
 		});
@@ -243,11 +243,11 @@ describe('publish outcome', () => {
 			{ note: ' · unscheduled on Mastodon · c' }
 		);
 		expect(mixed.message).toBe(
-			'Published to 1 destination · already on 1 · unscheduled on Mastodon · c'
+			'Published to 1 account · already on 1 · unscheduled on Mastodon · c'
 		);
 		const none = summarizePublish([out('a', { status: 'published', skipped: true })], nameOf);
 		expect(none).toMatchObject({
-			message: 'Already published to 1 destination — nothing new was sent',
+			message: 'Already published to 1 account — nothing new was sent',
 			tone: 'warn'
 		});
 		// An account that could not be unscheduled turns a clean publish amber.

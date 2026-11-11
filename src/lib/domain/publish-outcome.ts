@@ -135,10 +135,10 @@ export function summarizePublish(
 	}
 	if (inFlight.length) {
 		return {
-			message: 'One of these destinations is already publishing',
+			message: 'One of these accounts is already publishing',
 			tone: 'warn',
 			action: posts,
-			announcement: 'One of these destinations is already publishing.'
+			announcement: 'One of these accounts is already publishing.'
 		};
 	}
 	if (!published.length && cancelled.length) {
@@ -149,9 +149,9 @@ export function summarizePublish(
 	const already = published.length - sent;
 	const message =
 		(sent
-			? `Published to ${sent} ${sent === 1 ? 'destination' : 'destinations'}` +
+			? `Published to ${sent} ${sent === 1 ? 'account' : 'accounts'}` +
 				(already ? ` · already on ${already}` : '')
-			: `Already published to ${already} ${already === 1 ? 'destination' : 'destinations'} — nothing new was sent`) +
+			: `Already published to ${already} ${already === 1 ? 'account' : 'accounts'} — nothing new was sent`) +
 		note;
 	return {
 		message,

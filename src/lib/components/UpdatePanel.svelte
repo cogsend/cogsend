@@ -631,7 +631,7 @@
 						<label class="flex items-start gap-2">
 							<input type="checkbox" bind:checked={remember} class="mt-0.5" />
 							<span
-								>Remember it for later updates, locked with my CogSend password. Unticked, it is
+								>Remember it for later updates, locked with my CogSend password. Unchecked, it is
 								used for this update only and nothing is stored.</span
 							>
 						</label>

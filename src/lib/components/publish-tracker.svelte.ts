@@ -104,7 +104,7 @@ export function handOff(opts: {
 	const { draftId, connectionIds, nameOf } = opts;
 	publishActivity.inFlight++;
 	announce(
-		`Publishing to ${connectionIds.length} ${connectionIds.length === 1 ? 'destination' : 'destinations'}.`
+		`Publishing to ${connectionIds.length} ${connectionIds.length === 1 ? 'account' : 'accounts'}.`
 	);
 	return (async () => {
 		try {
