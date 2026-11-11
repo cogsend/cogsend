@@ -73,6 +73,14 @@ import { DRAFTS_LIST_LIMIT, DRAFTS_LIST_MAX_LIMIT, loadQueueList } from '#lib/se
 import { listConnections as loadConnectionList } from '#lib/server/connection-list.js';
 import { loadOwnedDraft } from '#lib/server/draft-record.js';
 
+/**
+ * Said for an id that is not one of the user's accounts and for an account that
+ * is not active. It names the fix without "need reconnect", which the
+ * browser's error copy would turn into "password or token expired".
+ */
+const UNCONNECTED_ACCOUNTS =
+	"One or more accounts aren't connected or no longer exist — reconnect or uncheck them";
+
 export type OperationContext = Pick<App.Locals, 'db' | 'env' | 'media'> & {
 	bindings?: object;
 	budget?: SubrequestBudget;
@@ -259,7 +267,7 @@ export async function scheduleDraft(
 				eq(connections.status, 'active')
 			)
 		);
-	if (conns.length !== ids.length) invalid('One or more connections not found');
+	if (conns.length !== ids.length) invalid(UNCONNECTED_ACCOUNTS);
 	const classified = await classifyConnections(ctx.db, draftId, conns, now);
 	const already = classified.filter((i) => i.kind === 'published').map((i) => i.connectionId);
 	const flight = classified.filter((i) => i.kind === 'inFlight').map((i) => i.connectionId);
@@ -838,7 +846,7 @@ export async function publishDraft(
 				eq(connections.status, 'active')
 			)
 		);
-	if (userConnections.length !== connectionIds.length) invalid('One or more connections not found');
+	if (userConnections.length !== connectionIds.length) invalid(UNCONNECTED_ACCOUNTS);
 	// Refuse concurrent publishes of the same connections. Already-published ones pass
 	// through as skipped, so re-posting a partly published draft still works.
 	const now = new Date();

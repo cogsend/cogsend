@@ -1417,6 +1417,11 @@
 			showToast('Select at least one account', 'warn');
 			return;
 		}
+		const unconnected = unconnectedProblem(connectionIds);
+		if (unconnected) {
+			showToast(unconnected, 'warn');
+			return;
+		}
 		if (threadsLinksOver && connectionIds.some((id) => platformOf(id) === 'threads')) {
 			showToast(
 				`Threads allows max ${THREADS_MAX_LINKS} links per post (${threadsLinkCount} in one post)`,
@@ -1527,6 +1532,25 @@
 	async function onPublish() {
 		scheduleOpen = false;
 		await requestPublish([...selected]);
+	}
+
+	/**
+	 * The server refuses an account that is not connected, but only after the
+	 * composer has let go of the post, and in words that name no account. Say
+	 * which one before anything is sent, and leave the choice to the person:
+	 * dropping it here would also cancel a schedule it still holds.
+	 */
+	function unconnectedProblem(connectionIds: string[]): string | null {
+		const names = connectionIds
+			.filter((id) => {
+				const status = connections.find((c) => c.id === id)?.status;
+				return status !== undefined && status !== 'active';
+			})
+			.map(destinationName);
+		if (!names.length) return null;
+		const list =
+			names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+		return `Reconnect ${list}, or uncheck ${names.length === 1 ? 'it' : 'them'}`;
 	}
 
 	const destinationName = (connectionId: string): string => {
@@ -1921,6 +1945,11 @@
 		const sendIds = [...selected].filter((id) => !postState.published.includes(id));
 		if (!sendIds.length) {
 			showToast(`Already published to ${[...selected].map(destinationName).join(', ')}`, 'warn');
+			return;
+		}
+		const unconnected = unconnectedProblem(sendIds);
+		if (unconnected) {
+			showToast(unconnected, 'warn');
 			return;
 		}
 		const now = new Date();
@@ -4165,10 +4194,13 @@
 											? 'bg-stone-50/80'
 											: 'hover:bg-stone-50/50'}"
 									>
+										<!-- An account that cannot post is never newly picked, but one
+										     already picked stays clickable so it can be unchecked. -->
 										<button
 											type="button"
-											class="flex min-w-0 flex-1 items-center gap-3 text-left"
+											class="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-not-allowed disabled:opacity-60"
 											onclick={() => toggleAccountSelection(account.id)}
+											disabled={!!needsReconnect && !isSelected}
 											aria-pressed={isSelected}
 											title={`${platformName(account.platform)}: ${account.displayName || account.handle || ''}`}
 										>
