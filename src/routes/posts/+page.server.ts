@@ -12,8 +12,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		return {
 			drafts: drafts.drafts,
 			draftsHasMore: drafts.hasMore,
+			draftsNext: drafts.next,
 			targets: queue.targets,
 			queueHasMore: queue.hasMore,
+			queueNext: queue.next,
 			loadFailed: false
 		};
 	} catch (err) {
@@ -21,8 +23,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		return {
 			drafts: [],
 			draftsHasMore: false,
+			draftsNext: null,
 			targets: [],
 			queueHasMore: false,
+			queueNext: null,
 			loadFailed: true
 		};
 	}

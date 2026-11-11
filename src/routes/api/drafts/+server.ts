@@ -5,7 +5,9 @@ import {
 	DRAFTS_LIST_LIMIT,
 	DRAFTS_LIST_MAX_LIMIT,
 	loadDraftSummaries,
-	parseListLimit
+	parseListCursor,
+	parseListLimit,
+	parseListSearch
 } from '#lib/server/post-list.js';
 import { requireScope, requireUser } from '#lib/server/require.js';
 
@@ -18,11 +20,15 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 			DRAFTS_LIST_LIMIT,
 			DRAFTS_LIST_MAX_LIMIT
 		);
+		const page = {
+			before: parseListCursor(url?.searchParams.get('before')),
+			q: parseListSearch(url?.searchParams.get('q'))
+		};
 		// The posts page's smaller payload; the default stays the full draft for API clients.
 		if (url?.searchParams.get('view') === 'summary') {
-			return ok(await loadDraftSummaries(locals.db, user.id, limit));
+			return ok(await loadDraftSummaries(locals.db, user.id, limit, page));
 		}
-		return ok(await listDrafts(locals, user.id, limit));
+		return ok(await listDrafts(locals, user.id, limit, page));
 	} catch (err) {
 		return handleError(err);
 	}

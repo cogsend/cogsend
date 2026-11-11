@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql, type InferSelectModel } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql, type InferSelectModel, type SQL } from 'drizzle-orm';
 import { batchQueries, chunkIds, parseJson, type AppDb } from './db/client';
 import { connections, draftMedia, drafts, publishTargets } from './db/schema';
 import { serializeMedia } from './serialize';
@@ -17,12 +17,75 @@ export function parseListLimit(
 	return Number.isFinite(requested) ? Math.min(max, Math.max(1, Math.floor(requested))) : fallback;
 }
 
+export const LIST_SEARCH_MAX = 200;
+
+/** Where the page before ended: `<updatedAt ms>:<id>` of its last row. */
+export type ListCursor = { ms: number; id: string };
+
+export function parseListCursor(raw: string | null | undefined): ListCursor | null {
+	if (!raw) return null;
+	const at = raw.indexOf(':');
+	const ms = Number(raw.slice(0, at));
+	const id = raw.slice(at + 1);
+	if (at <= 0 || !Number.isSafeInteger(ms) || !id || id.length > 256) {
+		throw Object.assign(new Error('Invalid cursor'), { status: 400 });
+	}
+	return { ms, id };
+}
+
+export function parseListSearch(raw: string | null | undefined): string | null {
+	const q = raw?.trim() ?? '';
+	if (!q) return null;
+	if (q.length > LIST_SEARCH_MAX) {
+		throw Object.assign(new Error(`Search is limited to ${LIST_SEARCH_MAX} characters`), {
+			status: 400
+		});
+	}
+	return q;
+}
+
+export type ListPageOptions = { before?: ListCursor | null; q?: string | null };
+
+export const cursorOf = (row: { updatedAt: Date; id: string }) =>
+	`${row.updatedAt.getTime()}:${row.id}`;
+
+/**
+ * Rows strictly after the cursor in newest-first order. The id breaks ties,
+ * so rows that share a timestamp are neither repeated nor skipped.
+ */
+function olderThan(
+	updatedAt: typeof drafts.updatedAt | typeof publishTargets.updatedAt,
+	id: typeof drafts.id | typeof publishTargets.id,
+	before: ListCursor
+): SQL {
+	return sql`(${updatedAt} < ${before.ms} or (${updatedAt} = ${before.ms} and ${id} < ${before.id}))`;
+}
+
+/** instr, not LIKE: nothing in the search needs escaping, and `%` matches itself. */
+function bodyMatches(q: string): SQL {
+	return sql`instr(lower(${drafts.baseBody}), lower(${q})) > 0`;
+}
+
+/** One user's drafts, newest first, from the cursor on and matching the search. */
+export function draftPageFilter(userId: string, opts: ListPageOptions) {
+	return and(
+		eq(drafts.userId, userId),
+		opts.before ? olderThan(drafts.updatedAt, drafts.id, opts.before) : undefined,
+		opts.q ? bodyMatches(opts.q) : undefined
+	);
+}
+
 /**
  * Posts page draft rows. The public list still returns every variant; this
  * one is the card: body, status, accounts, and the few media fields the grid
  * renders. Search and thread length keep the full body.
  */
-export async function loadDraftSummaries(db: AppDb, userId: string, limit = DRAFTS_LIST_LIMIT) {
+export async function loadDraftSummaries(
+	db: AppDb,
+	userId: string,
+	limit = DRAFTS_LIST_LIMIT,
+	opts: ListPageOptions = {}
+) {
 	const rows = await db
 		.select({
 			id: drafts.id,
@@ -32,11 +95,12 @@ export async function loadDraftSummaries(db: AppDb, userId: string, limit = DRAF
 			updatedAt: drafts.updatedAt
 		})
 		.from(drafts)
-		.where(eq(drafts.userId, userId))
-		.orderBy(desc(drafts.updatedAt))
+		.where(draftPageFilter(userId, opts))
+		.orderBy(desc(drafts.updatedAt), desc(drafts.id))
 		.limit(limit + 1);
 	const hasMore = rows.length > limit;
 	const page = hasMore ? rows.slice(0, limit) : rows;
+	const last = page.at(-1);
 	const ids = page.map((d) => d.id);
 	type MediaRow = {
 		id: string;
@@ -148,7 +212,8 @@ export async function loadDraftSummaries(db: AppDb, userId: string, limit = DRAF
 			media: mediaByDraft.get(d.id) ?? [],
 			targets: targetsByDraft.get(d.id) ?? []
 		})),
-		hasMore
+		hasMore,
+		next: hasMore && last ? cursorOf(last) : null
 	};
 }
 
@@ -161,8 +226,16 @@ export async function loadDraftSummaries(db: AppDb, userId: string, limit = DRAF
  * window's worth of it, push them out of the list. A NULL schedule is a
  * "publish now" row, which is due now and sorts first among the upcoming.
  */
-export async function loadQueueList(db: AppDb, userId: string, limit = QUEUE_LIST_LIMIT) {
+export async function loadQueueList(
+	db: AppDb,
+	userId: string,
+	limit = QUEUE_LIST_LIMIT,
+	opts: ListPageOptions = {}
+) {
 	const upcoming = sql`${publishTargets.status} in ('scheduled', 'pending', 'publishing')`;
+	const { before, q } = opts;
+	// `before` pages history only: what is still to go out always fits the
+	// first page's lead, and paging it by time would interleave the two orders.
 	const targetsQuery = db
 		.select()
 		.from(publishTargets)
@@ -172,19 +245,29 @@ export async function loadQueueList(db: AppDb, userId: string, limit = QUEUE_LIS
 					publishTargets.connectionId,
 					db.select({ id: connections.id }).from(connections).where(eq(connections.userId, userId))
 				),
-				inArray(publishTargets.status, [
-					'scheduled',
-					'pending',
-					'publishing',
-					'failed',
-					'published'
-				])
+				inArray(
+					publishTargets.status,
+					before
+						? ['failed', 'published']
+						: ['scheduled', 'pending', 'publishing', 'failed', 'published']
+				),
+				before ? olderThan(publishTargets.updatedAt, publishTargets.id, before) : undefined,
+				q
+					? inArray(
+							publishTargets.draftId,
+							db
+								.select({ id: drafts.id })
+								.from(drafts)
+								.where(and(eq(drafts.userId, userId), bodyMatches(q)))
+						)
+					: undefined
 			)
 		)
 		.orderBy(
 			sql`case when ${upcoming} then 0 else 1 end`,
 			sql`case when ${upcoming} then ${publishTargets.scheduledFor} end asc`,
-			desc(publishTargets.updatedAt)
+			desc(publishTargets.updatedAt),
+			desc(publishTargets.id)
 		)
 		.limit(limit + 1);
 
@@ -212,6 +295,15 @@ export async function loadQueueList(db: AppDb, userId: string, limit = QUEUE_LIS
 
 	const hasMore = allTargetRows.length > limit;
 	const targetRows = hasMore ? allTargetRows.slice(0, limit) : allTargetRows;
+	const last = targetRows.at(-1);
+	let next: string | null = null;
+	if (hasMore && last) {
+		// A page that ends before any history starts: the next page is all of
+		// history, which a cursor later than every row reaches.
+		next = ['failed', 'published'].includes(last.status)
+			? cursorOf(last)
+			: `${Number.MAX_SAFE_INTEGER}:~`;
+	}
 	const connById = new Map(allConns.map((c) => [c.id, c]));
 	const queuedDraftIds = [...new Set(targetRows.map((t) => t.draftId))];
 	const draftRows: DraftLite[] = [];
@@ -279,5 +371,5 @@ export async function loadQueueList(db: AppDb, userId: string, limit = QUEUE_LIS
 			}
 		});
 	}
-	return { targets, hasMore };
+	return { targets, hasMore, next };
 }

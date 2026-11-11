@@ -69,7 +69,14 @@ import {
 import { keysUsedOnlyBy } from '#lib/server/draft-media.js';
 import { STALE_CLAIM_MS } from '#lib/domain/due-jobs.js';
 import { ApiOperationError } from '#lib/server/api/operation-error.js';
-import { DRAFTS_LIST_LIMIT, DRAFTS_LIST_MAX_LIMIT, loadQueueList } from '#lib/server/post-list.js';
+import {
+	DRAFTS_LIST_LIMIT,
+	DRAFTS_LIST_MAX_LIMIT,
+	cursorOf,
+	draftPageFilter,
+	loadQueueList,
+	type ListPageOptions
+} from '#lib/server/post-list.js';
 import { listConnections as loadConnectionList } from '#lib/server/connection-list.js';
 import { loadOwnedDraft } from '#lib/server/draft-record.js';
 
@@ -466,18 +473,24 @@ const MEDIA_INSERT_CHUNK = 8;
 const VARIANT_PLATFORMS = new Set(['mastodon', 'bluesky', 'linkedin', 'threads', 'instagram', 'x']);
 const VISIBILITIES = new Set(['public', 'unlisted', 'private', 'direct']);
 
-export async function listDrafts(ctx: OperationContext, userId: string, requestedLimit?: number) {
+export async function listDrafts(
+	ctx: OperationContext,
+	userId: string,
+	requestedLimit?: number,
+	opts: ListPageOptions = {}
+) {
 	const limit = Number.isFinite(requestedLimit)
 		? Math.min(DRAFTS_LIST_MAX_LIMIT, Math.max(1, Math.floor(requestedLimit!)))
 		: DRAFTS_LIST_LIMIT;
 	const rows = await ctx.db
 		.select()
 		.from(drafts)
-		.where(eq(drafts.userId, userId))
-		.orderBy(desc(drafts.updatedAt))
+		.where(draftPageFilter(userId, opts))
+		.orderBy(desc(drafts.updatedAt), desc(drafts.id))
 		.limit(limit + 1);
 	const hasMore = rows.length > limit;
 	const page = hasMore ? rows.slice(0, limit) : rows;
+	const last = page.at(-1);
 	type VariantRow = InferSelectModel<typeof draftVariants>;
 	type MediaRow = InferSelectModel<typeof draftMedia>;
 	type TargetRow = InferSelectModel<typeof publishTargets>;
@@ -539,7 +552,8 @@ export async function listDrafts(ctx: OperationContext, userId: string, requeste
 				targets: targetsByDraft.get(draft.id) ?? []
 			})
 		),
-		hasMore
+		hasMore,
+		next: hasMore && last ? cursorOf(last) : null
 	};
 }
 
