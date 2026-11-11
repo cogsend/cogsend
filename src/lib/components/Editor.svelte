@@ -4197,10 +4197,14 @@
 										? 'border border-red-100 bg-red-50 text-red-600'
 										: 'border border-stone-100 bg-stone-50 text-stone-500'}"
 								>
-									<!-- No <title>: the chip's text stays the count alone. -->
+									<!-- No <title>: the chip's text stays the count alone. Not on a
+									     phone, where a 320px card has no room left for it. -->
 									{#if limitMark}
-										<svg aria-hidden="true" viewBox="0 0 24 24" class="h-3 w-3" fill="currentColor"
-											><path d={limitMark} /></svg
+										<svg
+											aria-hidden="true"
+											viewBox="0 0 24 24"
+											class="hidden h-3 w-3 sm:block"
+											fill="currentColor"><path d={limitMark} /></svg
 										>
 									{/if}
 									{segLen}/{maxChars}
