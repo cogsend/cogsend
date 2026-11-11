@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { PenSquare, XCircle } from '@lucide/svelte';
+	import { PenSquare, UserPlus, XCircle } from '@lucide/svelte';
 
 	let { data } = $props();
 
@@ -88,7 +88,28 @@
 		</a>
 	{/if}
 
-	<div class="mt-12 w-full max-w-xs">
+	<div class="mt-12 flex w-full max-w-xs flex-col gap-4">
+		{#if data.connectionCount === 0}
+			<a
+				href="/accounts"
+				data-testid="home-connect-account"
+				class="flex w-full items-center gap-4 rounded-[2rem] border border-stone-900 bg-stone-900 p-5 text-left text-white shadow-md transition-colors hover:bg-stone-800"
+			>
+				<span
+					class="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.9rem] bg-white/10"
+				>
+					<UserPlus class="h-5 w-5" />
+				</span>
+				<span>
+					<span class="block text-[15px] font-extrabold tracking-tight"
+						>Connect your first account</span
+					>
+					<span class="block text-[13px] font-medium text-stone-300"
+						>Posts need somewhere to go. Mastodon and Bluesky take a minute.</span
+					>
+				</span>
+			</a>
+		{/if}
 		<a
 			href="/compose"
 			class="group relative flex w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[2rem] border border-stone-200/80 bg-white p-8 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] transition-all duration-300 hover:border-stone-300 hover:shadow-[0_20px_40px_-12px_rgb(28_25_23/0.12)]"

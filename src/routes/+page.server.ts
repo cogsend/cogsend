@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { batchQueries } from '#lib/server/db/client.js';
 import { connections, drafts, publishTargets } from '#lib/server/db/schema.js';
@@ -37,11 +37,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 						inArray(publishTargets.connectionId, ownedConnections()),
 						inArray(publishTargets.status, ['failed'])
 					)
-				)
+				),
+			locals.db
+				.select({ n: sql<number>`count(*)` })
+				.from(connections)
+				.where(and(eq(connections.userId, user.id), ne(connections.status, 'disconnected')))
 		]),
 		schedulerHealth(locals.db)
 	]);
-	const [draftRows, scheduledRows, failedRows] = counts as [
+	const [draftRows, scheduledRows, failedRows, connectionRows] = counts as [
+		{ n: number }[],
 		{ n: number }[],
 		{ n: number }[],
 		{ n: number }[]
@@ -52,6 +57,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		scheduledCount: scheduledRows[0]?.n ?? 0,
 		draftCount: draftRows[0]?.n ?? 0,
 		failedCount: failedRows[0]?.n ?? 0,
+		connectionCount: connectionRows[0]?.n ?? 0,
 		schedulerOk: health.ok,
 		schedulerNeverTicked: health.lastTickAt === null,
 		schedulerError: health.error ?? null,

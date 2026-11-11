@@ -319,6 +319,10 @@
 	// refresh replaces it via loadConnections().
 	// svelte-ignore state_referenced_locally
 	let connections = $state<Connection[]>(initialConnections);
+	// The server list is empty when its read failed too, so only a list the
+	// client fetched may say there are no accounts.
+	// svelte-ignore state_referenced_locally
+	let connectionsConfirmed = $state(initialConnections.length > 0);
 	let selected = $state<Set<string>>(new Set());
 	let media = $state<MediaItem[]>(seededMedia);
 	let saving = $state(false);
@@ -855,6 +859,7 @@
 		const data = await res.json();
 		const list: Connection[] = data.connections || [];
 		connections = list;
+		connectionsConfirmed = true;
 		initSelection(list);
 	}
 
@@ -3433,6 +3438,21 @@
 			onUnschedule={() => void unschedulePost()}
 			onApplyAccounts={showSchedule}
 		/>
+	{/if}
+	{#if connectionsConfirmed && connections.length === 0}
+		<div
+			class="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3"
+			data-testid="no-accounts-banner"
+		>
+			<p class="min-w-0 flex-1 text-[13px] font-medium text-stone-700">
+				Connect an account to start posting. You can write and save drafts meanwhile.
+			</p>
+			<a
+				href="/accounts"
+				class="rounded-full bg-stone-900 px-4 py-1.5 text-[12px] font-bold text-white transition-colors hover:bg-stone-800"
+				>Connect account</a
+			>
+		</div>
 	{/if}
 	<!-- Platform Tabs (Always visible) -->
 	<div class="relative mb-8 flex flex-wrap items-center gap-2 pt-2">

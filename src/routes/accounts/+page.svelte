@@ -699,7 +699,20 @@
 				</button>
 			</div>
 		{:else if connections.length === 0}
-			<p class="p-6 text-sm font-medium text-stone-500">{emptyStateSentence(configured)}</p>
+			<div class="p-6">
+				<p class="text-sm font-medium text-stone-500">{emptyStateSentence(configured)}</p>
+				<button
+					type="button"
+					onclick={openConnectDialog}
+					class="mt-4 inline-flex items-center gap-2 rounded-full bg-stone-900 px-5 py-2.5 text-[13px] font-bold text-white shadow-md transition-all hover:bg-stone-800"
+				>
+					<Plus class="h-4 w-4" />
+					<span>Connect your first account</span>
+				</button>
+				<p class="mt-3 text-xs font-medium text-stone-500">
+					Mastodon and Bluesky need no developer app.
+				</p>
+			</div>
 		{:else}
 			{#each connections as account, index (account.id)}
 				{@const needsReconnect = account.status !== 'active'}
