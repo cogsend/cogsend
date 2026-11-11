@@ -1600,7 +1600,7 @@
 		const c =
 			connections.find((x) => x.id === connectionId) ??
 			targets.find((t) => t.connectionId === connectionId)?.connection;
-		if (!c) return 'Destination';
+		if (!c) return 'Account';
 		if (!c.handle) return platformName(c.platform);
 		return `${platformName(c.platform)} · ${displayHandle(c.handle)}`;
 	};
@@ -1621,7 +1621,7 @@
 		void handOff({
 			draftId: id,
 			connectionIds,
-			nameOf: (connectionId) => names.get(connectionId) ?? 'Destination',
+			nameOf: (connectionId) => names.get(connectionId) ?? 'Account',
 			unscheduleOthers: postState.waiting.some((w) => !connectionIds.includes(w.connectionId)),
 			targets: $state.snapshot(targets) as TargetSnapshot[]
 		});
@@ -4278,14 +4278,14 @@
 							class="absolute bottom-full left-0 z-40 mb-3 w-72 rounded-[1.5rem] border border-stone-200/80 bg-white p-2 shadow-[0_16px_40px_-12px_rgb(28_25_23/0.15)]"
 							transition:slide={{ duration: 200 }}
 							role="dialog"
-							aria-label="Destinations"
+							aria-label="Accounts"
 							use:popoverFocus
 						>
 							<div
 								class="mb-2 flex items-center justify-between border-b border-stone-100 px-3 py-2"
 							>
 								<span class="text-[11px] font-bold tracking-widest text-stone-500 uppercase"
-									>Destinations</span
+									>Accounts</span
 								>
 								<button
 									type="button"
