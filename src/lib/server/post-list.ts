@@ -234,8 +234,9 @@ export async function loadQueueList(
 ) {
 	const upcoming = sql`${publishTargets.status} in ('scheduled', 'pending', 'publishing')`;
 	const { before, q } = opts;
-	// `before` pages history only: what is still to go out always fits the
-	// first page's lead, and paging it by time would interleave the two orders.
+	// `before` pages history only: paging the waiting rows by time would
+	// interleave the two orders, so they all come on the first page, and more
+	// of them than fit there need a larger limit.
 	const targetsQuery = db
 		.select()
 		.from(publishTargets)
