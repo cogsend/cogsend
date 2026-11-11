@@ -204,11 +204,25 @@
 	// svelte-ignore state_referenced_locally
 	let drafts = $state<Draft[]>(data.drafts);
 	// svelte-ignore state_referenced_locally
-	let draftsHasMore = $state(data.draftsHasMore);
-	// svelte-ignore state_referenced_locally
-	let queueHasMore = $state(data.queueHasMore);
-	// svelte-ignore state_referenced_locally
 	let targets = $state<QueueTarget[]>(data.targets);
+	// Older pages and server search results live apart from the first page, so
+	// a refresh, which replaces `targets` and `drafts`, never drops them.
+	let olderTargets = $state<QueueTarget[]>([]);
+	let olderDrafts = $state<Draft[]>([]);
+	// svelte-ignore state_referenced_locally
+	let queueNext = $state<string | null>(data.queueNext ?? null);
+	// svelte-ignore state_referenced_locally
+	let draftsNext = $state<string | null>(data.draftsNext ?? null);
+	// Once a page past the first is in, the cursor is where that page ended,
+	// not where a refreshed first page ends.
+	let queuePaged = false;
+	let draftsPaged = false;
+	let loadingOlder = $state(false);
+	let olderError = $state<string | null>(null);
+	let searchTargets = $state<QueueTarget[]>([]);
+	let searchDrafts = $state<Draft[]>([]);
+	let searchedFor = $state('');
+	let searching = $state(false);
 	// svelte-ignore state_referenced_locally
 	let error = $state<string | null>(data.loadFailed ? 'Could not load posts' : null);
 	// What the composer just did with the post that sent you here.
@@ -259,14 +273,14 @@
 			if (draftsRes.ok) {
 				const payload = await draftsRes.json().catch(() => ({}));
 				drafts = payload.drafts || [];
-				draftsHasMore = payload.hasMore === true;
+				if (!draftsPaged) draftsNext = payload.next ?? null;
 			} else {
 				failed.push('drafts');
 			}
 			if (queueRes.ok) {
 				const payload = await queueRes.json().catch(() => ({}));
 				targets = payload.targets || [];
-				queueHasMore = payload.hasMore === true;
+				if (!queuePaged) queueNext = payload.next ?? null;
 			} else {
 				failed.push('queue');
 			}
@@ -395,7 +409,7 @@
 	}
 
 	function draftCards(): Card[] {
-		return drafts
+		return allDrafts
 			.filter((d) => d.status === 'draft')
 			.map((d) => {
 				const body = d.baseBody || d.title || '';
@@ -530,11 +544,29 @@
 		});
 	}
 
+	/** The first list wins: it is the freshest copy of a row that is in several. */
+	function mergeById<T extends { id: string }>(...lists: T[][]): T[] {
+		const seen = new Set<string>();
+		const out: T[] = [];
+		for (const list of lists) {
+			for (const item of list) {
+				if (seen.has(item.id)) continue;
+				seen.add(item.id);
+				out.push(item);
+			}
+		}
+		return out;
+	}
+
+	const searchShown = $derived(searchedFor !== '' && searchedFor === debouncedQuery.trim());
+	const allTargets = $derived(mergeById(targets, olderTargets, searchShown ? searchTargets : []));
+	const allDrafts = $derived(mergeById(drafts, olderDrafts, searchShown ? searchDrafts : []));
+
 	const upcoming = $derived(
-		targets.filter((t) => ['scheduled', 'pending', 'publishing'].includes(t.status))
+		allTargets.filter((t) => ['scheduled', 'pending', 'publishing'].includes(t.status))
 	);
 	const history = $derived(
-		targets.filter((t) => ['published', 'failed', 'cancelled'].includes(t.status))
+		allTargets.filter((t) => ['published', 'failed', 'cancelled'].includes(t.status))
 	);
 
 	// Grouped cards (one card per draft). Counts must use these lengths, not the
@@ -688,6 +720,92 @@
 		return upcomingCards.length + historyCards.length + draftsOnlyCards.length;
 	}
 
+	// Scheduled has no older page: `before` walks history, and every post still
+	// waiting comes ahead of it on the first page.
+	const queueTabs: PostsTab[] = ['all', 'published', 'failed'];
+	const draftTabs: PostsTab[] = ['all', 'drafts'];
+	function moreFor(tab: PostsTab): boolean {
+		return (
+			(queueTabs.includes(tab) && queueNext !== null) ||
+			(draftTabs.includes(tab) && draftsNext !== null)
+		);
+	}
+
+	async function loadOlder() {
+		if (loadingOlder) return;
+		const wantQueue = queueTabs.includes(activeTab) && queueNext !== null;
+		const wantDrafts = draftTabs.includes(activeTab) && draftsNext !== null;
+		if (!wantQueue && !wantDrafts) return;
+		loadingOlder = true;
+		olderError = null;
+		try {
+			const [queueRes, draftsRes] = await Promise.all([
+				wantQueue ? fetch(`/api/queue?before=${encodeURIComponent(queueNext!)}`) : null,
+				wantDrafts
+					? fetch(`/api/drafts?view=summary&before=${encodeURIComponent(draftsNext!)}`)
+					: null
+			]);
+			for (const res of [queueRes, draftsRes]) {
+				if (res && sessionExpiredIfUnauthorized(res)) return;
+			}
+			if (queueRes) {
+				if (!queueRes.ok) throw new Error('Could not load older posts');
+				const payload = await queueRes.json();
+				olderTargets = [...olderTargets, ...(payload.targets || [])];
+				queueNext = payload.next ?? null;
+				queuePaged = true;
+			}
+			if (draftsRes) {
+				if (!draftsRes.ok) throw new Error('Could not load older posts');
+				const payload = await draftsRes.json();
+				olderDrafts = [...olderDrafts, ...(payload.drafts || [])];
+				draftsNext = payload.next ?? null;
+				draftsPaged = true;
+			}
+		} catch (e) {
+			olderError = humanizeError(e instanceof Error ? e.message : 'Could not load older posts');
+		} finally {
+			loadingOlder = false;
+		}
+	}
+
+	// While part of the history is not loaded, a search asks the server too, so
+	// an old post is found without paging back to it.
+	let searchSeq = 0;
+	$effect(() => {
+		const q = debouncedQuery.trim().slice(0, 200);
+		const ask = q !== '' && (queueNext !== null || draftsNext !== null);
+		const seq = ++searchSeq;
+		if (!ask) {
+			searching = false;
+			return;
+		}
+		searching = true;
+		const timer = setTimeout(async () => {
+			try {
+				const enc = encodeURIComponent(q);
+				const [queueRes, draftsRes] = await Promise.all([
+					untrack(() => queueNext) !== null ? fetch(`/api/queue?q=${enc}`) : null,
+					untrack(() => draftsNext) !== null ? fetch(`/api/drafts?view=summary&q=${enc}`) : null
+				]);
+				if (seq !== searchSeq) return;
+				const found = {
+					targets: queueRes?.ok ? ((await queueRes.json()).targets ?? []) : [],
+					drafts: draftsRes?.ok ? ((await draftsRes.json()).drafts ?? []) : []
+				};
+				if (seq !== searchSeq) return;
+				searchTargets = found.targets;
+				searchDrafts = found.drafts;
+				searchedFor = q;
+			} catch {
+				// The cards already loaded are still searched; the rest just stays unfound.
+			} finally {
+				if (seq === searchSeq) searching = false;
+			}
+		}, 150);
+		return () => clearTimeout(timer);
+	});
+
 	type DeleteOutcome = 'ok' | 'missing' | 'failed';
 
 	async function commitDelete(id: string): Promise<DeleteOutcome> {
@@ -704,7 +822,7 @@
 
 	/** Put a card back when the server refused the delete: the draft still exists. */
 	function restoreDeleted(draft: Draft) {
-		if (drafts.some((d) => d.id === draft.id)) return;
+		if (allDrafts.some((d) => d.id === draft.id)) return;
 		drafts = [...drafts, draft].sort(
 			(a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
 		);
@@ -721,6 +839,8 @@
 	function remove(draft: Draft) {
 		if (pendingDelete && pendingDelete.id !== draft.id) void finalizeDelete(pendingDelete);
 		drafts = drafts.filter((d) => d.id !== draft.id);
+		olderDrafts = olderDrafts.filter((d) => d.id !== draft.id);
+		searchDrafts = searchDrafts.filter((d) => d.id !== draft.id);
 		pendingDelete = draft;
 		if (pendingTimer) window.clearTimeout(pendingTimer);
 		pendingTimer = window.setTimeout(() => {
@@ -1175,22 +1295,13 @@
 					>
 						{tab === 'all' ? 'All posts' : tab.charAt(0).toUpperCase() + tab.slice(1)}
 						{#if countFor(tab) > 0}
-							<span class="ml-1 opacity-50">{countFor(tab)}</span>
+							<span class="ml-1 opacity-50">{countFor(tab)}{moreFor(tab) ? '+' : ''}</span>
 						{/if}
 					</a>
 				{/each}
 			</div>
 		</div>
 	</div>
-
-	{#if draftsHasMore && (activeTab === 'drafts' || activeTab === 'all')}
-		<p class="mb-4 text-[12px] font-bold text-stone-500">Showing the 200 most recent drafts.</p>
-	{/if}
-	{#if queueHasMore && (activeTab === 'scheduled' || activeTab === 'published' || activeTab === 'failed' || activeTab === 'all')}
-		<p class="mb-4 text-[12px] font-bold text-stone-500">
-			Showing the 100 most recent scheduled and published posts.
-		</p>
-	{/if}
 
 	<!-- Post Feed -->
 	<div class="flex flex-col gap-4">
@@ -1559,7 +1670,8 @@
 							</button>
 							<button
 								type="button"
-								onclick={() => (pendingRemove = drafts.find((d) => d.id === card.draftId) ?? null)}
+								onclick={() =>
+									(pendingRemove = allDrafts.find((d) => d.id === card.draftId) ?? null)}
 								class="{cardAction} text-red-500 hover:text-red-700"
 							>
 								Remove
@@ -1772,7 +1884,7 @@
 			</div>
 		{/each}
 
-		{#if !loading && !loadFailed && visible.length === 0}
+		{#if !loading && !loadFailed && !searching && visible.length === 0}
 			<div
 				class="flex flex-col items-center justify-center rounded-[2rem] border border-dashed border-stone-200/80 bg-white px-4 py-20 text-center"
 			>
@@ -1803,6 +1915,28 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if !loadFailed && moreFor(activeTab) && !debouncedQuery.trim()}
+		<div class="mt-5 flex flex-col items-center gap-2">
+			<button
+				type="button"
+				data-testid="load-older"
+				onclick={() => void loadOlder()}
+				disabled={loadingOlder}
+				aria-busy={loadingOlder}
+				class="inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white px-5 py-2 text-[13px] font-bold text-stone-900 transition-colors hover:bg-stone-100 disabled:opacity-60 pointer-coarse:min-h-11"
+			>
+				{#if loadingOlder}<LoaderCircle class="h-4 w-4 animate-spin" />{/if}
+				{loadingOlder ? 'Loading…' : 'Load older posts'}
+			</button>
+			{#if olderError}
+				<p class="text-[12px] font-bold text-red-700" role="alert">{olderError}</p>
+			{/if}
+		</div>
+	{/if}
+	{#if searching}
+		<p class="mt-5 text-[12px] font-medium text-stone-500" role="status">Searching older posts…</p>
+	{/if}
 
 	{#if visible.length > 0}
 		<p class="mt-5 text-[12px] leading-relaxed font-medium text-stone-500">
