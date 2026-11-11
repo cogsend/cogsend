@@ -102,7 +102,7 @@
 				<PenSquare class="ml-0.5 h-5 w-5" />
 			</div>
 			<h2 class="relative mb-1 text-[15px] font-extrabold tracking-tight text-stone-900">
-				Start Writing
+				Start writing
 			</h2>
 			<p class="relative text-center text-[13px] font-medium text-stone-500">Draft a new post.</p>
 		</a>

@@ -368,7 +368,6 @@
 >
 	<div class="mb-8 flex flex-wrap items-end justify-between gap-4">
 		<div class="flex flex-col gap-2">
-			<p class="text-[11px] font-bold tracking-widest text-stone-500 uppercase">Analytics</p>
 			<h1 class="text-3xl font-extrabold tracking-tight text-stone-900">Insights</h1>
 			<p class="text-[13px] font-medium text-stone-500">
 				{#if stats}

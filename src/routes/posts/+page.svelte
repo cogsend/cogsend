@@ -980,8 +980,7 @@
 	<!-- Header -->
 	<div class="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
 		<div>
-			<p class="text-[11px] font-bold tracking-widest text-stone-500 uppercase">Library</p>
-			<h1 class="mt-2 text-3xl font-extrabold tracking-tight text-stone-900">Posts</h1>
+			<h1 class="text-3xl font-extrabold tracking-tight text-stone-900">Posts</h1>
 		</div>
 
 		<!-- Account filter + search -->
@@ -1160,12 +1159,11 @@
 						data-sveltekit-replacestate
 						data-sveltekit-reset="false"
 						aria-current={activeTab === tab ? 'page' : undefined}
-						class="rounded-lg px-4 py-1.5 text-[13px] font-bold capitalize transition-all {activeTab ===
-						tab
+						class="rounded-lg px-4 py-1.5 text-[13px] font-bold transition-all {activeTab === tab
 							? 'bg-white text-stone-900 shadow-sm'
 							: 'text-stone-500 hover:text-stone-900'}"
 					>
-						{tab === 'all' ? 'All Posts' : tab}
+						{tab === 'all' ? 'All posts' : tab.charAt(0).toUpperCase() + tab.slice(1)}
 						{#if countFor(tab) > 0}
 							<span class="ml-1 opacity-50">{countFor(tab)}</span>
 						{/if}
@@ -1525,7 +1523,7 @@
 								href="/compose?id={card.draftId}"
 								class="{cardAction} text-stone-500 hover:text-stone-900"
 							>
-								Edit Post
+								Edit post
 							</a>
 							<button
 								type="button"
@@ -1547,7 +1545,7 @@
 								href="/compose?id={card.draftId}"
 								class="{cardAction} text-stone-500 hover:text-stone-900"
 							>
-								Edit Post
+								Edit post
 							</a>
 							<!-- A video the platform is processing publishes on its own: nothing to re-time or cancel. -->
 							{#if badge !== 'processing'}
@@ -1674,7 +1672,7 @@
 									rescheduleMode = 'absolute';
 								}}
 							>
-								Specific Date
+								Specific date
 							</button>
 						</div>
 
@@ -1775,7 +1773,7 @@
 					<a
 						href="/compose"
 						class="mt-6 inline-flex rounded-full bg-stone-900 px-6 py-2.5 text-[13px] font-bold text-white transition-all hover:bg-stone-800"
-						>Start Writing</a
+						>Start writing</a
 					>
 				{/if}
 			</div>

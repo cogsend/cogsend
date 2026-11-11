@@ -360,7 +360,7 @@
 	// Nothing in the editor may change: the post went out everywhere, or a
 	// destination is being sent and the server refuses edits until it settles.
 	const editLocked = $derived(publishedLock || sendingNow);
-	// Opened from Posts (Edit Post, Duplicate, Quote on X): a successful
+	// Opened from Posts (Edit post, Duplicate, Quote on X): a successful
 	// schedule or publish goes back there instead of clearing the composer.
 	let returnToPosts = false;
 	// Snapshot on purpose: defaults apply to a fresh editor only.
@@ -3481,7 +3481,7 @@
 					>
 						<div class="mb-1 px-2 py-1">
 							<span class="text-[10px] font-bold tracking-widest text-stone-500 uppercase"
-								>Select Account</span
+								>Select account</span
 							>
 						</div>
 						{#each selectedAccounts.filter((a) => !isPlatformCustomized(overrides, a.platform as PlatformId)) as account (account.id)}
@@ -3558,7 +3558,7 @@
 									</select>
 								</label>
 								<label class="flex flex-col gap-1.5 text-[11px] font-bold text-stone-500">
-									Content Warning
+									Content warning
 									<input
 										type="text"
 										data-testid="masto-cw"
@@ -3585,7 +3585,7 @@
 									Threads
 								</h3>
 								<label class="flex flex-col gap-1.5 text-[11px] font-bold text-stone-500">
-									Topic Tag
+									Topic tag
 									<input
 										type="text"
 										data-testid="threads-topic"
@@ -4027,7 +4027,7 @@
 										aria-label={uploadingSegment === index
 											? `Uploading to post ${index + 1}`
 											: `Add image to post ${index + 1}`}
-										title={uploadingSegment === index ? 'Uploading…' : 'Add Image'}
+										title={uploadingSegment === index ? 'Uploading…' : 'Add image'}
 										onclick={() => fileRefs[index]?.click()}
 									>
 										<ImageIcon class="h-4 w-4" />
@@ -4270,8 +4270,8 @@
 						type="button"
 						data-testid="schedule-toggle"
 						class="group flex cursor-pointer items-center justify-center rounded-r-full px-4 py-2.5 transition-all hover:bg-stone-800"
-						title="Schedule Options"
-						aria-label="Schedule Options"
+						title="Schedule options"
+						aria-label="Schedule options"
 						aria-expanded={scheduleOpen}
 						disabled={publishing || unscheduling}
 						onclick={openSchedule}
@@ -4296,7 +4296,7 @@
 							}}
 						>
 							<div class="px-2 pt-2 pb-4 text-center">
-								<h4 class="mb-1 text-[14px] font-extrabold text-stone-900">Confirm Post</h4>
+								<h4 class="mb-1 text-[14px] font-extrabold text-stone-900">Confirm post</h4>
 								<p class="text-[12px] font-medium text-stone-500">
 									Publishing to {pendingAccounts.length}
 									{pendingAccounts.length === 1
@@ -4343,7 +4343,7 @@
 								disabled={pendingPublish?.saving || !pendingPublish?.draftId}
 								onclick={confirmPublish}
 							>
-								{pendingPublish?.saving ? 'Saving…' : 'Publish Now'}
+								{pendingPublish?.saving ? 'Saving…' : 'Publish now'}
 								<Send class="h-3.5 w-3.5" />
 							</button>
 							<button
@@ -4381,7 +4381,7 @@
 							<div class="flex items-center gap-2 px-2 pt-2 pb-3">
 								<Calendar class="h-4 w-4 text-stone-900" />
 								<h4 class="text-[14px] font-extrabold text-stone-900">
-									{hasSchedule ? 'Reschedule' : 'Schedule Post'}
+									{hasSchedule ? 'Reschedule' : 'Schedule post'}
 								</h4>
 							</div>
 
@@ -4410,7 +4410,7 @@
 										scheduleMode = 'absolute';
 									}}
 								>
-									Specific Date
+									Specific date
 								</button>
 							</div>
 
@@ -4497,7 +4497,7 @@
 								disabled={publishing || unscheduling}
 								onclick={() => void onSchedule()}
 							>
-								{hasSchedule ? 'Update schedule' : 'Confirm Schedule'}
+								{hasSchedule ? 'Update schedule' : 'Confirm schedule'}
 							</button>
 						</div>
 					{/if}
