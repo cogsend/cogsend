@@ -215,7 +215,9 @@ export async function loadQueueList(db: AppDb, userId: string, limit = QUEUE_LIS
 	const connById = new Map(allConns.map((c) => [c.id, c]));
 	const queuedDraftIds = [...new Set(targetRows.map((t) => t.draftId))];
 	const draftRows: DraftLite[] = [];
-	for (const chunk of chunkIds(queuedDraftIds)) {
+	// The user id is a bound parameter too, so a full chunk would be 101 and
+	// D1 would refuse the statement: a page of 100 one-account posts.
+	for (const chunk of chunkIds(queuedDraftIds, 90)) {
 		draftRows.push(
 			...(await db
 				.select({
