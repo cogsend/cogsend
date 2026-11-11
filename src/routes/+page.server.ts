@@ -1,4 +1,4 @@
-import { and, eq, inArray, min, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { batchQueries } from '#lib/server/db/client.js';
 import { connections, drafts, publishTargets } from '#lib/server/db/schema.js';
@@ -27,7 +27,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 				// One post sent to three accounts is one scheduled post, as on Posts.
 				.select({
 					n: sql<number>`count(distinct ${publishTargets.draftId})`,
-					nextAt: min(publishTargets.scheduledFor)
+					// The next one still ahead: an overdue row would hide it, since the
+					// page shows only a time in the future.
+					nextAt: sql<
+						number | null
+					>`min(case when ${publishTargets.scheduledFor} > ${Date.now()} then ${publishTargets.scheduledFor} end)`
 				})
 				.from(publishTargets)
 				.where(

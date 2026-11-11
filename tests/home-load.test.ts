@@ -99,4 +99,15 @@ describe('home load', () => {
 		expect(data.scheduledCount).toBe(2);
 		expect(data.nextScheduledAt).toBe(soon);
 	});
+
+	it('names the next post still ahead when another is overdue', async () => {
+		await addAccount('a', 'active');
+		const overdue = Date.now() - 600_000;
+		const ahead = Date.now() + 3_600_000;
+		await addPost('late', 'scheduled', [{ to: 'a', at: overdue }]);
+		await addPost('next', 'scheduled', [{ to: 'a', at: ahead }]);
+		const data = await run();
+		expect(data.scheduledCount).toBe(2);
+		expect(data.nextScheduledAt).toBe(ahead);
+	});
 });
