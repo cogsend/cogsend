@@ -1,3 +1,5 @@
+import { formatDistanceToNow } from 'date-fns';
+
 export function formatRelativeTime(iso: string | Date, now = new Date()): string {
 	const t = typeof iso === 'string' ? new Date(iso) : iso;
 	if (Number.isNaN(t.getTime())) return '';
@@ -190,4 +192,11 @@ export function dayGroupLabel(iso: string | Date, now = new Date()): string {
 		day: 'numeric',
 		...(sameYear ? {} : { year: 'numeric' })
 	});
+}
+
+/** "3 minutes ago" for an ISO time, or "never" when there is none or it does not parse. */
+export function timeAgo(iso: string | null | undefined): string {
+	if (!iso) return 'never';
+	const date = new Date(iso);
+	return Number.isNaN(date.getTime()) ? 'never' : formatDistanceToNow(date, { addSuffix: true });
 }

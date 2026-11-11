@@ -4,7 +4,8 @@ import {
 	formatFullLocalWithZone,
 	formatLocalDateTime,
 	formatLocalDateTimeWithZone,
-	localTimezoneShort
+	localTimezoneShort,
+	timeAgo
 } from '#lib/domain/relative-time.js';
 
 describe('local timezone formatting', () => {
@@ -55,5 +56,19 @@ describe('formatDayTime', () => {
 	it('falls back to the short date for any other day', () => {
 		const d = new Date(2026, 8, 12, 9, 30);
 		expect(formatDayTime(d, now)).toBe(formatLocalDateTime(d));
+	});
+});
+
+describe('timeAgo', () => {
+	it('says never when there is no time or it does not parse', () => {
+		expect(timeAgo(null)).toBe('never');
+		expect(timeAgo(undefined)).toBe('never');
+		expect(timeAgo('')).toBe('never');
+		expect(timeAgo('not a date')).toBe('never');
+	});
+
+	it('words a past time relative to now', () => {
+		const threeMinutesAgo = new Date(Date.now() - 3 * 60_000).toISOString();
+		expect(timeAgo(threeMinutesAgo)).toBe('3 minutes ago');
 	});
 });
