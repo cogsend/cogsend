@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="96" alt="CogSend" src="https://github.com/user-attachments/assets/42c2579f-b1f2-4345-980a-01e24c9e027c" />
+  <img width="96" alt="CogSend" src=".github/logo.png" />
 </p>
 
 <h1 align="center">CogSend</h1>
