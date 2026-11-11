@@ -3297,6 +3297,16 @@
 				return;
 			}
 			if (pendingPublish || editLocked) return;
+			// A dialog over the composer owns the keyboard: Cmd+Enter behind the
+			// media library or a confirm would publish a post nobody is looking at.
+			if (
+				isDiscardOpen ||
+				libraryFor !== null ||
+				pendingMediaRemove !== null ||
+				coverFor !== null ||
+				document.querySelector('[aria-modal="true"]')
+			)
+				return;
 			const meta = event.metaKey || event.ctrlKey;
 			if (meta && event.key.toLowerCase() === 's') {
 				event.preventDefault();
