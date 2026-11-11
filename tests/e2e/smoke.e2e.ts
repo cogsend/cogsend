@@ -235,8 +235,8 @@ test('a platform without app credentials shows its setup steps, not a failure', 
 
 	await clickUntilVisible(
 		page,
-		page.getByRole('button', { name: 'Connect new' }),
-		page.getByRole('heading', { name: 'Add Integration' })
+		page.getByRole('button', { name: 'Connect account' }),
+		page.getByRole('heading', { name: 'Connect an account' })
 	);
 
 	// Cards mark what needs setup, and nothing names a secret until one is
@@ -308,7 +308,7 @@ test('a platform without app credentials shows its setup steps, not a failure', 
 		await page.getByRole('button', { name: /All platforms/ }).click();
 	}
 
-	await page.getByRole('button', { name: 'Close add integration dialog' }).click();
+	await page.getByRole('button', { name: 'Close', exact: true }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	// Closing after looking at a platform must leave no error behind: this used
 	// to be where "X is not configured (X_CLIENT_ID missing)" appeared.
@@ -328,14 +328,18 @@ test('a stale callback error is explained, then dropped from the URL', async () 
 	await page.reload();
 	await expect(page.getByRole('alert')).toHaveCount(0);
 });
-test('settings defaults persist', async () => {
-	await page.goto('/settings');
+test('settings shows the running version', async () => {
+	await page.goto('/settings/instance');
 	// The version is injected at build time and shown here, so a bug report can
 	// name it; asserting it also proves the vite define reached the bundle.
 	await expect(page.getByText(/^Version \d+\.\d+\.\d+/)).toBeVisible();
 	// The update line sits under the version: either a release link (when a
 	// newer one exists) or the manual check. It must never be blank.
 	await expect(page.getByTestId('version-line')).toContainText(/is available|Check for updates/);
+});
+
+test('settings defaults persist', async () => {
+	await page.goto('/settings/posting');
 	await page.getByLabel('Mastodon visibility').selectOption('private');
 	await page.getByRole('button', { name: 'Save defaults' }).click();
 	await expect(page.getByText('Defaults saved')).toBeVisible();
@@ -348,7 +352,7 @@ test('settings defaults persist', async () => {
 });
 
 test('scheduled publishing card explains the tick and mints a token', async () => {
-	await page.goto('/settings');
+	await page.goto('/settings/scheduling');
 	const section = page.getByTestId('scheduler-section');
 	await expect(section).toBeVisible();
 	// The status line is derived from the heartbeat; a fresh instance has none.
@@ -386,7 +390,7 @@ test('scheduled publishing card explains the tick and mints a token', async () =
 });
 
 test('the tick runs on demand and reports back', async () => {
-	await page.goto('/settings');
+	await page.goto('/settings/scheduling');
 	await clickUntilVisible(
 		page,
 		page.getByRole('button', { name: 'Tick now' }),
@@ -397,22 +401,21 @@ test('the tick runs on demand and reports back', async () => {
 	await expect(page.getByTestId('scheduler-status-line')).toContainText('Last tick');
 });
 
-test('profile save leaves unsaved new-post defaults alone', async () => {
+test('profile save changes the name and nothing else', async () => {
 	await page.goto('/settings');
 	const before = await page.request.get('/api/settings').then((r) => r.json());
 	const originalName: string | null = before.displayName ?? null;
 
-	// Change a default but never save it, then save the profile: the profile card
-	// owns the name, so the pending default must not ride along with it.
-	const dirty = before.settings.mastoVisibility === 'unlisted' ? 'direct' : 'unlisted';
-	await page.getByLabel('Mastodon visibility').selectOption(dirty);
-	await page.getByLabel('Display Name').fill('Cross-card probe');
-	await page.getByRole('button', { name: 'Save Changes' }).click();
+	// The profile card owns the name: saving it must not send the new-post
+	// defaults or the picture along with it.
+	await page.getByLabel('Display name').fill('Cross-card probe');
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	await expect(page.getByText('Profile saved')).toBeVisible();
 
 	const after = await page.request.get('/api/settings').then((r) => r.json());
 	expect(after.displayName).toBe('Cross-card probe');
 	expect(after.settings.mastoVisibility).toBe(before.settings.mastoVisibility);
+	expect(after.settings.profilePictureUrl).toBe(before.settings.profilePictureUrl);
 
 	// Leave the workspace as the following tests expect to find it.
 	await page.request.patch('/api/settings', { data: { displayName: originalName ?? '' } });
@@ -657,7 +660,7 @@ test('publish without asking hands off at once and still reports failures', asyn
 
 test('api key works logged out, stays out of key management', async () => {
 	test.setTimeout(120_000);
-	await page.goto('/settings');
+	await page.goto('/settings/api');
 	await expect(page.getByTestId('api-key-section')).toBeVisible();
 	const mcpSetup = page.getByTestId('mcp-setup');
 	await expect(mcpSetup).toBeVisible();
@@ -811,7 +814,7 @@ test('api key works logged out, stays out of key management', async () => {
 	expect(oldPage.headers().location).toBe('https://cogsend.com/docs/api/');
 
 	// Revoke in-session; the logged-out key dies with it.
-	await page.goto('/settings');
+	await page.goto('/settings/api');
 	await clickUntilVisible(
 		page,
 		page.getByRole('button', { name: 'Revoke' }),
@@ -1050,7 +1053,7 @@ test('publish confirmation can be skipped and reset from settings', async () => 
 	await page.getByRole('button', { name: 'Keep editing' }).click();
 	expect(await page.evaluate(() => localStorage.getItem('cogsend-skip-publish-confirm'))).toBe('1');
 	// Reset from Settings.
-	await page.goto('/settings');
+	await page.goto('/settings/posting');
 	const ask = page.getByRole('switch', { name: /Ask for confirmation before publishing/ });
 	await expect(ask).not.toBeChecked();
 	await ask.click();
@@ -1079,7 +1082,18 @@ test('the header keeps a Write button on a phone', async () => {
 // push the document wider than a phone screen.
 test('key pages do not scroll sideways on a 320px phone', async () => {
 	await page.setViewportSize({ width: 320, height: 700 });
-	for (const path of ['/posts', '/posts?tab=drafts', '/insights', '/settings', '/compose']) {
+	for (const path of [
+		'/posts',
+		'/posts?tab=drafts',
+		'/insights',
+		'/accounts',
+		'/settings',
+		'/settings/posting',
+		'/settings/scheduling',
+		'/settings/api',
+		'/settings/instance',
+		'/compose'
+	]) {
 		await page.goto(path);
 		await expect(page.getByRole('heading').first()).toBeVisible();
 		await page.waitForTimeout(200);
@@ -1162,7 +1176,10 @@ test('duplicate API, insights page, and failed-tab deep link', async () => {
 
 	// The dashboard failure banner links here with the tab pre-selected.
 	await page.goto('/posts?tab=failed');
-	await expect(page.getByRole('link', { name: /^failed/ })).toHaveAttribute('aria-current', 'page');
+	await expect(page.getByRole('link', { name: /^failed/i })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
 });
 
 test('posts account dropdown filters the feed', async () => {
@@ -1207,8 +1224,8 @@ test('posts keeps its tab and search across a round trip', async () => {
 	await expect(page).toHaveURL(/\/posts\?tab=published$/);
 
 	const tabs = page.getByRole('group', { name: 'Filter posts by status' });
-	const scheduled = tabs.getByRole('link', { name: /^scheduled/ });
-	const published = tabs.getByRole('link', { name: /^published/ });
+	const scheduled = tabs.getByRole('link', { name: /^scheduled/i });
+	const published = tabs.getByRole('link', { name: /^published/i });
 	const historyLength = await page.evaluate(() => history.length);
 	await scheduled.click();
 	await expect(page).toHaveURL(/\/posts\?tab=scheduled$/);

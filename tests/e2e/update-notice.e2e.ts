@@ -57,7 +57,7 @@ test('a newer release shows in the header until it has been seen', async ({ page
 	await openMenu(page, 'Profile menu, update available');
 	await expect(page.getByTestId('update-menu-item')).toHaveText(/v99\.0\.0 is available/);
 	await page.getByTestId('update-menu-item').click();
-	await expect(page).toHaveURL(/\/settings#instance$/);
+	await expect(page).toHaveURL(/\/settings\/instance$/);
 	await expect(page.getByTestId('update-dot')).toHaveCount(0);
 
 	// Seen stays seen, but the menu keeps the line until the update is installed.

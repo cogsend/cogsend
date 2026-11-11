@@ -78,7 +78,18 @@ test('every page runs without a CSP violation', async ({ page }) => {
 	await signIn(page);
 	const violations = watchForViolations(page);
 
-	for (const path of ['/compose', '/posts', '/accounts', '/settings', '/insights', '/']) {
+	for (const path of [
+		'/compose',
+		'/posts',
+		'/accounts',
+		'/settings',
+		'/settings/posting',
+		'/settings/scheduling',
+		'/settings/api',
+		'/settings/instance',
+		'/insights',
+		'/'
+	]) {
 		await page.goto(path);
 		await page.waitForLoadState('networkidle');
 		// Give hydration and the data fetches a moment to finish.

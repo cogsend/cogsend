@@ -48,7 +48,7 @@ function standIn(page: Page, github: { repo: string; branch: string } | null) {
 test('a button install updates through GitHub once it knows its repository', async ({ page }) => {
 	await signIn(page);
 	await standIn(page, { repo: 'me/my-cogsend', branch: 'main' });
-	await page.goto('/settings#instance');
+	await page.goto('/settings/instance');
 
 	const block = page.getByTestId('github-update');
 	await expect(block).toContainText('me/my-cogsend');

@@ -43,7 +43,7 @@ test('menus take arrow keys and hand focus back to their trigger', async ({ page
 
 test('the connect dialog traps Tab and restores focus on close', async ({ page }) => {
 	await page.goto('/accounts');
-	const opener = page.getByRole('button', { name: 'Connect new' });
+	const opener = page.getByRole('button', { name: 'Connect account' });
 	const dialog = page.getByRole('dialog');
 	await clickUntilVisible(page, opener, dialog);
 
@@ -60,7 +60,7 @@ test('the connect dialog traps Tab and restores focus on close', async ({ page }
 
 	await page.keyboard.press('Escape');
 	await expect(dialog).toBeHidden();
-	await expect.poll(() => activeLabel(page)).toBe('Connect new');
+	await expect.poll(() => activeLabel(page)).toBe('Connect account');
 });
 
 test('a posts tab keeps focus on itself when it switches the list', async ({ page }) => {

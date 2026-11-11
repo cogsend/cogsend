@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { clickUntilVisible, E2E_ACCOUNT, d1 } from './e2e-env';
 
 /**
- * Editing a scheduled post (Posts → Edit Post) must reopen the schedule popover
+ * Editing a scheduled post (Posts → Edit post) must reopen the schedule popover
  * on the stored time, not on the fresh-post default. Time is pinned: the
  * browser runs in a fixed zone with a fixed `Date`, and every stored value is a
  * fixed ISO instant, so the expected local date/time never depends on the
@@ -79,7 +79,7 @@ async function openSchedulePanel(page: Page) {
 async function expectOneHourDefault(page: Page) {
 	await expect(page.getByTestId('schedule-offset-value')).toHaveValue('1');
 	await expect(page.getByTestId('schedule-offset-unit')).toHaveValue('hours');
-	await page.getByText('Specific Date').click();
+	await page.getByText('Specific date').click();
 	await expect(page.getByTestId('schedule-date')).toHaveValue(DEFAULT_DATE);
 	await expect(page.getByTestId('schedule-time')).toHaveValue(DEFAULT_TIME);
 }
@@ -112,13 +112,13 @@ test('a future scheduled post opens on its stored time and confirms it unchanged
 	const { draftId, connId } = await seedScheduledDraft(page, body, STORED_ISO);
 	const sent = await captureSchedule(page, draftId);
 
-	// The real path: Posts → Scheduled → Edit Post.
+	// The real path: Posts → Scheduled → Edit post.
 	await page.goto('/posts?tab=scheduled');
-	await page.locator(`a[href="/compose?id=${draftId}"]`, { hasText: 'Edit Post' }).click();
+	await page.locator(`a[href="/compose?id=${draftId}"]`, { hasText: 'Edit post' }).click();
 	await expect(page).toHaveURL(new RegExp(`/compose\\?id=${draftId}$`), { timeout: 20000 });
 	await expect(page.getByTestId('segment-input-0')).toHaveValue(body, { timeout: 20000 });
 
-	// (1) Specific Date mode, showing the stored local day and time.
+	// (1) Specific date mode, showing the stored local day and time.
 	await openSchedulePanel(page);
 	await expect(page.getByTestId('schedule-date')).toHaveValue(STORED_DATE);
 	await expect(page.getByTestId('schedule-time')).toHaveValue(STORED_TIME);
@@ -189,7 +189,7 @@ test('(5) a schedule picked while the draft loads is not overwritten', async ({ 
 
 	await page.goto(`/compose?id=${draftId}`);
 	await openSchedulePanel(page);
-	await page.getByText('Specific Date').click();
+	await page.getByText('Specific date').click();
 	await page.getByTestId('schedule-date').fill('2030-06-20');
 	await page.getByTestId('schedule-time').fill('16:45');
 

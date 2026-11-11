@@ -156,7 +156,7 @@ test('a post opened from Posts goes back there once scheduled', async ({ page })
 	);
 	await page.keyboard.press('Escape');
 	await expect(page.getByRole('menu')).toHaveCount(0);
-	await page.locator(`a[href="/compose?id=${draftId}"]`, { hasText: 'Edit Post' }).click();
+	await page.locator(`a[href="/compose?id=${draftId}"]`, { hasText: 'Edit post' }).click();
 	await expect(page).toHaveURL(new RegExp(`/compose\\?id=${draftId}$`), { timeout: 20000 });
 	await expect(page.getByTestId('segment-input-0')).toHaveValue(/scheduled/, { timeout: 20000 });
 

@@ -57,7 +57,7 @@ test('schedule panel prefills current date/time with D/H/M offsets', async ({ pa
 	});
 	// Note: date/time inputs are not rendered when in 'relative' mode.
 	// We need to switch to absolute mode to verify their prefilled values.
-	await page.getByText('Specific Date').click();
+	await page.getByText('Specific date').click();
 	await expect(page.getByTestId('schedule-date')).toHaveValue(expectedDate);
 	const timeVal = await page.getByTestId('schedule-time').inputValue();
 	expect(timeVal).toMatch(/^\d{2}:\d{2}$/);

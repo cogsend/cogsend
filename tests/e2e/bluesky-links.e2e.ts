@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { clickUntilVisible, d1, waitForLiveComposer } from './e2e-env';
+import { d1, waitForLiveComposer } from './e2e-env';
 
 /**
  * A link on Bluesky counts as the short text Bluesky's own app posts for it, so
@@ -86,18 +86,22 @@ test('Accounts turns compact links on and off for a Bluesky account', async ({ p
 	} = await seedAccounts(page, [{ did: `did:plc:${randomUUID()}` }]);
 	await page.goto('/accounts');
 	const line = page.getByTestId(`bluesky-compact-links-${connId}`);
-	await expect(line).toContainText('Compact links off');
-	await clickUntilVisible(
-		page,
-		line.getByRole('button', { name: 'Turn on' }),
-		line.getByText('Compact links on')
-	);
+	const toggle = line.getByRole('switch', { name: 'Compact links' });
+	await expect(toggle).not.toBeChecked();
+	await expect(line).toContainText('its site and the start of the address');
+	// A switch keeps its name when toggled, so a retried click could switch it back:
+	// click once, after the page has hydrated and loaded its accounts.
+	await page.waitForLoadState('networkidle');
+	await toggle.click();
+	await expect(line.getByText('A long link shows only its site.')).toBeVisible();
+	await expect(toggle).toBeChecked();
 	const meta = async () => {
 		const listed = await page.request.get('/api/connections').then((r) => r.json());
 		return listed.connections.find((c: { id: string }) => c.id === connId).metaJson;
 	};
 	expect(await meta()).toMatchObject({ compactLinks: true });
-	await line.getByRole('button', { name: 'Turn off' }).click();
-	await expect(line).toContainText('Compact links off');
+	await toggle.click();
+	await expect(toggle).not.toBeChecked();
+	await expect(line).toContainText('its site and the start of the address');
 	expect((await meta()).compactLinks).toBeUndefined();
 });
