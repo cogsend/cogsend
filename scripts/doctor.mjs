@@ -23,6 +23,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PLACEHOLDER_VALUES, readDevVars } from './lib/dev-vars.mjs';
 import { readAccount } from './lib/account.mjs';
+import { isLaterVersion } from './lib/deployed-version.mjs';
 import { CHECKED_ENV, checkTarget, explainTarget } from './lib/target-account.mjs';
 import { apiHeaders, onboardingUrl, readSubdomain } from './lib/workers-subdomain.mjs';
 
@@ -376,23 +377,13 @@ export function releaseVerdict({ current, latest, error, shape = 'unknown' } = {
 }
 
 /**
- * Numeric version comparison; unparsable versions are never "newer".
+ * The updater's own ordering, so a beta reads as behind its stable release;
+ * unparsable versions are never "newer".
  *
  * @param {string} candidate @param {string} current @returns {boolean}
  */
 export function isNewerVersion(candidate, current) {
-	/** @param {string} value @returns {number[] | null} */
-	const parse = (value) => {
-		const match = /^\s*v?(\d+)\.(\d+)\.(\d+)/.exec(value ?? '');
-		return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
-	};
-	const a = parse(candidate);
-	const b = parse(current);
-	if (!a || !b) return false;
-	for (let i = 0; i < 3; i += 1) {
-		if (a[i] !== b[i]) return a[i] > b[i];
-	}
-	return false;
+	return isLaterVersion(candidate, current);
 }
 
 /**

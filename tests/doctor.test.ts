@@ -327,6 +327,10 @@ describe('update check', () => {
 		expect(isNewerVersion('1.10.0', '1.9.0')).toBe(true);
 		expect(isNewerVersion('1.0.0', '1.0.0')).toBe(false);
 		expect(isNewerVersion('nightly', '1.0.0')).toBe(false);
+		// A beta is behind the release it leads up to.
+		expect(isNewerVersion('1.31.0', '1.31.0-beta.4')).toBe(true);
+		expect(isNewerVersion('1.31.0-beta.4', '1.31.0')).toBe(false);
+		expect(isNewerVersion('v1.31.0-beta.5', '1.31.0-beta.4')).toBe(true);
 	});
 
 	it('reads the newest tag, and the release tag', () => {
