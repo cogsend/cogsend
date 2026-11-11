@@ -133,6 +133,28 @@ export function summarizePost(
 	return state;
 }
 
+/** How a finished post went, across the accounts it was sent to. */
+export type CardOutcome = {
+	kind: 'published' | 'partial' | 'failed';
+	/** Accounts it went out on. */
+	published: number;
+	/** Accounts it was sent to and that have finished, either way. */
+	total: number;
+};
+
+/**
+ * A post that went out on some accounts and failed on others is neither: it
+ * needs a retry, and it was also published. Rows still waiting or cancelled do
+ * not count, so this only describes what has finished.
+ */
+export function cardOutcome(rows: ReadonlyArray<{ status?: string | null }>): CardOutcome | null {
+	const published = rows.filter((r) => r.status === 'published').length;
+	const failed = rows.filter((r) => r.status === 'failed').length;
+	if (!published && !failed) return null;
+	const kind = !failed ? 'published' : published ? 'partial' : 'failed';
+	return { kind, published, total: published + failed };
+}
+
 /**
  * How the ticked accounts differ from what is scheduled. The scheduler reads
  * the targets, not the selection, so until the schedule is updated a removed

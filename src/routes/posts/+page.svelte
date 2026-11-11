@@ -14,7 +14,8 @@
 		ChevronDown,
 		Check,
 		Users,
-		LoaderCircle
+		LoaderCircle,
+		TriangleAlert
 	} from '@lucide/svelte';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import MediaPreview from '#lib/components/MediaPreview.svelte';
@@ -28,7 +29,7 @@
 	import { safeHttpUrl } from '#lib/domain/links.js';
 	import { parseXPostUrl } from '#lib/domain/x-quote.js';
 	import { humanizeError } from '#lib/domain/human-error.js';
-	import { isTargetSending } from '#lib/domain/post-state.js';
+	import { cardOutcome, isTargetSending, type CardOutcome } from '#lib/domain/post-state.js';
 	import { PROCESSING_MARK } from '#lib/domain/video-rules.js';
 	import { sessionExpiredIfUnauthorized } from '#lib/components/session-expired.js';
 	import { takePostsNotice } from '#lib/components/posts-notice.js';
@@ -127,6 +128,8 @@
 		/** Epoch ms used for newest-first ordering. */
 		sortKey: number;
 		whenLabel: 'scheduled' | 'published' | 'updated';
+		/** How a finished post went; null while nothing has finished. */
+		outcome: CardOutcome | null;
 		overdue?: boolean;
 		platforms: {
 			name: string;
@@ -404,6 +407,7 @@
 					when: d.updatedAt,
 					sortKey: toTime(d.updatedAt),
 					whenLabel: 'updated' as const,
+					outcome: null,
 					platforms: (() => {
 						const seen = new Map<
 							string,
@@ -509,6 +513,7 @@
 				whenLabel: ['scheduled', 'pending', 'publishing'].includes(primary.status)
 					? ('scheduled' as const)
 					: ('published' as const),
+				outcome: cardOutcome(group),
 				overdue: when != null && toTime(when) <= Date.now(),
 				platforms,
 				// Fallbacks in case we need a general error
@@ -542,6 +547,11 @@
 	// Failed is a slice of history, not a separate source: a card with any
 	// failed platform carries status 'failed' even when a sibling is retrying.
 	const failedCards = $derived(historyCards.filter((c) => c.status === 'failed'));
+	// Published is what went out: a post that failed everywhere belongs to
+	// Failed only, and one that went out somewhere belongs to both.
+	const publishedCards = $derived(
+		historyCards.filter((c) => c.outcome?.kind === 'published' || c.outcome?.kind === 'partial')
+	);
 
 	// While anything is on its way out, Posts follows it without a reload:
 	// quickly while a send is in flight, slowly while a platform processes a
@@ -616,7 +626,7 @@
 
 	const cards = $derived.by(() => {
 		if (activeTab === 'scheduled') return upcomingCards;
-		if (activeTab === 'published') return historyCards;
+		if (activeTab === 'published') return publishedCards;
 		if (activeTab === 'failed') return failedCards;
 		if (activeTab === 'drafts') return draftsOnlyCards;
 		return [...upcomingCards, ...historyCards, ...draftsOnlyCards];
@@ -672,7 +682,7 @@
 
 	function countFor(tab: PostsTab): number {
 		if (tab === 'scheduled') return upcomingCards.length;
-		if (tab === 'published') return historyCards.length;
+		if (tab === 'published') return publishedCards.length;
 		if (tab === 'failed') return failedCards.length;
 		if (tab === 'drafts') return draftsOnlyCards.length;
 		return upcomingCards.length + historyCards.length + draftsOnlyCards.length;
@@ -1208,6 +1218,7 @@
 				class="flex flex-col rounded-[2rem] border border-stone-200/80 bg-white p-5 shadow-[0_8px_30px_-12px_rgb(28_25_23/0.06)] transition-all hover:border-stone-300 hover:shadow-[0_8px_30px_-12px_rgb(28_25_23/0.1)] sm:p-6"
 				data-testid="post-card"
 				data-status={card.status}
+				data-outcome={card.outcome?.kind}
 			>
 				<!-- Post Header -->
 				<div class="mb-4 flex items-start justify-between">
@@ -1268,6 +1279,13 @@
 								class="inline-flex items-center gap-1.5 rounded bg-emerald-50 px-2.5 py-1 text-[10px] font-bold tracking-widest text-emerald-700 uppercase"
 							>
 								<Send class="h-3 w-3" /> Published
+							</span>
+						{:else if badge === 'failed' && card.outcome?.kind === 'partial'}
+							<span
+								class="inline-flex items-center gap-1.5 rounded bg-amber-50 px-2.5 py-1 text-[10px] font-bold tracking-widest text-amber-700 uppercase"
+								data-testid="partial-badge"
+							>
+								<TriangleAlert class="h-3 w-3" /> Partly published
 							</span>
 						{:else if badge === 'failed'}
 							<span
@@ -1507,6 +1525,12 @@
 							<span class="text-stone-900" title={card.whenTitle}>{card.whenText}</span>
 						{:else if card.whenLabel === 'scheduled' && card.when}
 							Will publish
+							<span class="text-stone-900" title={card.whenTitle}>{card.whenText}</span>
+						{:else if card.whenLabel === 'published' && card.when && card.outcome?.kind === 'failed'}
+							Failed
+							<span class="text-stone-900" title={card.whenTitle}>{card.whenText}</span>
+						{:else if card.whenLabel === 'published' && card.when && card.outcome?.kind === 'partial'}
+							Published to {card.outcome.published} of {card.outcome.total} ·
 							<span class="text-stone-900" title={card.whenTitle}>{card.whenText}</span>
 						{:else if card.whenLabel === 'published' && card.when}
 							Published

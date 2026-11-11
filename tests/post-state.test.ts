@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { STALE_CLAIM_MS } from '#lib/domain/due-jobs.js';
 import { restorableTargetIds } from '#lib/domain/platform-sync.js';
-import { isTargetSending, selectionDrift, summarizePost } from '#lib/domain/post-state.js';
+import {
+	cardOutcome,
+	isTargetSending,
+	selectionDrift,
+	summarizePost
+} from '#lib/domain/post-state.js';
 import { PROCESSING_MARK } from '#lib/domain/video-rules.js';
 import { schedulePreviewText, scheduleWhenText } from '#lib/domain/schedule-helpers.js';
 import { draftHasInFlightPublish } from '#lib/server/publish-plan.js';
@@ -233,5 +238,33 @@ describe('scheduleWhenText', () => {
 		const value = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}T${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
 		expect(schedulePreviewText(value, now)).toBe(scheduleWhenText(at, now));
 		expect(scheduleWhenText(at, now)).toMatch(/\(in 3h\)$/);
+	});
+});
+
+describe('cardOutcome', () => {
+	it('tells a partly published post from a published or a failed one', () => {
+		expect(cardOutcome([{ status: 'published' }, { status: 'published' }])).toEqual({
+			kind: 'published',
+			published: 2,
+			total: 2
+		});
+		expect(cardOutcome([{ status: 'failed' }, { status: 'failed' }])).toEqual({
+			kind: 'failed',
+			published: 0,
+			total: 2
+		});
+		expect(cardOutcome([{ status: 'published' }, { status: 'failed' }])).toEqual({
+			kind: 'partial',
+			published: 1,
+			total: 2
+		});
+	});
+
+	it('counts only what has finished', () => {
+		expect(
+			cardOutcome([{ status: 'published' }, { status: 'cancelled' }, { status: 'scheduled' }])
+		).toEqual({ kind: 'published', published: 1, total: 1 });
+		expect(cardOutcome([{ status: 'scheduled' }, { status: 'cancelled' }])).toBeNull();
+		expect(cardOutcome([])).toBeNull();
 	});
 });
