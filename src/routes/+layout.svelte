@@ -30,6 +30,7 @@
 		updateNotice
 	} from '#lib/components/update-notice.svelte.js';
 	import { browserTimeZone } from '#lib/domain/time-zone.js';
+	import { settingsSectionFor } from '#lib/domain/settings-sections.js';
 
 	let workspaceTrigger: HTMLButtonElement | null = $state(null);
 	let profileTrigger: HTMLButtonElement | null = $state(null);
@@ -98,6 +99,7 @@
 			.catch(() => {});
 	});
 	const showUpdateDot = $derived(!!updateNotice.tag && updateNotice.seen !== updateNotice.tag);
+	const inSettings = $derived(settingsSectionFor(page.url.pathname) !== null);
 
 	let logoutError = $state<string | null>(null);
 	async function logout() {
@@ -368,7 +370,7 @@
 							<div class="mt-1 p-1">
 								{#if updateNotice.tag}
 									<a
-										href="/settings#instance"
+										href="/settings/instance"
 										class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-bold text-stone-600 transition-colors hover:bg-stone-50 hover:text-stone-900"
 										onclick={() => {
 											showProfileDropdown = false;
@@ -384,19 +386,14 @@
 								{/if}
 								<a
 									href="/settings"
-									class="flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-bold transition-colors {page
-										.url.pathname === '/settings'
+									class="flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-bold transition-colors {inSettings
 										? 'bg-stone-900 text-white shadow-md'
 										: 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'}"
 									onclick={() => (showProfileDropdown = false)}
 									role="menuitem"
 								>
 									<div class="flex items-center gap-3">
-										<Settings
-											class="h-4 w-4 {page.url.pathname === '/settings'
-												? 'text-white'
-												: 'text-stone-500'}"
-										/> Settings
+										<Settings class="h-4 w-4 {inSettings ? 'text-white' : 'text-stone-500'}" /> Settings
 									</div>
 								</a>
 
