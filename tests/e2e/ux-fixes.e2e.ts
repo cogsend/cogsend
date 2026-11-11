@@ -308,6 +308,36 @@ test('Posts loads older posts past the first page, and search finds them', async
 	await expect(oldest).toBeVisible();
 });
 
+test("an account filter finds that account's failures past the first page", async ({ page }) => {
+	await page.goto('/posts');
+	const userId = await userIdOf(page);
+	const busy = seedConnection(userId, 'bluesky');
+	const quiet = seedConnection(userId, 'mastodon');
+	const now = Date.now();
+	const statements: string[] = [];
+	for (let i = 0; i < 105; i++) {
+		const draftId = randomUUID();
+		statements.push(
+			postSql(userId, draftId, `${PREFIX} busy ${i} ${draftId.slice(0, 8)}`, 'published', [
+				{ connectionId: busy.id, status: 'published', updatedAt: now - (i + 1) * 60_000 }
+			])
+		);
+	}
+	const oldFailure = randomUUID();
+	const failedBody = `${PREFIX} quiet failure ${oldFailure.slice(0, 8)}`;
+	statements.push(
+		postSql(userId, oldFailure, failedBody, 'failed', [
+			{ connectionId: quiet.id, status: 'failed', error: 'boom', updatedAt: now - 200 * 60_000 }
+		])
+	);
+	d1(statements.join('; '));
+
+	await page.goto(`/posts?tab=failed&account=${quiet.id}`);
+	await expect(page.getByTestId('post-card').filter({ hasText: failedBody })).toBeVisible();
+	await expect(page).toHaveURL(new RegExp(`account=${quiet.id}`));
+	await expect(page.getByTestId('post-card')).toHaveCount(1);
+});
+
 test('home counts a post going to three accounts as one scheduled post', async ({ page }) => {
 	await page.goto('/');
 	const counts = page.getByTestId('home-counts');
