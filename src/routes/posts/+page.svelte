@@ -704,10 +704,25 @@
 
 	// A filter whose account no longer has any loaded posts (e.g. its last
 	// card was cancelled, or an old link names it) would strand the list on an
-	// empty state with no chip left to clear. Drop the filter when the account
-	// disappears.
+	// empty state with no chip left to clear. Its posts may only be further
+	// back, though, as with an Insights link to an account's failures, so a
+	// few older pages are read first; the filter goes only when none has them.
+	const FILTER_PAGES = 5;
+	let filterPagesFor: string | null = null;
+	let filterPagesRead = 0;
 	$effect(() => {
-		if (accountFilter && !accounts.some((a) => a.id === accountFilter)) setAccountFilter(null);
+		if (!accountFilter || accounts.some((a) => a.id === accountFilter)) return;
+		if (loading || loadingOlder || loadFailed) return;
+		if (filterPagesFor !== accountFilter) {
+			filterPagesFor = accountFilter;
+			filterPagesRead = 0;
+		}
+		if (moreFor(activeTab) && filterPagesRead < FILTER_PAGES) {
+			filterPagesRead++;
+			void loadOlder();
+			return;
+		}
+		setAccountFilter(null);
 	});
 
 	const visible = $derived.by(() => {
@@ -1028,6 +1043,13 @@
 		if (failed.length) {
 			setCardError(draftId, humanizeError(failed[0]?.error || fallback));
 			return false;
+		}
+		// A refresh replaces only the first page, and a cancelled row leaves the
+		// queue, so a copy kept from an older page or a search would linger.
+		if (op === 'cancel') {
+			const gone = new Set(ids);
+			olderTargets = olderTargets.filter((t) => !gone.has(t.id));
+			searchTargets = searchTargets.filter((t) => !gone.has(t.id));
 		}
 		return true;
 	}
