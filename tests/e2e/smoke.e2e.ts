@@ -475,9 +475,9 @@ test('profile menu appears after login with workspace navigation', async () => {
 	await clickUntilVisible(
 		page,
 		page.getByRole('button', { name: 'Profile menu' }),
-		page.getByRole('menuitem', { name: 'Settings' })
+		page.getByRole('menuitem', { name: 'Settings', exact: true })
 	);
-	await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible();
+	await expect(page.getByRole('menuitem', { name: 'Settings', exact: true })).toBeVisible();
 	await expect(page.getByRole('menuitem', { name: 'Docs' })).toHaveAttribute(
 		'href',
 		'https://cogsend.com/docs/'

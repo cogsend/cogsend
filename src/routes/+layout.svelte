@@ -349,22 +349,31 @@
 								onEscape: () => (showProfileDropdown = false)
 							}}
 						>
-							<div class="mb-1 border-b border-stone-100 px-3 py-3">
-								{#if displayName?.trim()}
-									<p class="truncate text-[13px] font-extrabold text-stone-900">
-										{displayName.trim()}
-									</p>
-									<p
-										class="mt-0.5 truncate text-[11px] font-medium text-stone-500"
-										title={userEmail}
-									>
-										{userEmail}
-									</p>
-								{:else}
-									<p class="truncate text-[13px] font-extrabold text-stone-900" title={userEmail}>
-										{userEmail}
-									</p>
-								{/if}
+							<div class="mb-1 border-b border-stone-100 p-1 pb-2">
+								<a
+									href="/settings"
+									class="block rounded-xl px-3 py-2.5 transition-colors hover:bg-stone-50"
+									onclick={() => (showProfileDropdown = false)}
+									role="menuitem"
+									data-testid="profile-menu-account"
+								>
+									{#if displayName?.trim()}
+										<p class="truncate text-[13px] font-extrabold text-stone-900">
+											{displayName.trim()}
+										</p>
+										<p
+											class="mt-0.5 truncate text-[11px] font-medium text-stone-500"
+											title={userEmail}
+										>
+											{userEmail}
+										</p>
+									{:else}
+										<p class="truncate text-[13px] font-extrabold text-stone-900" title={userEmail}>
+											{userEmail}
+										</p>
+									{/if}
+									<span class="sr-only">Account settings</span>
+								</a>
 							</div>
 
 							<div class="mt-1 p-1">

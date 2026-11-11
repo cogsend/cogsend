@@ -12,7 +12,7 @@ const SECTIONS = [
 	{ label: 'Account', href: '/settings', card: 'Profile' },
 	{ label: 'Posting', href: '/settings/posting', card: 'New post defaults' },
 	{ label: 'Scheduled publishing', href: '/settings/scheduling', card: 'Scheduled publishing' },
-	{ label: 'API access', href: '/settings/api', card: 'API access' },
+	{ label: 'API & MCP', href: '/settings/api', card: 'API key' },
 	{ label: 'Instance', href: '/settings/instance', card: 'Updates' }
 ];
 
@@ -50,6 +50,19 @@ test('each settings section has its own page, and the nav marks the one open', a
 		).toBeVisible();
 		await expect(sectionNav(page).locator('[aria-current="page"]')).toHaveCount(1);
 	}
+});
+
+test('your name in the profile menu opens Account settings', async ({ page }) => {
+	await page.goto('/compose');
+	const account = page.getByTestId('profile-menu-account');
+	await clickUntilVisible(page, page.getByRole('button', { name: /^Profile menu/ }), account);
+	await expect(account).toHaveAccessibleName(/Account settings$/);
+	await account.click();
+	await expect(page).toHaveURL(/\/settings$/);
+	await expect(page.locator('#profile-menu')).toHaveCount(0);
+	await expect(
+		sectionNav(page).getByRole('link', { name: 'Account', exact: true })
+	).toHaveAttribute('aria-current', 'page');
 });
 
 test('an old link to the Instance card lands on the Instance section', async ({ page }) => {
