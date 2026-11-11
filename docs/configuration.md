@@ -158,3 +158,26 @@ There is no emailed reset link and no reset route in the app. Recovery needs the
 same thing installing needs: your Cloudflare account, which is also where the
 database and the secrets live. That keeps the trust boundary honest and leaves
 nothing for anyone to phish.
+
+### Recovering without a checkout
+
+An instance installed with the Deploy button has no checkout to run `admin:reset` from, so make one for the occasion. It needs Node 22.17 or later and the Cloudflare login that owns the instance.
+
+```sh
+git clone https://github.com/cogsend/cogsend.git
+cd cogsend
+npm install
+cp wrangler.jsonc wrangler.personal.jsonc
+```
+
+In `wrangler.personal.jsonc`, set `name` to your Worker's name, and `database_name` and `database_id` to its D1 database. The Cloudflare dashboard has all three: the Worker under **Workers & Pages**, where its bindings show which database it uses, and the database's name and ID on the **D1** page. If your login reaches more than one Cloudflare account, pin the right one as in [More than one Cloudflare account](#more-than-one-cloudflare-account).
+
+Then sign in to Cloudflare and reset the login. `--dry-run` first says what it would change without changing anything, and `--all` also clears the authenticator, as above.
+
+```sh
+npx wrangler login
+npm run admin:reset -- --dry-run
+npm run admin:reset
+```
+
+The reset touches only the login, so the folder can be deleted afterwards.

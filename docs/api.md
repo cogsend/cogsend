@@ -33,12 +33,12 @@ A failed request answers a JSON object with an `error` property.
 ### With any key
 
 - `GET /api/connections`: account ids, platforms, statuses, and which platforms this deployment can connect.
-- `GET /api/drafts`: list drafts with their variants, media and targets.
+- `GET /api/drafts`: list drafts with their variants, media and targets, most recently edited first. See [Lists](#lists) for paging and search.
 - `GET /api/drafts/:id`: one draft.
 - `GET /api/drafts/:id/share`: the draft's preview link, see [Preview links](#preview-links).
-- `GET /api/queue`: upcoming and recent deliveries.
+- `GET /api/queue`: upcoming deliveries, soonest first, then recent ones, newest first. See [Lists](#lists).
 - `POST /api/validate`: check a post against each platform's rules.
-- `GET /api/insights`: delivery stats. `?days=` and `?tz=` are optional.
+- `GET /api/insights`: delivery stats. `?days=` and `?tz=` are optional. `totals.scheduled` counts waiting deliveries, one per account, and `totals.scheduledPosts` counts the posts they belong to.
 - `GET /api/media`: the files your drafts use, see [Media](#media).
 - `GET /api/settings`: read settings.
 
@@ -62,6 +62,10 @@ A failed request answers a JSON object with an `error` property.
 - `POST /api/targets/:id/reschedule`: `{"runAt": "<ISO date>"}` moves one delivery.
 - `POST /api/targets/bulk`: `{"op", "ids", "runAt?"}` acts on up to 10 deliveries at once. `op` is `cancel`, `retry` or `reschedule`.
 - `PATCH /api/settings`: change settings.
+
+### Lists
+
+`GET /api/drafts` answers 200 drafts at a time and `GET /api/queue` 100 deliveries, or up to 500 with `?limit=`. Each answer has `hasMore` and a `next` cursor: send `next` back as `?before=` for the page after, until `next` is `null`. Paging the queue walks back through its published and failed deliveries only: the waiting ones come on the first page, so a queue with more than 100 waiting needs a larger `?limit=`. `?q=` keeps only posts whose text contains it, ignoring case, up to 200 characters, and combines with `?before=`. A malformed cursor or a longer search answers **400**.
 
 ## MCP server
 

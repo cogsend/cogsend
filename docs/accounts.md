@@ -1,7 +1,7 @@
 # Connecting accounts
 
 **Accounts** lists every connected account and how to add another. **Connect account**
-opens the platform picker. An account that is working shows no badge; one that needs attention is marked, as described in [When an account needs reconnecting](#when-an-account-needs-reconnecting).
+opens the platform picker, and so does **Connect your first account** on an empty page. An account that is working shows no badge; one that needs attention is marked, as described in [When an account needs reconnecting](#when-an-account-needs-reconnecting).
 
 ## Mastodon and Bluesky
 
@@ -11,7 +11,7 @@ These two connect with what you already have:
   instance. The app registers itself there; there is nothing to create first.
 - **Bluesky** — enter your handle and an **app password**, which you create in
   Bluesky under Settings → Privacy and security → App passwords. Never use your
-  main password.
+  main password. If Bluesky refuses the pair, the form says to check both; if it asks for an email code, you entered the account password rather than an app password.
 
 ## LinkedIn, Threads, Instagram and X
 
@@ -25,7 +25,7 @@ are in [OAuth apps](oauth-apps.md).
 Paste the credentials into that form and press **Save and connect**: nothing to
 deploy and no checkout needed, which suits an instance installed with the
 Deploy button. Worker secrets work too, set from a checkout or in the Cloudflare
-dashboard; reload the page once they are on the Worker.
+dashboard; reload the page once they are on the Worker. An instance installed with the Deploy button shows the [Zernio](zernio.md) option first and leaves the Worker-secrets step out.
 
 Instagram connects only a Business or Creator account; a personal account is refused with a note on switching its type in Instagram's settings.
 
@@ -49,7 +49,7 @@ Accounts connected through [Zernio](zernio.md) post links as typed, so they have
 ## When an account needs reconnecting
 
 A token that stops working marks the account as needing a reconnect, both here and
-in the composer's account list. Here it shows its state, such as **Expired**, and **Reconnect** starts the same flow again and keeps
+in the composer's account list. Here it is marked **Expired**, or **Needs attention** for any other problem, and **Reconnect** starts the same flow again and keeps
 the account's history; **Check** asks the platform again whether the token still works. The usual cause is LinkedIn: a self-created LinkedIn app
 gets a 60-day token and nothing to renew it with, so it has to be reconnected every
 60 days ([why](oauth-apps.md#linkedin)).

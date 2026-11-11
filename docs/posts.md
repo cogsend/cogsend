@@ -11,8 +11,10 @@ account, and the search box matches the post text. The tab and account stay in
 the address, so reloading or sharing the link keeps them, and coming back from
 editing a post returns you to the same tab, account and search. Every card shows
 the accounts it goes to, the text, its images or video, and when: **Will publish** with the time in
-your own timezone and how far away it is, **Due** once that time has passed, **Started** while it is being sent, or **Published**, or when a draft was
-last edited. A link in the text opens in a new tab, here and on a [preview link](#preview-links). A video shows its cover and loads only when you press play.
+your own timezone and how far away it is, **Due** once that time has passed, **Started** while it is being sent, **Published**, **Failed**, or **Published to 2 of 3** for a post that went out on some accounts and failed on others, or when a draft was
+last edited. Those times stay current while the page is open. A link in the text opens in a new tab, here and on a [preview link](#preview-links). A video shows its cover and loads only when you press play.
+
+Posts shows the newest 100 deliveries and 200 drafts first. **Load older posts** at the bottom fetches the next page, and a search also looks through older posts that are not loaded yet. While there is more to load, a tab's count reads like **100+**.
 
 A thread shows its first post with its images, and **N more posts in this thread** under it. Pressing that lists the rest in order, each with its own text and images, and **Show less** folds them away again. A search that matches only a later post opens the thread so you can see the match.
 
@@ -27,12 +29,14 @@ What a card offers depends on its state:
 | Published | **Post again**, which copies it into a new draft; on X, **Quote on X**, which starts a new draft quoting it |
 | Draft     | **Edit post**, **Duplicate**, **Remove**                                                                    |
 
+**Reschedule** won't confirm a time that has passed. **Cancel** on a whole scheduled post moves it back to **Drafts**, and the message links there. If an action on a card fails, the reason shows on that card until you dismiss it.
+
 **Post again** and **Duplicate** bring the media and its alt text along without storing the files again: the copy uses the original's files, so it takes no extra room in R2. Each post can still change alt text, reorder or remove its media on its own, and a file is deleted only with the last post that uses it. Picking a new cover for a copied video gives that post its own copy of the video first, so the original keeps its cover. The same goes for a file attached from **Your media** in the composer ([Images and alt text](composer.md#images-and-alt-text)).
 
 **Edit post** on a scheduled card opens it in the composer, which shows when and where it goes out and offers **Change time** and **Unschedule** there too; see [Publish now, or schedule](composer.md#publish-now-or-schedule).
 
 A post that went to several accounts is one card, with a result per account, so a
-post that published on four and failed on one shows exactly that. Retrying a card
+post that published on four and failed on one shows exactly that. It is marked **Partly published** and listed under both **Published** and **Failed**. Retrying a card
 retries only the accounts that failed.
 
 A post that published to every account can't be edited, since changing it would no longer match what went out. Opening it shows it read-only, with **Duplicate to post again** to start a copy, which is what **Post again** does from its card. A post that failed on some accounts stays editable, so it can be fixed and retried.
@@ -57,7 +61,7 @@ alongside. Local means your browser's time zone: the app records it when you ope
 it, so the days follow you if you move or travel.
 
 - **Published**, with the change against the previous period as a signed count.
-- **Scheduled**, with how long until the next one goes out.
+- **Scheduled**, counting posts rather than accounts, with how long until the next one goes out.
 - **Last post**, so a week where nothing went out is obvious.
 - A chart of posts per day, as **Bars** or **Cumulative** against the previous
   period. Hover, tap or use the arrow keys to read any day; red dots mark days
@@ -65,4 +69,6 @@ it, so the days follow you if you move or travel.
 - The failures, grouped by reason — a platform-wide problem reads differently from
   one bad post — with a link to review them in Posts.
 - A row per account, including disconnected ones, which are kept and marked
-  **Archived** so their history still counts.
+  **Archived** so their history still counts. An account's failed count opens its failed posts in Posts.
+
+The range stays in the address, so a reload or a shared link keeps it.

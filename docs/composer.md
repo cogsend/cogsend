@@ -55,6 +55,8 @@ animation. If an attached image is still over a selected platform's limit,
 a line under the image names the platform, with a button to uncheck it, and
 Publish and Schedule stop until it is resolved.
 
+While images upload, the card shows how many are on their way. Images dropped on the same card meanwhile wait their turn and go up next.
+
 ## Instagram
 
 Every Instagram post needs a photo or a video, so with an Instagram account selected a text-only post shows **Instagram needs a photo or video** on the first card, with **Uncheck Instagram**, and Publish and Schedule stop until you attach something or uncheck it. The other accounts are not held to it.
@@ -97,26 +99,28 @@ reset button re-syncs it to the Global text.
 - **Mastodon:** the visibility (Public, Unlisted, Followers, Direct) and an optional content warning.
 - **Threads:** an optional topic tag, the single clickable topic Threads shows on a post. It takes up to 50 characters, without `.` or `&`, and a `#` in front is dropped. In a thread it goes on the first post.
 
-## Choosing destinations
+## Choosing accounts
 
 The accounts button in the dock (**N selected**) opens the list of connected
-accounts. Tick the ones this draft goes to; **Clear all** empties the list. An
-account that needs reconnecting is marked, and [Accounts](accounts.md) is where
-you fix it.
+accounts. Check the ones this draft goes to; **Clear all** empties the list. An
+account that needs reconnecting is marked and can't be newly checked, and [Accounts](accounts.md) is where
+you fix it. If a draft already has one checked, Publish and Schedule stop with **Reconnect Mastodon, or uncheck it** before anything is sent. Unchecking it is up to you, because scheduling without it would cancel the time it already holds.
+
+When something would stop the post, such as an account that needs reconnecting, a post over a platform's limit (**X: post 2 is 14 over the limit**) or media a platform can't take, a line above the dock says what before you press anything.
 
 ## Publish now, or schedule
 
-**Publish** hands the draft to every selected account and empties the composer at once, so you can start the next post while it goes out. The result arrives as a message wherever you are in the app, updated as each account answers ("Published to Mastodon · still sending to Threads") and ending with **Published to 3 destinations**, or which account failed and why, with a link to the post in **Posts**. A failure also puts a red dot on the menu at the top left, beside **Posts**, until you open it. By default Publish asks first, with a **Confirm post** step; tick **Publish
+**Publish** hands the draft to every selected account and empties the composer at once, so you can start the next post while it goes out. The result arrives as a message wherever you are in the app, updated as each account answers ("Published to Mastodon · still sending to Threads") and ending with **Published to 3 accounts**, or which account failed and why, with a link to the post in **Posts**. A failure also puts a red dot on the menu at the top left, beside **Posts**, until you open it. By default Publish asks first, with a **Confirm post** step; check **Publish
 without asking next time** to skip it in this browser, and turn the question back
 on under **Settings → Posting → Ask for confirmation before publishing**.
-**Cmd/Ctrl + Enter** publishes from the keyboard.
+**Cmd/Ctrl + Enter** publishes from the keyboard, and **Cmd/Ctrl + S** saves at once; neither does anything while a dialog such as **Your media** is open. Hovering **Publish** or the save status shows them.
 
 The calendar button next to it schedules instead: either **Publish in** an offset
 of minutes, hours or days (one hour by default), or a **Specific date** and time in
-your own timezone. Opening a scheduled post again with **Edit post** starts on the time it is already set for, so confirming without a change keeps it. A scheduled post waits in **Posts → Scheduled** until a
-[tick](scheduling.md) publishes it. Scheduling goes to exactly the accounts ticked: untick one and schedule again, and its earlier time is cancelled.
+your own timezone; a time that has passed can't be confirmed. Opening a scheduled post again with **Edit post** starts on the time it is already set for, so confirming without a change keeps it. A scheduled post waits in **Posts → Scheduled** until a
+[tick](scheduling.md) publishes it. Scheduling goes to exactly the accounts checked: uncheck one and schedule again, and its earlier time is cancelled.
 
-Opening a scheduled post shows, above the text, when and where it goes out. Edits save as you type, and what is saved when the time comes is what gets posted. Ticking or unticking accounts doesn't change the schedule by itself: the post says which accounts differ, and **Update schedule** applies them. **Change time** opens the schedule at its current time, and **Unschedule** turns the post back into a draft. **Publish now** sends it straight away instead of at its time, and any account you unticked is unscheduled, so it doesn't post later either. Deleting it with the bin means it won't be published. A few minutes before the time, the post says so; while it is being sent, editing pauses until the result is in. A post that went out on some accounts, failed on others or is retrying says so in one line, with a link to the details in **Posts**.
+Opening a scheduled post shows, above the text, when and where it goes out. Edits save as you type, and what is saved when the time comes is what gets posted. Checking or unchecking accounts doesn't change the schedule by itself: the post says which accounts differ, and **Update schedule** applies them. **Change time** opens the schedule at its current time, and **Unschedule** turns the post back into a draft. **Publish now** sends it straight away instead of at its time, and any account you unchecked is unscheduled, so it doesn't post later either. Deleting it with the bin means it won't be published. A few minutes before the time, the post says so; while it is being sent, editing pauses until the result is in. A post that went out on some accounts, failed on others or is retrying says so in one line, with a link to the details in **Posts**.
 
 Once a post is scheduled or handed off to publish, the composer empties for the next one and the message links to it in **Posts**. A post you opened from **Posts** takes you back there instead. Publishing again to an account that already has the post sends nothing, and the message says so.
 
