@@ -84,6 +84,7 @@
 		platformRank,
 		PLATFORM_ORDER
 	} from '#lib/domain/platforms.js';
+	import { platformMark } from '#lib/domain/platform-marks.js';
 	import { parsePollConfig, validatePollConfig, type PollConfig } from '#lib/domain/poll.js';
 	import {
 		THREADS_TOPIC_MAX_CHARS,
@@ -538,6 +539,9 @@
 	let maxChars = $derived(
 		activeTab === 'global' ? globalLimit.max : platformMax(activeTab, accountsFor(activeTab))
 	);
+	// On Global the count is held to one platform's limit; the chip shows whose.
+	const limitPlatform = $derived(activeTab === 'global' ? globalLimit.platform : activeTab);
+	const limitMark = $derived(activeTab === 'global' ? platformMark(globalLimit.platform) : null);
 
 	// On Global the thread affordance follows the destinations: with only
 	// single-post platforms selected (LinkedIn), a thread has nowhere to go.
@@ -3484,7 +3488,9 @@
 						role="img"
 						aria-label={`${platformName(platform)} over character limit`}
 					></div>
-				{:else if !editLocked}
+				{/if}
+				<!-- Shown even when the copy is over the limit: resetting is one way to fix it. -->
+				{#if !editLocked}
 					<button
 						type="button"
 						data-testid="reset-platform-tab"
@@ -3493,6 +3499,7 @@
 							? 'text-stone-300 hover:bg-stone-700 hover:text-white'
 							: 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'}"
 						title="Unlinked from Global. Click to re-sync."
+						aria-label={`Reset ${platformName(platform)} to Global text`}
 						onclick={() => resetToGlobal(platform)}
 					>
 						<Link2Off class="h-3 w-3" />
@@ -4102,10 +4109,19 @@
 								{/if}
 								<div
 									data-testid="segment-count-{index}"
-									class="rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wider transition-colors {isOver
+									title={limitPlatform === 'generic'
+										? undefined
+										: `${platformName(limitPlatform)} limit: ${maxChars}`}
+									class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wider transition-colors {isOver
 										? 'border border-red-100 bg-red-50 text-red-600'
 										: 'border border-stone-100 bg-stone-50 text-stone-500'}"
 								>
+									<!-- No <title>: the chip's text stays the count alone. -->
+									{#if limitMark}
+										<svg aria-hidden="true" viewBox="0 0 24 24" class="h-3 w-3" fill="currentColor"
+											><path d={limitMark} /></svg
+										>
+									{/if}
 									{segLen}/{maxChars}
 								</div>
 							</div>
