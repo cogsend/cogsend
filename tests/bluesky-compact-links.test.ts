@@ -233,4 +233,44 @@ describe('the compact links switch', () => {
 		expect((await res.json()).connection.id).toBe(id);
 		expect(await metaOf(id)).toMatchObject({ did: 'did:plc:reconnecting', compactLinks: true });
 	});
+
+	async function connectAnswered(status: number, body: unknown) {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => Response.json(body, { status }))
+		);
+		const res = (await blueskyPOST({
+			locals: locals(),
+			request: new Request('http://localhost/api/connections/bluesky', {
+				method: 'POST',
+				body: JSON.stringify({ handle: 'someone.bsky.social', appPassword: 'wrong' })
+			})
+		} as never)) as Response;
+		return { status: res.status, error: ((await res.json()) as { error: string }).error };
+	}
+
+	it('a refused login says what to check, not that our session ended', async () => {
+		// A 401 from our own API reads as a signed-out session, and the copy it
+		// got before told the person to reconnect an account they never had.
+		const refused = await connectAnswered(401, {
+			error: 'AuthenticationRequired',
+			message: 'Invalid identifier or password'
+		});
+		expect(refused.status).toBe(400);
+		expect(refused.error).toMatch(/didn't accept that handle and app password/);
+		expect(refused.error).not.toMatch(/reconnect/i);
+
+		const emailCode = await connectAnswered(401, {
+			error: 'AuthFactorTokenRequired',
+			message: 'A sign in code has been sent to your email address'
+		});
+		expect(emailCode.status).toBe(400);
+		expect(emailCode.error).toMatch(/app password, not your account password/);
+	});
+
+	it('any other Bluesky failure is not dressed up as a wrong password', async () => {
+		const down = await connectAnswered(502, { error: 'UpstreamFailure' });
+		expect(down.status).toBe(502);
+		expect(down.error).not.toMatch(/app password/);
+	});
 });

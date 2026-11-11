@@ -8,6 +8,21 @@ import { fail, handleError, ok } from '#lib/server/http.js';
 import { blueskyCreateSession } from '#lib/server/providers/index.js';
 import { requireSession } from '#lib/server/require.js';
 
+/**
+ * Bluesky answers a wrong handle or app password with a 401. Passed through,
+ * that reads as our own session having expired, and the reconnect wording it
+ * gets on the page is wrong for an account that was never connected.
+ */
+function loginRefusal(err: unknown): string | null {
+	const status = (err as { status?: number } | null)?.status;
+	if (status !== 400 && status !== 401) return null;
+	const message = err instanceof Error ? err.message : '';
+	if (message.includes('AuthFactorTokenRequired')) {
+		return 'Bluesky asked for an email code — use an app password, not your account password';
+	}
+	return "Bluesky didn't accept that handle and app password. Check both, or create a new app password in Bluesky's settings.";
+}
+
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		const user = requireSession(locals.user, locals.authMethod);
@@ -18,7 +33,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const pdsHost = String(body.pdsHost || 'https://bsky.social').trim();
 		if (!handle || !appPassword) return fail('handle and appPassword required');
 
-		const session = await blueskyCreateSession(handle, appPassword, pdsHost);
+		let session: Awaited<ReturnType<typeof blueskyCreateSession>>;
+		try {
+			session = await blueskyCreateSession(handle, appPassword, pdsHost);
+		} catch (err) {
+			const refused = loginRefusal(err);
+			if (refused) return fail(refused, 400);
+			throw err;
+		}
 		const encrypted = await encryptJson(
 			{
 				handle: session.handle,
