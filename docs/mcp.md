@@ -1,6 +1,6 @@
 # MCP server
 
-`<your instance>/api/mcp` is a Model Context Protocol server, so agents such as Claude Code and Codex can work with drafts and the publish queue using your personal API key. Generate one in **Settings → API access**, where you will also find the setup below with your own URL filled in.
+`<your instance>/api/mcp` is a Model Context Protocol server, so agents such as Claude Code and Codex can work with drafts and the publish queue using your personal API key. Generate one in **Settings → API & MCP**, where you will also find the setup below with your own URL filled in.
 
 ## Connect a client
 

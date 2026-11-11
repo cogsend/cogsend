@@ -1,10 +1,10 @@
 # API
 
-The browser UI uses the `cog_session` cookie after TOTP. Scripts, Shortcuts and cron use a personal API key instead — no login, no cookies. Manage it in **Settings → API access** (generate, rotate, revoke). Only one key is active at a time: the raw key is shown once, only its hash is stored, and generating a replacement revokes the old one at once. If a key ever touches a log or screenshot, rotate it. AI agents connect through the [MCP server](mcp.md).
+The browser UI uses the `cog_session` cookie after TOTP. Scripts, Shortcuts and cron use a personal API key instead — no login, no cookies. Manage it in **Settings → API & MCP** (generate, rotate, revoke). Only one key is active at a time: the raw key is shown once, only its hash is stored, and generating a replacement revokes the old one at once. If a key ever touches a log or screenshot, rotate it. AI agents connect through the [MCP server](mcp.md).
 
 ## Authentication
 
-Export your instance URL and a key from **Settings → API access**:
+Export your instance URL and a key from **Settings → API & MCP**:
 
 ```sh
 export APP_URL=https://cogsend.<account>.workers.dev
