@@ -8,7 +8,7 @@
 	import { UPDATE_TOKEN_URL } from '#lib/domain/update-manifest.js';
 
 	/**
-	 * Settings → Instance: install a release, or roll one back, without a
+	 * Settings → Instance → Updates: install a release, or roll one back, without a
 	 * checkout. The browser drives the server's steps in order (see
 	 * #lib/server/updater/steps) and does the one check only a browser can do
 	 * from outside the Worker: ask the new version, staged at 0%, for its
@@ -267,13 +267,23 @@
 			await step('promote');
 			done = `Updated to ${staged.version}. Reloading…`;
 			forgetCredentials();
-			setTimeout(() => window.location.reload(), 1500);
+			setTimeout(reloadOnNewVersion, 1500);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'The update failed';
 		} finally {
 			busy = false;
 			void refresh();
 		}
+	}
+
+	/**
+	 * Load the version now serving. Not a plain reload: a rollback or an older tag
+	 * runs code that may not have this page's address, while every release with
+	 * an updater has `/settings#instance`, either as its Instance card or as a
+	 * redirect to it.
+	 */
+	function reloadOnNewVersion() {
+		window.location.assign('/settings#instance');
 	}
 
 	async function promoteWithoutCheck() {
@@ -284,7 +294,7 @@
 			const result = await step<{ version: string }>('promote', { skipStage: true });
 			done = `Updated to ${result.version}. Reloading…`;
 			forgetCredentials();
-			setTimeout(() => window.location.reload(), 1500);
+			setTimeout(reloadOnNewVersion, 1500);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'The update failed';
 		} finally {
@@ -321,12 +331,45 @@
 			const result = await step<{ version: string }>('rollback');
 			done = `Rolled back to ${result.version}. Reloading…`;
 			forgetCredentials();
-			setTimeout(() => window.location.reload(), 1500);
+			setTimeout(reloadOnNewVersion, 1500);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'The rollback failed';
 		} finally {
 			busy = false;
 		}
+	}
+
+	/**
+	 * What the open form is for: installing (the release on offer, or a tag typed
+	 * in) or going back to the previous version. It only decides which action
+	 * leads; the other stays under More options.
+	 */
+	let intent = $state<'install' | 'rollback'>('install');
+	let pickTag = $state(false);
+
+	function openFor(what: 'install' | 'pick' | 'rollback') {
+		intent = what === 'rollback' ? 'rollback' : 'install';
+		pickTag = what === 'pick';
+		customTag = '';
+		// Until an unfinished update is finished or aborted, the server installs
+		// nothing else, so an install starts on its tag.
+		if (intent === 'install' && status?.job && !status.job.expired) {
+			pickTag = true;
+			customTag = status.job.tag;
+		}
+		confirmRollback = false;
+		error = null;
+		open = true;
+	}
+
+	function cancel() {
+		open = false;
+		confirmRollback = false;
+		pickTag = false;
+		customTag = '';
+		error = null;
+		offerSkipCheck = false;
+		progress = [];
 	}
 
 	const installTag = $derived(customTag.trim() || latestTag || '');
@@ -339,6 +382,15 @@
 	// Once the status loads: with no release pending, the panel is one quiet
 	// link, still there for installing a specific (pre-)release.
 	const visible = $derived(status !== null);
+	const rollingBack = $derived(intent === 'rollback' && Boolean(status?.previous));
+	/** Why the main button is still disabled, said under it rather than guessed at. */
+	const missing = $derived.by(() => {
+		if (!rollingBack && !installTag) return 'Type the release tag to install.';
+		if (useSaved) return password ? null : 'Enter your CogSend password to use the saved token.';
+		if (!token.trim()) return 'Paste a Cloudflare API token.';
+		if (remember && !password) return 'Enter your CogSend password to lock the token with.';
+		return null;
+	});
 	const github = $derived(status?.github ? githubUpdateLinks(status.github) : null);
 </script>
 
@@ -355,13 +407,23 @@
 
 {#snippet tagField()}
 	<label class="block">
-		<span>Install a specific release tag (for example a pre-release)</span>
+		<span class="font-bold text-stone-700">Release tag</span>
 		<input
 			type="text"
-			placeholder={latestTag ?? 'v1.13.0'}
+			placeholder={latestTag ?? 'v1.2.3'}
 			bind:value={customTag}
-			class="mt-1 w-full rounded-xl border border-stone-200/80 bg-white px-3 py-2 font-mono text-[12px]"
+			autocomplete="off"
+			spellcheck="false"
+			class="mt-1 w-full rounded-xl border border-stone-200/80 bg-white px-3 py-2 font-mono text-[12px] text-stone-900 focus:border-stone-400 focus:outline-none pointer-coarse:text-base"
 		/>
+		<span class="mt-1 block text-stone-500"
+			>Any tag from the <a
+				href="https://github.com/cogsend/cogsend/releases"
+				target="_blank"
+				rel="noreferrer"
+				class="font-bold text-stone-900 underline underline-offset-2">releases page</a
+			>, a pre-release included.</span
+		>
 	</label>
 {/snippet}
 
@@ -380,10 +442,14 @@
 {/if}
 
 {#if visible}
-	<div class="rounded-xl border border-stone-200/80 bg-stone-50 p-4" data-testid="update-panel">
+	<div
+		class={open || github ? 'rounded-xl border border-stone-200/80 bg-stone-50 p-4' : ''}
+		data-testid="update-panel"
+	>
 		{#if status?.job && !status.job.expired && !busy}
-			<p class="mb-2 text-[12px] font-medium text-stone-600">
-				An update to {status.job.tag} was started and not finished.
+			<p class="mb-3 text-[12px] font-medium text-amber-800">
+				An update to {status.job.tag} was started and not finished. Install {status.job.tag} again to
+				continue it, or abort it.
 			</p>
 		{/if}
 		{#if github && status?.github && !open}
@@ -457,90 +523,123 @@
 			</div>
 		{/if}
 		{#if !open}
-			<div class="flex flex-wrap items-center gap-3">
+			<div class="flex flex-wrap items-center gap-x-4 gap-y-2">
 				{#if latestTag && github}
 					<button
 						type="button"
-						onclick={() => (open = true)}
-						class="text-[12px] font-bold text-stone-600 underline underline-offset-2"
+						onclick={() => openFor('install')}
+						class="text-[12px] font-bold text-stone-600 underline underline-offset-2 hover:text-stone-900"
 						>Or update here with a Cloudflare token</button
 					>
 				{:else if latestTag}
 					<button
 						type="button"
-						onclick={() => (open = true)}
+						onclick={() => openFor('install')}
 						class="rounded-full bg-stone-900 px-5 py-2 text-[12px] font-bold text-white hover:bg-stone-800"
 						>Update to {latestTag} from here</button
-					>
-				{/if}
-				{#if status?.previous}
-					<button
-						type="button"
-						onclick={() => (open = true)}
-						class="text-[12px] font-bold text-stone-600 underline underline-offset-2"
-						>Roll back to {status.previous.version}</button
 					>
 				{/if}
 				{#if !latestTag}
 					<button
 						type="button"
-						onclick={() => (open = true)}
-						class="text-[12px] font-bold text-stone-600 underline underline-offset-2"
+						onclick={() => openFor('pick')}
+						class="text-[12px] font-bold text-stone-600 underline underline-offset-2 hover:text-stone-900"
 						>Install a specific release from here</button
+					>
+				{/if}
+				{#if status?.previous}
+					<button
+						type="button"
+						onclick={() => openFor('rollback')}
+						class="text-[12px] font-bold text-stone-600 underline underline-offset-2 hover:text-stone-900"
+						>Roll back to {status.previous.version}</button
 					>
 				{/if}
 			</div>
 		{:else}
-			<div class="space-y-3 text-[12px] font-medium text-stone-600">
-				{#if useSaved && status?.savedToken}
-					<p data-testid="saved-token">
-						Your Cloudflare token (ending <span class="font-mono">{status.savedToken.hint}</span>)
-						is saved, locked with your CogSend password. Enter the password to use it.
-					</p>
-					{@render passwordField()}
-					<p class="flex flex-wrap gap-x-3">
+			<div class="space-y-4 text-[12px] font-medium text-stone-600" data-testid="update-form">
+				{#if rollingBack && status?.previous}
+					<div>
+						<p class="text-[13px] font-bold text-stone-900">
+							Roll back to {status.previous.version}
+						</p>
+						<p class="mt-0.5">
+							Sends all traffic back to the version that ran before {status.previous.replacedBy}.
+							{#if status.previous.schemaChange}
+								<span class="font-bold text-amber-800"
+									>{status.previous.replacedBy} changed the database, and older code may not expect that.</span
+								>
+							{/if}
+						</p>
+					</div>
+				{:else if latestTag && !pickTag}
+					<p>
+						<span class="text-[13px] font-bold text-stone-900">Installs {latestTag}</span>
+						·
 						<button
 							type="button"
-							onclick={() => (useNewToken = true)}
-							class="font-bold underline underline-offset-2">Use a different token</button
-						>
-						<button
-							type="button"
-							onclick={() => void forgetSaved()}
-							class="font-bold underline underline-offset-2">Forget the saved token</button
+							onclick={() => (pickTag = true)}
+							class="font-bold underline underline-offset-2 hover:text-stone-900"
+							>Install a different release</button
 						>
 					</p>
 				{:else}
-					<p>
-						Updating needs a Cloudflare API token that may edit this Worker.
-						<a
-							href={UPDATE_TOKEN_URL}
-							target="_blank"
-							rel="noreferrer"
-							class="font-bold text-stone-900 underline underline-offset-2">Create one</a
-						>
-						once (the permissions are filled in); the same token works for every update.
-					</p>
-					<input
-						type="password"
-						autocomplete="off"
-						spellcheck="false"
-						placeholder="Cloudflare API token"
-						aria-label="Cloudflare API token"
-						bind:value={token}
-						class="w-full rounded-xl border border-stone-200/80 bg-white px-3 py-2 font-mono text-[12px] text-stone-900 focus:border-stone-400 focus:outline-none pointer-coarse:text-base"
-					/>
-					<label class="flex items-start gap-2">
-						<input type="checkbox" bind:checked={remember} class="mt-0.5" />
-						<span
-							>Remember it for later updates, locked with my CogSend password. Unticked, it is used
-							for this update only and nothing is stored.</span
-						>
-					</label>
-					{#if remember}
-						{@render passwordField()}
-					{/if}
+					{@render tagField()}
 				{/if}
+
+				<div class="space-y-2">
+					{#if useSaved && status?.savedToken}
+						<p data-testid="saved-token">
+							Your Cloudflare token (ending <span class="font-mono">{status.savedToken.hint}</span>)
+							is saved, locked with your CogSend password. Enter the password to use it.
+						</p>
+						{@render passwordField()}
+						<p class="flex flex-wrap gap-x-3">
+							<button
+								type="button"
+								onclick={() => (useNewToken = true)}
+								class="font-bold underline underline-offset-2 hover:text-stone-900"
+								>Use a different token</button
+							>
+							<button
+								type="button"
+								onclick={() => void forgetSaved()}
+								class="font-bold underline underline-offset-2 hover:text-stone-900"
+								>Forget the saved token</button
+							>
+						</p>
+					{:else}
+						<p>
+							Updating needs a Cloudflare API token that may edit this Worker.
+							<a
+								href={UPDATE_TOKEN_URL}
+								target="_blank"
+								rel="noreferrer"
+								class="font-bold text-stone-900 underline underline-offset-2">Create one</a
+							>
+							once (the permissions are filled in); the same token works for every update.
+						</p>
+						<input
+							type="password"
+							autocomplete="off"
+							spellcheck="false"
+							placeholder="Cloudflare API token"
+							aria-label="Cloudflare API token"
+							bind:value={token}
+							class="w-full rounded-xl border border-stone-200/80 bg-white px-3 py-2 font-mono text-[12px] text-stone-900 focus:border-stone-400 focus:outline-none pointer-coarse:text-base"
+						/>
+						<label class="flex items-start gap-2">
+							<input type="checkbox" bind:checked={remember} class="mt-0.5" />
+							<span
+								>Remember it for later updates, locked with my CogSend password. Unticked, it is
+								used for this update only and nothing is stored.</span
+							>
+						</label>
+						{#if remember}
+							{@render passwordField()}
+						{/if}
+					{/if}
+				</div>
 				{#if accounts}
 					<label class="block">
 						<span class="font-bold text-stone-700"
@@ -569,17 +668,71 @@
 						</select>
 					</label>
 				{/if}
-				<!-- With no release on offer, the tag is the one thing left to fill in, so
-				     it stays in view instead of under More options. -->
-				{#if !latestTag}
-					{@render tagField()}
-				{/if}
+
+				<div class="space-y-2">
+					<div class="flex flex-wrap items-center gap-3">
+						{#if rollingBack && status?.previous}
+							{#if confirmRollback}
+								<span class="text-stone-700"
+									>Send all traffic back to {status.previous.version}?</span
+								>
+								<button
+									type="button"
+									disabled={busy || !ready}
+									onclick={() => void rollback()}
+									class="rounded-full bg-red-600 px-5 py-2 text-[12px] font-bold text-white hover:bg-red-700 disabled:opacity-50"
+									>{busy ? 'Working…' : 'Roll back'}</button
+								>
+								<button
+									type="button"
+									disabled={busy}
+									onclick={() => (confirmRollback = false)}
+									class="font-bold underline underline-offset-2 hover:text-stone-900 disabled:opacity-50"
+									>Keep</button
+								>
+							{:else}
+								<button
+									type="button"
+									disabled={busy || !ready}
+									onclick={() => (confirmRollback = true)}
+									class="rounded-full bg-stone-900 px-5 py-2 text-[12px] font-bold text-white hover:bg-stone-800 disabled:opacity-50"
+									>Roll back to {status.previous.version}</button
+								>
+							{/if}
+						{:else}
+							<button
+								type="button"
+								disabled={busy || !ready || !installTag}
+								onclick={() => void install(installTag)}
+								class="rounded-full bg-stone-900 px-5 py-2 text-[12px] font-bold text-white hover:bg-stone-800 disabled:opacity-50"
+								>{busy ? 'Working…' : installTag ? `Install ${installTag}` : 'Install'}</button
+							>
+						{/if}
+						{#if !busy && !done}
+							<button
+								type="button"
+								onclick={cancel}
+								class="font-bold underline underline-offset-2 hover:text-stone-900">Cancel</button
+							>
+						{/if}
+						{#if status?.job}
+							<button
+								type="button"
+								disabled={busy || !ready}
+								onclick={() => void abort()}
+								class="font-bold text-stone-600 underline underline-offset-2 hover:text-stone-900 disabled:opacity-50"
+								>Abort the unfinished update</button
+							>
+						{/if}
+					</div>
+					{#if !busy && !done && missing}
+						<p class="text-stone-500" data-testid="update-missing">{missing}</p>
+					{/if}
+				</div>
+
 				<details>
 					<summary class="cursor-pointer font-bold text-stone-700">More options</summary>
-					<div class="mt-2 space-y-2">
-						{#if latestTag}
-							{@render tagField()}
-						{/if}
+					<div class="mt-2 space-y-3">
 						<label class="block">
 							<span>Account ID, if the token cannot list accounts</span>
 							<input
@@ -588,58 +741,23 @@
 								class="mt-1 w-full rounded-xl border border-stone-200/80 bg-white px-3 py-2 font-mono text-[12px]"
 							/>
 						</label>
-					</div>
-				</details>
-
-				<div class="flex flex-wrap items-center gap-3">
-					{#if installTag}
-						<button
-							type="button"
-							disabled={busy || !ready}
-							onclick={() => void install(installTag)}
-							class="rounded-full bg-stone-900 px-5 py-2 text-[12px] font-bold text-white hover:bg-stone-800 disabled:opacity-50"
-							>{busy ? 'Working…' : `Install ${installTag}`}</button
-						>
-					{/if}
-					{#if status?.previous}
-						{#if confirmRollback}
-							<span class="text-stone-700">
-								Send all traffic back to {status.previous.version}?
-								{#if status.previous.schemaChange}
-									{status.previous.replacedBy} changed the database, and older code may not expect that.
-								{/if}
-							</span>
+						{#if rollingBack}
 							<button
 								type="button"
-								disabled={busy || !ready}
-								onclick={() => void rollback()}
-								class="font-bold text-red-700 underline disabled:opacity-50">Roll back</button
+								onclick={() => openFor(latestTag ? 'install' : 'pick')}
+								class="font-bold underline underline-offset-2 hover:text-stone-900"
+								>Install a release instead</button
 							>
+						{:else if status?.previous}
 							<button
 								type="button"
-								onclick={() => (confirmRollback = false)}
-								class="font-bold underline">Keep</button
-							>
-						{:else}
-							<button
-								type="button"
-								disabled={busy || !ready}
-								onclick={() => (confirmRollback = true)}
-								class="font-bold text-stone-600 underline underline-offset-2 disabled:opacity-50"
-								>Roll back to {status.previous.version}</button
+								onclick={() => openFor('rollback')}
+								class="font-bold underline underline-offset-2 hover:text-stone-900"
+								>Roll back to {status.previous.version} instead</button
 							>
 						{/if}
-					{/if}
-					{#if status?.job}
-						<button
-							type="button"
-							disabled={busy || !ready}
-							onclick={() => void abort()}
-							class="font-bold text-stone-600 underline underline-offset-2 disabled:opacity-50"
-							>Abort the unfinished update</button
-						>
-					{/if}
-				</div>
+					</div>
+				</details>
 
 				{#if progress.length}
 					<ol
