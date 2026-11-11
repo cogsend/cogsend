@@ -306,6 +306,63 @@ test('Posts loads older posts past the first page, and search finds them', async
 	await expect(oldest).toHaveCount(0);
 	await fillUntilKept(page.getByLabel('Search posts'), oldestTag);
 	await expect(oldest).toBeVisible();
+	await expect(page.getByTestId('search-cut')).toHaveCount(0);
+
+	// More matches than one answer holds: the list says it shows the first.
+	await fillUntilKept(page.getByLabel('Search posts'), `${PREFIX} page`);
+	await expect(page.getByTestId('search-cut')).toBeVisible();
+});
+
+test('Scheduled pages past 100 deliveries, and a post cut by the page edge loads the rest first', async ({
+	page
+}) => {
+	await page.goto('/posts');
+	const userId = await userIdOf(page);
+	const accounts = [
+		seedConnection(userId, 'bluesky'),
+		seedConnection(userId, 'mastodon'),
+		seedConnection(userId, 'x')
+	];
+	const start = Date.now() + 300 * DAY;
+	const tag = `${PREFIX} later ${randomUUID().slice(0, 8)}`;
+	const statements: string[] = [];
+	// Two accounts an hour apart per post and the third far later, so the
+	// first page holds every post's first two and only some of the third.
+	for (let i = 0; i < 35; i++) {
+		const at = start + i * 3_600_000;
+		statements.push(
+			postSql(userId, randomUUID(), `${tag} ${i}`, 'scheduled', [
+				{ connectionId: accounts[0].id, status: 'scheduled', scheduledFor: at },
+				{ connectionId: accounts[1].id, status: 'scheduled', scheduledFor: at },
+				{ connectionId: accounts[2].id, status: 'scheduled', scheduledFor: at + 100 * DAY }
+			])
+		);
+	}
+	d1(statements.join('; '));
+
+	await page.goto('/posts?tab=scheduled');
+	const more = page.getByTestId('load-older');
+	await expect(more).toHaveText('Load later posts');
+	const last = page.getByTestId('post-card').filter({ hasText: `${tag} 34` });
+	const rest = last.getByTestId('load-rest');
+	await expect(rest).toHaveText('Load 1 more account');
+	// What is loaded is not the whole post, so it can't be re-timed or cancelled from here.
+	await expect(last.getByRole('button', { name: 'Cancel' })).toHaveCount(0);
+	await expect(last.getByRole('button', { name: 'Reschedule' })).toHaveCount(0);
+
+	await rest.click();
+	await expect(rest).toHaveCount(0);
+	await expect(last.getByRole('button', { name: 'Cancel' })).toBeVisible();
+	await expect(page.getByTestId('post-card').filter({ hasText: tag })).toHaveCount(35);
+	await expect(more).toHaveCount(0);
+
+	// Load later posts reads on the same way.
+	await page.reload();
+	await expect(rest).toBeVisible();
+	await more.click();
+	await expect(more).toHaveCount(0);
+	await expect(page.getByTestId('load-rest')).toHaveCount(0);
+	await expect(last.getByRole('button', { name: 'Cancel' })).toBeVisible();
 });
 
 test("an account filter finds that account's failures past the first page", async ({ page }) => {

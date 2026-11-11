@@ -30,6 +30,12 @@
 	import { parseXPostUrl } from '#lib/domain/x-quote.js';
 	import { humanizeError } from '#lib/domain/human-error.js';
 	import { cardOutcome, isTargetSending, type CardOutcome } from '#lib/domain/post-state.js';
+	import {
+		afterHistoryPage,
+		afterWaitingPage,
+		firstQueueCursors,
+		type QueueCursors
+	} from '#lib/domain/queue-cursor.js';
 	import { PROCESSING_MARK } from '#lib/domain/video-rules.js';
 	import { sessionExpiredIfUnauthorized } from '#lib/components/session-expired.js';
 	import { takePostsNotice } from '#lib/components/posts-notice.js';
@@ -206,13 +212,19 @@
 	let olderTargets = $state<QueueTarget[]>([]);
 	let olderDrafts = $state<Draft[]>([]);
 	// svelte-ignore state_referenced_locally
-	let queueNext = $state<string | null>(data.queueNext ?? null);
+	let queueNext = $state<QueueCursors>(firstQueueCursors(data.queueNext));
 	// svelte-ignore state_referenced_locally
 	let draftsNext = $state<string | null>(data.draftsNext ?? null);
 	// Once a page past the first is in, the cursor is where that page ended,
 	// not where a refreshed first page ends.
-	let queuePaged = false;
+	let waitingPaged = false;
+	let historyPaged = false;
 	let draftsPaged = false;
+	// How many accounts a post waits on in all, for posts whose accounts a
+	// page edge split: until the rest is read, the card is only part of it.
+	// svelte-ignore state_referenced_locally
+	let firstWaitingTotals = $state<Record<string, number>>(data.waitingTotals ?? {});
+	let laterWaitingTotals = $state<Record<string, number>>({});
 	let loadingOlder = $state(false);
 	let olderError = $state<string | null>(null);
 	let searchTargets = $state<QueueTarget[]>([]);
@@ -289,7 +301,12 @@
 			if (queueRes.ok) {
 				const payload = await queueRes.json().catch(() => ({}));
 				targets = payload.targets || [];
-				if (!queuePaged) queueNext = payload.next ?? null;
+				firstWaitingTotals = payload.waitingTotals ?? {};
+				const fresh = firstQueueCursors(payload.next);
+				queueNext = {
+					waiting: waitingPaged ? queueNext.waiting : fresh.waiting,
+					history: historyPaged ? queueNext.history : fresh.history
+				};
 			} else {
 				failed.push('queue');
 			}
@@ -771,40 +788,61 @@
 		return tabCounts[tab];
 	}
 
-	// Scheduled has no older page: `before` walks history, and every post still
-	// waiting comes ahead of it on the first page.
-	const queueTabs: PostsTab[] = ['all', 'published', 'failed'];
-	const draftTabs: PostsTab[] = ['all', 'drafts'];
 	function moreFor(tab: PostsTab): boolean {
-		return (
-			(queueTabs.includes(tab) && queueNext !== null) ||
-			(draftTabs.includes(tab) && draftsNext !== null)
-		);
+		if (tab === 'scheduled') return queueNext.waiting !== null;
+		if (tab === 'published' || tab === 'failed') return queueNext.history !== null;
+		if (tab === 'drafts') return draftsNext !== null;
+		return queueNext.waiting !== null || queueNext.history !== null || draftsNext !== null;
+	}
+	const anyMore = $derived(
+		queueNext.waiting !== null || queueNext.history !== null || draftsNext !== null
+	);
+
+	async function readQueuePage(cursor: string) {
+		const res = await fetch(`/api/queue?before=${encodeURIComponent(cursor)}`);
+		if (sessionExpiredIfUnauthorized(res)) return null;
+		if (!res.ok) throw new Error('Could not load older posts');
+		const payload = await res.json();
+		olderTargets = [...olderTargets, ...(payload.targets || [])];
+		laterWaitingTotals = { ...laterWaitingTotals, ...(payload.waitingTotals ?? {}) };
+		return payload.next ?? null;
 	}
 
+	/**
+	 * Scheduled reads on through what is still waiting, Published and Failed
+	 * back through history, and All the waiting posts first, as it lists them.
+	 */
 	async function loadOlder() {
 		if (loadingOlder) return;
-		const wantQueue = queueTabs.includes(activeTab) && queueNext !== null;
-		const wantDrafts = draftTabs.includes(activeTab) && draftsNext !== null;
-		if (!wantQueue && !wantDrafts) return;
+		const tab = activeTab;
+		const wantWaiting = (tab === 'scheduled' || tab === 'all') && queueNext.waiting !== null;
+		const wantHistory =
+			!wantWaiting && tab !== 'scheduled' && tab !== 'drafts' && queueNext.history !== null;
+		const wantDrafts = (tab === 'all' || tab === 'drafts') && draftsNext !== null;
+		if (!wantWaiting && !wantHistory && !wantDrafts) return;
 		loadingOlder = true;
 		olderError = null;
 		try {
-			const [queueRes, draftsRes] = await Promise.all([
-				wantQueue ? fetch(`/api/queue?before=${encodeURIComponent(queueNext!)}`) : null,
+			const [queuePage, draftsRes] = await Promise.all([
+				wantWaiting
+					? readQueuePage(queueNext.waiting!).then((next) => ({ waiting: true, next }))
+					: wantHistory
+						? readQueuePage(queueNext.history!).then((next) => ({ waiting: false, next }))
+						: null,
 				wantDrafts
 					? fetch(`/api/drafts?view=summary&before=${encodeURIComponent(draftsNext!)}`)
 					: null
 			]);
-			for (const res of [queueRes, draftsRes]) {
-				if (res && sessionExpiredIfUnauthorized(res)) return;
-			}
-			if (queueRes) {
-				if (!queueRes.ok) throw new Error('Could not load older posts');
-				const payload = await queueRes.json();
-				olderTargets = [...olderTargets, ...(payload.targets || [])];
-				queueNext = payload.next ?? null;
-				queuePaged = true;
+			if (draftsRes && sessionExpiredIfUnauthorized(draftsRes)) return;
+			if (queuePage) {
+				if (queuePage.waiting) {
+					queueNext = afterWaitingPage(queueNext, queuePage.next);
+					waitingPaged = true;
+					if (queueNext.waiting === null) historyPaged = true;
+				} else {
+					queueNext = afterHistoryPage(queueNext, queuePage.next);
+					historyPaged = true;
+				}
 			}
 			if (draftsRes) {
 				if (!draftsRes.ok) throw new Error('Could not load older posts');
@@ -820,12 +858,43 @@
 		}
 	}
 
+	const waitingTotals = $derived({ ...laterWaitingTotals, ...firstWaitingTotals });
+	/** Accounts a post waits on that no loaded page has shown yet. */
+	function unloadedAccounts(draftId: string): number {
+		const total = waitingTotals[draftId];
+		if (!total || queueNext.waiting === null) return 0;
+		const loaded = upcoming.filter((t) => t.draft.id === draftId).length;
+		return Math.max(0, total - loaded);
+	}
+	/** Reads on until the card holds every account its post waits on. */
+	async function loadRestOf(draftId: string) {
+		if (loadingOlder) return;
+		loadingOlder = true;
+		olderError = null;
+		try {
+			for (let pages = 0; pages < 10 && unloadedAccounts(draftId) > 0; pages++) {
+				const next = await readQueuePage(queueNext.waiting!);
+				queueNext = afterWaitingPage(queueNext, next);
+				waitingPaged = true;
+				if (queueNext.waiting === null) historyPaged = true;
+			}
+		} catch (e) {
+			setCardError(
+				draftId,
+				humanizeError(e instanceof Error ? e.message : 'Could not load older posts')
+			);
+		} finally {
+			loadingOlder = false;
+		}
+	}
+
 	// While part of the history is not loaded, a search asks the server too, so
 	// an old post is found without paging back to it.
 	let searchSeq = 0;
+	let searchCut = $state(false);
 	$effect(() => {
 		const q = debouncedQuery.trim().slice(0, 200);
-		const ask = q !== '' && (queueNext !== null || draftsNext !== null);
+		const ask = q !== '' && anyMore;
 		const seq = ++searchSeq;
 		if (!ask) {
 			searching = false;
@@ -835,18 +904,18 @@
 		const timer = setTimeout(async () => {
 			try {
 				const enc = encodeURIComponent(q);
+				const queueMore = untrack(() => queueNext.waiting !== null || queueNext.history !== null);
 				const [queueRes, draftsRes] = await Promise.all([
-					untrack(() => queueNext) !== null ? fetch(`/api/queue?q=${enc}`) : null,
+					queueMore ? fetch(`/api/queue?q=${enc}`) : null,
 					untrack(() => draftsNext) !== null ? fetch(`/api/drafts?view=summary&q=${enc}`) : null
 				]);
 				if (seq !== searchSeq) return;
-				const found = {
-					targets: queueRes?.ok ? ((await queueRes.json()).targets ?? []) : [],
-					drafts: draftsRes?.ok ? ((await draftsRes.json()).drafts ?? []) : []
-				};
+				const queueBody = queueRes?.ok ? await queueRes.json() : null;
+				const draftsBody = draftsRes?.ok ? await draftsRes.json() : null;
 				if (seq !== searchSeq) return;
-				searchTargets = found.targets;
-				searchDrafts = found.drafts;
+				searchTargets = queueBody?.targets ?? [];
+				searchDrafts = draftsBody?.drafts ?? [];
+				searchCut = Boolean(queueBody?.hasMore || draftsBody?.hasMore);
 				searchedFor = q;
 			} catch {
 				// The cards already loaded are still searched; the rest just stays unfound.
@@ -1788,6 +1857,7 @@
 								Remove
 							</button>
 						{:else if (badge === 'scheduled' || badge === 'retrying' || badge === 'processing') && card.targetId}
+							{@const unloaded = unloadedAccounts(card.draftId)}
 							<a
 								href="/compose?id={card.draftId}"
 								class="{cardAction} text-stone-500 hover:text-stone-900"
@@ -1795,7 +1865,20 @@
 								Edit post
 							</a>
 							<!-- A video the platform is processing publishes on its own: nothing to re-time or cancel. -->
-							{#if badge !== 'processing'}
+							{#if badge !== 'processing' && unloaded > 0}
+								<!-- Rescheduling or cancelling what is loaded would leave the rest as it was. -->
+								<button
+									type="button"
+									data-testid="load-rest"
+									disabled={loadingOlder}
+									onclick={() => void loadRestOf(card.draftId)}
+									class="{cardAction} text-stone-900 underline-offset-2 hover:underline"
+								>
+									{loadingOlder
+										? 'Loading…'
+										: `Load ${unloaded} more ${unloaded === 1 ? 'account' : 'accounts'}`}
+								</button>
+							{:else if badge !== 'processing'}
 								<button
 									type="button"
 									onclick={(event) => {
@@ -2060,7 +2143,13 @@
 				class="inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white px-5 py-2 text-[13px] font-bold text-stone-900 transition-colors hover:bg-stone-100 disabled:opacity-60 pointer-coarse:min-h-11"
 			>
 				{#if loadingOlder}<LoaderCircle class="h-4 w-4 animate-spin" />{/if}
-				{loadingOlder ? 'Loading…' : 'Load older posts'}
+				{loadingOlder
+					? 'Loading…'
+					: activeTab === 'scheduled'
+						? 'Load later posts'
+						: activeTab === 'all' && queueNext.waiting !== null
+							? 'Load more posts'
+							: 'Load older posts'}
 			</button>
 			{#if olderError}
 				<p class="text-[12px] font-bold text-red-700" role="alert">{olderError}</p>
@@ -2069,6 +2158,10 @@
 	{/if}
 	{#if searching}
 		<p class="mt-5 text-[12px] font-medium text-stone-500" role="status">Searching older posts…</p>
+	{:else if searchShown && searchCut}
+		<p class="mt-5 text-[12px] font-medium text-stone-500" data-testid="search-cut">
+			Showing the first posts that match. Add a word to narrow the search.
+		</p>
 	{/if}
 
 	{#if visible.length > 0}

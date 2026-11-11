@@ -16,6 +16,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			targets: queue.targets,
 			queueHasMore: queue.hasMore,
 			queueNext: queue.next,
+			waitingTotals: queue.waitingTotals ?? {},
 			loadFailed: false
 		};
 	} catch (err) {
@@ -27,6 +28,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			targets: [],
 			queueHasMore: false,
 			queueNext: null,
+			waitingTotals: {} as Record<string, number>,
 			loadFailed: true
 		};
 	}
