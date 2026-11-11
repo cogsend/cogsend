@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 /**
@@ -12,8 +13,8 @@ import { afterEach, describe, expect, it } from 'vitest';
  * `checks.push(...)` in the CLI, so dropping it (in a refactor, say) left every
  * unit test green while `npm run doctor` silently stopped mentioning the three
  * platforms that need an app registered at the provider. The scratch checkout
- * replaces `scripts/wrangler.mjs` with canned answers, which is the only thing
- * the CLI talks to.
+ * replaces `scripts/wrangler.mjs` with canned answers and fetch fails at once,
+ * so nothing leaves the machine and the update check is skipped.
  */
 const dirs: string[] = [];
 afterEach(() => {
@@ -68,11 +69,19 @@ else out('');
 }
 
 function runDoctor(dir: string, env: Record<string, string> = {}) {
-	const result = spawnSync(process.execPath, ['scripts/doctor.mjs'], {
-		cwd: dir,
-		encoding: 'utf8',
-		env: { ...process.env, NO_COLOR: '1', ...env }
-	});
+	// Doctor asks GitHub for the latest release; offline, it skips that check
+	// at once, where a slow answer would outlast the test.
+	const offline = join(dir, 'offline.mjs');
+	writeFileSync(offline, `globalThis.fetch = async () => { throw new Error('offline'); };`);
+	const result = spawnSync(
+		process.execPath,
+		['--import', pathToFileURL(offline).href, 'scripts/doctor.mjs'],
+		{
+			cwd: dir,
+			encoding: 'utf8',
+			env: { ...process.env, NO_COLOR: '1', ...env }
+		}
+	);
 	return `${result.stdout}${result.stderr}`;
 }
 

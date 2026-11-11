@@ -19,8 +19,11 @@ import { parseJsonc } from '../scripts/lib/wrangler-config.mjs';
  * the config keeps every binding but provisions its own database, and its
  * deploy script tags the release, refuses to roll a newer instance back, and
  * survives an account with no cron slot left.
+ *
+ * Each deploy here starts several Node processes, and a test runs up to two,
+ * which a busy machine takes past the default five seconds.
  */
-describe('deploy repository', () => {
+describe('deploy repository', { timeout: 20_000 }, () => {
 	let tmp: string;
 	let out: string;
 	const version = JSON.parse(readFileSync('package.json', 'utf8')).version as string;
