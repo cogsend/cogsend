@@ -9,7 +9,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
 	{ href: '/settings', label: 'Account', anchors: [] },
 	{ href: '/settings/posting', label: 'Posting', anchors: [] },
 	{ href: '/settings/scheduling', label: 'Scheduled publishing', anchors: [] },
-	{ href: '/settings/api', label: 'API access', anchors: [] },
+	{ href: '/settings/api', label: 'API & MCP', anchors: [] },
 	{ href: '/settings/instance', label: 'Instance', anchors: ['instance'] }
 ];
 

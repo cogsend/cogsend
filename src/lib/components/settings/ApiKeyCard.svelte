@@ -119,7 +119,7 @@
 	> for full details.
 {/snippet}
 
-<SettingsCard title="API access" description={intro} label="API access" testid="api-key-section">
+<SettingsCard title="API key" description={intro} label="API key" testid="api-key-section">
 	<fieldset class="mb-5 space-y-2" data-testid="api-key-scopes">
 		<legend class="mb-2 text-[12px] font-bold text-stone-700">New key permissions</legend>
 		<label class="flex cursor-pointer items-start gap-2 text-[13px] text-stone-700">
