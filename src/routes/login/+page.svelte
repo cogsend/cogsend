@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import favicon from '#lib/assets/favicon.svg';
+	import { claimPasswordProblem } from '#lib/domain/claim-password.js';
+	import { docsLinks } from '#lib/domain/docs-links.js';
 
 	let { data } = $props();
 
@@ -44,6 +46,17 @@
 
 	let setupKey = $state('');
 	let showPassword = $state(false);
+	let confirmPassword = $state('');
+	let copied = $state<'yes' | 'failed' | null>(null);
+
+	async function copyPassword() {
+		try {
+			await navigator.clipboard.writeText(password);
+			copied = 'yes';
+		} catch {
+			copied = 'failed';
+		}
+	}
 
 	/** 18 random bytes, base64url: 24 characters, nothing to mistype. */
 	function generatePassword() {
@@ -52,10 +65,17 @@
 			.replace(/\+/g, '-')
 			.replace(/\//g, '_');
 		showPassword = true;
+		confirmPassword = '';
+		copied = null;
 	}
 
 	async function onClaim(e: Event) {
 		e.preventDefault();
+		const mismatch = claimPasswordProblem(password, confirmPassword, showPassword);
+		if (mismatch) {
+			error = mismatch;
+			return;
+		}
 		loading = true;
 		error = null;
 		try {
@@ -152,9 +172,35 @@
 					/>
 				</label>
 				{#if showPassword}
-					<p class="text-xs font-medium text-amber-800">
-						Save this password in your password manager before you continue.
-					</p>
+					<div class="flex items-start justify-between gap-3">
+						<p class="text-xs font-medium text-amber-800">
+							Save this password in your password manager before you continue.
+						</p>
+						<button
+							type="button"
+							onclick={copyPassword}
+							class="shrink-0 text-xs font-bold text-stone-600 underline-offset-2 hover:underline"
+							>{copied === 'yes' ? 'Copied' : 'Copy'}</button
+						>
+					</div>
+					{#if copied === 'failed'}
+						<p class="text-xs font-medium text-red-600" role="alert">
+							Could not copy — select the password and copy it yourself.
+						</p>
+					{/if}
+				{:else}
+					<label class="block text-sm">
+						<span class="text-[11px] font-bold tracking-widest text-stone-500 uppercase"
+							>Confirm password</span
+						>
+						<input
+							type="password"
+							autocomplete="new-password"
+							bind:value={confirmPassword}
+							class="mt-1.5 w-full rounded-xl border border-stone-200/80 bg-stone-50 px-4 py-2.5 text-sm font-bold text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+							required
+						/>
+					</label>
 				{/if}
 				{#if error}
 					<p class="text-sm font-bold text-red-600" role="alert">{error}</p>
@@ -214,7 +260,16 @@
 				</button>
 			</form>
 			<p class="mt-4 text-center text-xs font-medium text-stone-500">
-				Use the email and password you set when you ran <code>npm run setup</code>
+				Use the email and password you chose when you created the account.
+			</p>
+			<p class="mt-2 text-center text-xs font-medium text-stone-500">
+				<a
+					href={docsLinks.login}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="underline underline-offset-2 hover:text-stone-900"
+					>Lost your password or authenticator?</a
+				>
 			</p>
 		{/if}
 	</div>

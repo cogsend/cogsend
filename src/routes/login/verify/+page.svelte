@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { docsLinks } from '#lib/domain/docs-links.js';
 
 	let code = $state('');
 	let useBackup = $state(false);
@@ -78,6 +79,11 @@
 		</form>
 		<p class="mt-4 text-center text-xs text-stone-500">
 			<a href="/login" class="underline">Back to sign in</a>
+		</p>
+		<p class="mt-2 text-center text-xs text-stone-500">
+			<a href={docsLinks.login} target="_blank" rel="noopener noreferrer" class="underline"
+				>Lost your authenticator and backup codes?</a
+			>
 		</p>
 	</div>
 </div>
