@@ -4,9 +4,9 @@ import {
 	QUEUE_LIST_LIMIT,
 	QUEUE_LIST_MAX_LIMIT,
 	loadQueueList,
-	parseListCursor,
 	parseListLimit,
-	parseListSearch
+	parseListSearch,
+	parseQueueCursor
 } from '#lib/server/post-list.js';
 import { requireScope, requireUser } from '#lib/server/require.js';
 
@@ -21,7 +21,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 		);
 		return ok(
 			await loadQueueList(locals.db, user.id, limit, {
-				before: parseListCursor(url?.searchParams.get('before')),
+				before: parseQueueCursor(url?.searchParams.get('before')),
 				q: parseListSearch(url?.searchParams.get('q'))
 			})
 		);

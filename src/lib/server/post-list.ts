@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql, type InferSelectModel, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, sql, type InferSelectModel, type SQL } from 'drizzle-orm';
 import { batchQueries, chunkIds, parseJson, type AppDb } from './db/client';
 import { connections, draftMedia, drafts, publishTargets } from './db/schema';
 import { serializeMedia } from './serialize';
@@ -44,7 +44,32 @@ export function parseListSearch(raw: string | null | undefined): string | null {
 	return q;
 }
 
+/**
+ * Where a queue page ended among the waiting rows, in their order:
+ * `u:<scheduledFor ms, or -1 for "now">:<updatedAt ms>:<id>`.
+ */
+export type WaitingCursor = { waiting: true; at: number; ms: number; id: string };
+export type QueueCursor = ListCursor | WaitingCursor;
+
+export function parseQueueCursor(raw: string | null | undefined): QueueCursor | null {
+	if (!raw?.startsWith('u:')) return parseListCursor(raw);
+	const [at, ms, ...rest] = raw.slice(2).split(':');
+	const id = rest.join(':');
+	const integer = (s: string | undefined) => (s && /^-?\d{1,16}$/.test(s) ? Number(s) : NaN);
+	const cursor = { waiting: true as const, at: integer(at), ms: integer(ms), id };
+	if (
+		!Number.isSafeInteger(cursor.at) ||
+		!Number.isSafeInteger(cursor.ms) ||
+		!id ||
+		id.length > 256
+	) {
+		throw Object.assign(new Error('Invalid cursor'), { status: 400 });
+	}
+	return cursor;
+}
+
 export type ListPageOptions = { before?: ListCursor | null; q?: string | null };
+export type QueuePageOptions = { before?: QueueCursor | null; q?: string | null };
 
 export const cursorOf = (row: { updatedAt: Date; id: string }) =>
 	`${row.updatedAt.getTime()}:${row.id}`;
@@ -230,13 +255,20 @@ export async function loadQueueList(
 	db: AppDb,
 	userId: string,
 	limit = QUEUE_LIST_LIMIT,
-	opts: ListPageOptions = {}
+	opts: QueuePageOptions = {}
 ) {
 	const upcoming = sql`${publishTargets.status} in ('scheduled', 'pending', 'publishing')`;
+	const history = sql`${publishTargets.status} in ('failed', 'published')`;
+	// A NULL schedule is "publish now", due ahead of every time.
+	const waitingAt = sql`coalesce(${publishTargets.scheduledFor}, -1)`;
 	const { before, q } = opts;
-	// `before` pages history only: paging the waiting rows by time would
-	// interleave the two orders, so they all come on the first page, and more
-	// of them than fit there need a larger limit.
+	// The waiting rows come first in their own order, so a cursor among them
+	// carries that order's keys, and the page after it runs on into history.
+	let pageFilter: SQL | undefined;
+	if (!before) pageFilter = sql`(${upcoming} or ${history})`;
+	else if ('waiting' in before) {
+		pageFilter = sql`((${upcoming} and (${waitingAt} > ${before.at} or (${waitingAt} = ${before.at} and ${olderThan(publishTargets.updatedAt, publishTargets.id, before)}))) or ${history})`;
+	} else pageFilter = and(history, olderThan(publishTargets.updatedAt, publishTargets.id, before));
 	const targetsQuery = db
 		.select()
 		.from(publishTargets)
@@ -246,13 +278,7 @@ export async function loadQueueList(
 					publishTargets.connectionId,
 					db.select({ id: connections.id }).from(connections).where(eq(connections.userId, userId))
 				),
-				inArray(
-					publishTargets.status,
-					before
-						? ['failed', 'published']
-						: ['scheduled', 'pending', 'publishing', 'failed', 'published']
-				),
-				before ? olderThan(publishTargets.updatedAt, publishTargets.id, before) : undefined,
+				pageFilter,
 				q
 					? inArray(
 							publishTargets.draftId,
@@ -266,7 +292,7 @@ export async function loadQueueList(
 		)
 		.orderBy(
 			sql`case when ${upcoming} then 0 else 1 end`,
-			sql`case when ${upcoming} then ${publishTargets.scheduledFor} end asc`,
+			sql`case when ${upcoming} then ${waitingAt} end asc`,
 			desc(publishTargets.updatedAt),
 			desc(publishTargets.id)
 		)
@@ -297,16 +323,52 @@ export async function loadQueueList(
 	const hasMore = allTargetRows.length > limit;
 	const targetRows = hasMore ? allTargetRows.slice(0, limit) : allTargetRows;
 	const last = targetRows.at(-1);
+	const endsWaiting = hasMore && !!last && !['failed', 'published'].includes(last.status);
 	let next: string | null = null;
 	if (hasMore && last) {
-		// A page that ends before any history starts: the next page is all of
-		// history, which a cursor later than every row reaches.
-		next = ['failed', 'published'].includes(last.status)
-			? cursorOf(last)
-			: `${Number.MAX_SAFE_INTEGER}:~`;
+		next = endsWaiting
+			? `u:${last.scheduledFor?.getTime() ?? -1}:${last.updatedAt.getTime()}:${last.id}`
+			: cursorOf(last);
 	}
 	const connById = new Map(allConns.map((c) => [c.id, c]));
 	const queuedDraftIds = [...new Set(targetRows.map((t) => t.draftId))];
+	// A post's accounts can fall on both sides of a page that ends among the
+	// waiting rows, and acting on "the whole post" from what is loaded would
+	// leave the rest scheduled. Totals for each such post let Posts tell.
+	let waitingTotals: Record<string, number> | undefined;
+	if (endsWaiting) {
+		const onPage = new Map<string, number>();
+		for (const t of targetRows) {
+			if (['failed', 'published'].includes(t.status)) continue;
+			// Counted as the totals below are: a disconnected account is never one.
+			if (connById.get(t.connectionId)?.status === 'disconnected') continue;
+			onPage.set(t.draftId, (onPage.get(t.draftId) ?? 0) + 1);
+		}
+		waitingTotals = {};
+		// Two more bound values (the user and the status) beside the ids.
+		for (const chunk of chunkIds([...onPage.keys()], 90)) {
+			const counts = await db
+				.select({ draftId: publishTargets.draftId, n: sql<number>`count(*)` })
+				.from(publishTargets)
+				.where(
+					and(
+						inArray(publishTargets.draftId, chunk),
+						upcoming,
+						inArray(
+							publishTargets.connectionId,
+							db
+								.select({ id: connections.id })
+								.from(connections)
+								.where(and(eq(connections.userId, userId), ne(connections.status, 'disconnected')))
+						)
+					)
+				)
+				.groupBy(publishTargets.draftId);
+			for (const { draftId, n } of counts) {
+				if (Number(n) > (onPage.get(draftId) ?? 0)) waitingTotals[draftId] = Number(n);
+			}
+		}
+	}
 	const draftRows: DraftLite[] = [];
 	// The user id is a bound parameter too, so a full chunk would be 101 and
 	// D1 would refuse the statement: a page of 100 one-account posts.
@@ -374,5 +436,5 @@ export async function loadQueueList(
 			}
 		});
 	}
-	return { targets, hasMore, next };
+	return { targets, hasMore, next, ...(waitingTotals ? { waitingTotals } : {}) };
 }
