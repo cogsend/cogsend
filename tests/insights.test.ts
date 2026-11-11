@@ -460,7 +460,13 @@ describe('GET /api/insights', () => {
 
 		expect(res.status).toBe(200);
 		expect(body.range).toMatchObject({ days: 30, bucket: 'day', buckets: 30 });
-		expect(body.totals).toMatchObject({ published: 4, failed: 2, rate: 67, scheduled: 2 });
+		expect(body.totals).toMatchObject({
+			published: 4,
+			failed: 2,
+			rate: 67,
+			scheduled: 2,
+			scheduledPosts: 2
+		});
 		expect(body.totals.nextScheduledAt).toBe(NOW + 2 * 3_600_000);
 		expect(body.previous).toMatchObject({ published: 2, failed: 1, rate: 67 });
 
@@ -628,6 +634,7 @@ describe('GET /api/insights', () => {
 				failed: 0,
 				rate: null,
 				scheduled: 0,
+				scheduledPosts: 0,
 				nextScheduledAt: null
 			});
 			expect(body.previous).toEqual({ published: 0, failed: 0, rate: null });
@@ -638,6 +645,56 @@ describe('GET /api/insights', () => {
 			expect(empty.count()).toBeLessThanOrEqual(10);
 		} finally {
 			empty.close();
+		}
+	});
+
+	it('counts a post going to several accounts once in scheduledPosts', async () => {
+		const fresh = await createTestDb();
+		try {
+			const at = new Date(NOW);
+			const stamp = { createdAt: at, updatedAt: at };
+			await fresh.db
+				.insert(users)
+				.values({ id: 'u1', email: 'u1@localhost', passwordHash: 'x', timezone: 'UTC', ...stamp });
+			await fresh.db.insert(connections).values(
+				['c1', 'c2', 'c3'].map((id) => ({
+					id,
+					userId: 'u1',
+					platform: 'bluesky',
+					handle: `${id}.bsky.social`,
+					credentialsEncrypted: 'x',
+					status: 'active',
+					...stamp
+				}))
+			);
+			await fresh.db.insert(drafts).values({
+				id: 'one-post',
+				userId: 'u1',
+				baseBody: 'to three accounts',
+				status: 'scheduled',
+				createdAt: at,
+				updatedAt: at
+			});
+			for (const connectionId of ['c1', 'c2', 'c3']) {
+				await fresh.db.insert(publishTargets).values({
+					id: newId(),
+					draftId: 'one-post',
+					connectionId,
+					status: 'scheduled',
+					scheduledFor: new Date(NOW + DAY),
+					attemptCount: 0,
+					createdAt: at,
+					updatedAt: at
+				});
+			}
+			const res = await insightsGET({
+				locals: { ...localsFor('u1'), db: fresh.db },
+				url: new URL('http://localhost/api/insights?days=30')
+			} as never);
+			const body = await res.json();
+			expect(body.totals).toMatchObject({ scheduled: 3, scheduledPosts: 1 });
+		} finally {
+			fresh.close();
 		}
 	});
 

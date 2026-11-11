@@ -48,6 +48,7 @@
 			failed: number;
 			rate: number | null;
 			scheduled: number;
+			scheduledPosts: number;
 			nextScheduledAt: number | null;
 		};
 		previous: { published: number; failed: number; rate: number | null };
@@ -477,13 +478,13 @@
 			</div>
 			<div class="rounded-[1.5rem] border border-stone-200/80 bg-white p-4 shadow-sm">
 				<p class="text-2xl font-extrabold tracking-tight text-stone-900">
-					{stats.totals.scheduled}
+					{stats.totals.scheduledPosts}
 				</p>
 				<p class="mt-1 text-[11px] font-bold tracking-widest text-stone-500 uppercase">Scheduled</p>
 				<p class="mt-1 text-[11px] font-bold text-stone-500">
 					{stats.totals.nextScheduledAt
 						? `next ${formatRelativeTime(new Date(stats.totals.nextScheduledAt))}`
-						: stats.totals.scheduled > 0
+						: stats.totals.scheduledPosts > 0
 							? 'no time set'
 							: 'nothing queued'}
 				</p>

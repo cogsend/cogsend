@@ -117,6 +117,7 @@ export async function loadInsights(
 			db
 				.select({
 					n: sql<number>`count(*)`,
+					posts: sql<number>`count(distinct ${publishTargets.draftId})`,
 					nextAt: min(publishTargets.scheduledFor)
 				})
 				.from(publishTargets)
@@ -167,7 +168,7 @@ export async function loadInsights(
 				avatarUrl: string | null;
 				status: string;
 			}[],
-			{ n: unknown; nextAt: unknown }[],
+			{ n: unknown; posts: unknown; nextAt: unknown }[],
 			{ connectionId: string; published: unknown; failed: unknown; lastAt: unknown }[],
 			{ connectionId: string; errorMessage: string | null; n: unknown }[],
 			...Record<string, unknown>[]
@@ -250,6 +251,7 @@ export async function loadInsights(
 			failed,
 			rate: rateOf(published, failed),
 			scheduled: num(scheduled?.n),
+			scheduledPosts: num(scheduled?.posts),
 			nextScheduledAt: toMs(scheduled?.nextAt)
 		},
 		previous: {
