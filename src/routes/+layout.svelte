@@ -31,6 +31,7 @@
 	} from '#lib/components/update-notice.svelte.js';
 	import { browserTimeZone } from '#lib/domain/time-zone.js';
 	import { settingsSectionFor } from '#lib/domain/settings-sections.js';
+	import { pageTitle } from '#lib/domain/page-title.js';
 
 	let workspaceTrigger: HTMLButtonElement | null = $state(null);
 	let profileTrigger: HTMLButtonElement | null = $state(null);
@@ -141,7 +142,9 @@
 </script>
 
 <svelte:head>
-	<title>{data.appName} — write & schedule</title>
+	{#if pageTitle(page.url.pathname, data.appName)}
+		<title>{pageTitle(page.url.pathname, data.appName)}</title>
+	{/if}
 	<meta
 		name="description"
 		content="Minimal social scheduler for Mastodon, Bluesky, LinkedIn, Threads, Instagram, and X"
