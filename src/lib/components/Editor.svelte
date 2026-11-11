@@ -1965,6 +1965,13 @@
 	const tzShort = localTimezoneShort();
 
 	const scheduleCombined = $derived(schedDate && schedTime ? `${schedDate}T${schedTime}` : '');
+	// A time picked by hand that has slipped into the past; Relative always
+	// counts from now.
+	const scheduleInPast = $derived(
+		scheduleMode === 'absolute' &&
+			scheduleCombined !== '' &&
+			!isFutureScheduleValue(scheduleCombined, new Date(clock))
+	);
 	const minSchedDate = $derived.by(() => {
 		void scheduleOpen;
 		return minScheduleDatetime(new Date()).slice(0, 10);
@@ -3053,6 +3060,17 @@
 		isAccountsPopoverOpen = !isAccountsPopoverOpen;
 	}
 
+	let scheduleToggleEl = $state<HTMLButtonElement | null>(null);
+	let destinationsToggleEl = $state<HTMLButtonElement | null>(null);
+	/**
+	 * Focus moves into a popover as it opens, so the keyboard is where the eyes
+	 * are. A button, never a field: a field would raise a phone's keyboard over
+	 * the popover. Tab is left free, since a click outside also closes it.
+	 */
+	function popoverFocus(node: HTMLElement) {
+		node.querySelector<HTMLElement>('button:not(:disabled)')?.focus({ preventScroll: true });
+	}
+
 	function clearSelection() {
 		if (!selected.size) return;
 		selected = new Set();
@@ -3354,6 +3372,13 @@
 			// open, and it used to swallow Escape too — which is the one key a
 			// keyboard user needs to get out of that popover.
 			if (event.key === 'Escape') {
+				// Back to the button that opened it, or focus is lost with the popover.
+				const opener = scheduleOpen
+					? scheduleToggleEl
+					: isAccountsPopoverOpen
+						? destinationsToggleEl
+						: null;
+				opener?.focus();
 				scheduleOpen = false;
 				if (isPostConfirmOpen) dismissPostConfirm();
 				isAddOverrideOpen = false;
@@ -4207,6 +4232,7 @@
 					<button
 						type="button"
 						data-testid="destinations-toggle"
+						bind:this={destinationsToggleEl}
 						class="flex items-center gap-2 rounded-full border border-stone-200/80 bg-white/95 px-4 py-2.5 text-[13px] font-bold text-stone-700 shadow-[0_16px_40px_-12px_rgb(28_25_23/0.15)] backdrop-blur-xl transition-all hover:border-stone-300 hover:bg-white {isAccountsPopoverOpen
 							? 'border-stone-300 bg-stone-50'
 							: ''}"
@@ -4252,6 +4278,7 @@
 							transition:slide={{ duration: 200 }}
 							role="dialog"
 							aria-label="Destinations"
+							use:popoverFocus
 						>
 							<div
 								class="mb-2 flex items-center justify-between border-b border-stone-100 px-3 py-2"
@@ -4395,6 +4422,7 @@
 					<button
 						type="button"
 						data-testid="schedule-toggle"
+						bind:this={scheduleToggleEl}
 						class="group flex cursor-pointer items-center justify-center rounded-r-full px-4 py-2.5 transition-all hover:bg-stone-800"
 						title="Schedule options"
 						aria-label="Schedule options"
@@ -4503,6 +4531,7 @@
 							transition:fly={{ y: 10, duration: 250, opacity: 0 }}
 							role="dialog"
 							aria-label="Schedule post"
+							use:popoverFocus
 						>
 							<div class="flex items-center gap-2 px-2 pt-2 pb-3">
 								<Calendar class="h-4 w-4 text-stone-900" />
@@ -4599,6 +4628,9 @@
 												data-testid="schedule-time"
 												bind:value={schedTime}
 												oninput={() => (scheduleTouched = true)}
+												min={schedDate === minSchedDate
+													? minScheduleDatetime(new Date(clock)).slice(11, 16)
+													: undefined}
 												aria-label="Schedule time"
 												class="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[13px] font-bold text-stone-900 transition-colors focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
 											/>
@@ -4607,7 +4639,14 @@
 								</div>
 							{/if}
 
-							{#if schedulePreview}
+							{#if scheduleInPast}
+								<p
+									data-testid="schedule-past"
+									class="mb-3 px-2 text-center text-[12px] font-bold text-amber-700"
+								>
+									Pick a time in the future
+								</p>
+							{:else if schedulePreview}
 								<p
 									data-testid="schedule-preview"
 									class="mb-3 px-2 text-center text-[12px] font-bold text-stone-500"
@@ -4620,7 +4659,7 @@
 								type="button"
 								data-testid="schedule-confirm"
 								class="w-full cursor-pointer rounded-full bg-stone-900 py-2.5 text-[13px] font-bold text-white shadow-sm transition-all hover:bg-stone-800 disabled:opacity-60"
-								disabled={publishing || unscheduling}
+								disabled={publishing || unscheduling || scheduleInPast}
 								onclick={() => void onSchedule()}
 							>
 								{hasSchedule ? 'Update schedule' : 'Confirm schedule'}
