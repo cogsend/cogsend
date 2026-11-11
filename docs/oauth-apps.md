@@ -95,7 +95,7 @@ Instagram only lets Business and Creator accounts post through its API. A person
    npm run secrets:put INSTAGRAM_APP_ID INSTAGRAM_APP_SECRET
    ```
 
-Posting to an account you own needs no App Review. The token lasts 60 days and CogSend renews it when it publishes or when you press **Verify**; an account left untouched for longer shows as expired and needs **Reconnect**.
+Posting to an account you own needs no App Review. The token lasts 60 days and CogSend renews it when it publishes or when you press **Check**; an account left untouched for longer shows as expired and needs **Reconnect**.
 
 ### X
 

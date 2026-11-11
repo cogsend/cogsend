@@ -13,7 +13,7 @@ It is optional. Direct connections stay the default, accounts you connected with
 
 ## Import accounts you already have in Zernio
 
-1. Open **Accounts → Connect new** and choose **Connect through Zernio**, below the platforms.
+1. Open **Accounts → Connect account** and choose **Connect through Zernio**, below the platforms.
 2. Paste your API key and press **Show my Zernio accounts**.
 3. Tick the accounts you want and press **Import**.
 

@@ -4,11 +4,13 @@ Settings → Instance and `npm run doctor` both say when a newer release is out,
 
 ## From Settings
 
-When a release is available, Settings → Instance shows **Update to vX.Y.Z from here**.
+When a release is available, the **Updates** card in Settings → Instance says so beside the running version and offers **Update to vX.Y.Z from here**. Press it to open the update form.
 
 1. Press **Create one** next to the token field. It opens Cloudflare's token page with the two permissions the update needs already chosen: Workers Scripts (edit) and Account Settings (read). Create the token and copy it.
-2. Paste it into the field, enter your CogSend password, and press **Install**.
+2. Paste it into the field, enter your CogSend password, and press **Install vX.Y.Z**. Until the form has everything it needs, the button stays greyed out and a line under it says what is missing.
 3. Leave the page open until it reloads on the new version, usually under a minute.
+
+**Cancel** closes the form without changing anything.
 
 The password locks the token for next time: with **Remember it for later updates** ticked, CogSend keeps the token encrypted with a key made from your password, and the next update asks for the password alone, which your password manager fills. The key is not `APP_ENCRYPTION_KEY`, so someone holding your database and that key still cannot read the token. **Forget the saved token** removes it, and changing your password forgets it too: paste it once more on the next update. Untick the box and the token is used for that update only, and nothing is stored.
 
@@ -27,7 +29,7 @@ What happens, in order:
 
 Nothing changes for visitors until the last step. If any step fails, the old version keeps serving; **Abort the unfinished update** tidies up whatever the update had staged. Each step is a short request of its own, sized to fit the Workers Free plan's limits, and picks up where it stopped: one Cloudflare cuts short is retried, and pressing the button again continues the update rather than starting over.
 
-To be offered release candidates too, tick **Offer pre-releases too** under Settings → Instance; the update notice and the button then include them. Leave it off on an instance you rely on. To install any specific release tag, type it into the tag field: it shows next to the token when no release is on offer, and under **More options** otherwise. **More options** is also where you name the account if your token cannot list accounts.
+To be offered release candidates too, tick **Offer pre-releases too** at the foot of the Updates card; the update notice and the button then include them. Leave it off on an instance you rely on. To install any specific release, press **Install a specific release from here** and type its tag into **Release tag**; with an update already on offer, **Install a different release** in the open form does the same. **More options** is where you name the account if your token cannot list accounts.
 
 Some releases cannot be installed this way, for example one that needs a new binding. Settings then says so and why, and the release notes say what to do; usually it is one update from a checkout.
 
@@ -71,7 +73,7 @@ Installed from GitLab, which has no GitHub Actions? Update from Settings with a 
 
 ## Rolling back
 
-After an update from Settings, **Roll back to vX.Y.Z** sends all traffic back to the version it replaced. It needs a token too.
+After an update from Settings, **Roll back to vX.Y.Z** sends all traffic back to the version it replaced, once you confirm. It needs a token too.
 
 Independently of how you updated, Workers & Pages → your Worker → **Deployments → Roll back** (or `npx wrangler rollback`) does the same from Cloudflare.
 

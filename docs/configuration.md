@@ -144,7 +144,7 @@ Each deploy records the account it went to in `.wrangler/deployed-accounts.json`
 
 There is one account, created one of two ways: `npm run setup` writes it into D1 from the terminal, before the deployment answers its first request, or, on an instance that has no account yet, the login page creates it once you enter the deployment's `APP_ENCRYPTION_KEY`. Only someone holding that key can do the second, so a fresh instance cannot be claimed by whoever finds its URL first, and once the account exists the form is gone. Only a PBKDF2-SHA256 hash is stored, and the password never becomes a Worker secret.
 
-**Settings → Login** changes the email or the password. The current password is
+**Settings → Account** changes the email or the password. The current password is
 required, and a new password signs every device out.
 
 Forgot the password? `npm run admin:reset` from your checkout writes a new one and

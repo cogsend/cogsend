@@ -5,7 +5,7 @@ how publishing has gone over time.
 
 ## Posts
 
-The tabs filter by state — **All Posts**, **Scheduled**, **Published**, **Failed**
+The tabs filter by state — **All posts**, **Scheduled**, **Published**, **Failed**
 and **Drafts** — each with its count. **All accounts** narrows the list to one
 account, and the search box matches the post text. The tab and account stay in
 the address, so reloading or sharing the link keeps them, and coming back from
@@ -22,14 +22,14 @@ What a card offers depends on its state:
 
 | State     | Actions                                                                                                     |
 | --------- | ----------------------------------------------------------------------------------------------------------- |
-| Scheduled | **Edit Post**, **Reschedule** (an offset or a specific time), **Cancel**                                    |
+| Scheduled | **Edit post**, **Reschedule** (an offset or a specific time), **Cancel**                                    |
 | Failed    | **Edit & re-draft**, **Post again**, **Retry** (or **Retry N failed** for many)                             |
 | Published | **Post again**, which copies it into a new draft; on X, **Quote on X**, which starts a new draft quoting it |
-| Draft     | **Edit Post**, **Duplicate**, **Remove**                                                                    |
+| Draft     | **Edit post**, **Duplicate**, **Remove**                                                                    |
 
 **Post again** and **Duplicate** bring the media and its alt text along without storing the files again: the copy uses the original's files, so it takes no extra room in R2. Each post can still change alt text, reorder or remove its media on its own, and a file is deleted only with the last post that uses it. Picking a new cover for a copied video gives that post its own copy of the video first, so the original keeps its cover. The same goes for a file attached from **Your media** in the composer ([Images and alt text](composer.md#images-and-alt-text)).
 
-**Edit Post** on a scheduled card opens it in the composer, which shows when and where it goes out and offers **Change time** and **Unschedule** there too; see [Publish now, or schedule](composer.md#publish-now-or-schedule).
+**Edit post** on a scheduled card opens it in the composer, which shows when and where it goes out and offers **Change time** and **Unschedule** there too; see [Publish now, or schedule](composer.md#publish-now-or-schedule).
 
 A post that went to several accounts is one card, with a result per account, so a
 post that published on four and failed on one shows exactly that. Retrying a card
