@@ -3,6 +3,7 @@ import {
 	INSTAGRAM_MAX_ITEMS,
 	instagramMediaProblems
 } from '#lib/domain/media-limits.js';
+import { ALT_LIMITS } from '#lib/domain/alt-text.js';
 import { formatThreadsMetaMarker } from '#lib/domain/threads-error.js';
 import { INSTAGRAM_MAX_CHARS, validateInstagramText } from '#lib/domain/validation/text.js';
 import { singlePost } from './flatten';
@@ -32,7 +33,6 @@ const PROFILE_FIELDS = 'user_id,username,name,account_type,profile_picture_url';
 /** The account kinds Instagram lets post through its API. */
 const POSTING_ACCOUNT_TYPES = new Set(['BUSINESS', 'MEDIA_CREATOR']);
 const REFRESH_SKEW_MS = 7 * 24 * 60 * 60 * 1000;
-const MAX_ALT_TEXT = 1000;
 
 // A photo container is usually ready within seconds; a Reel can take minutes,
 // so it parks instead of holding the request (processingError).
@@ -281,7 +281,7 @@ export const instagramProvider: PlatformProvider = {
 		function photoParams(m: MediaAttachment, url: string): Record<string, string> {
 			const params: Record<string, string> = { image_url: url };
 			const alt = m.alt?.trim();
-			if (alt) params.alt_text = alt.slice(0, MAX_ALT_TEXT);
+			if (alt) params.alt_text = alt.slice(0, ALT_LIMITS.instagram);
 			return params;
 		}
 

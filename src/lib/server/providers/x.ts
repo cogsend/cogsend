@@ -27,6 +27,7 @@ import type {
 } from './types';
 import { ProviderError, PublishPartialError, unconfirmedPostError } from './types';
 import { X_MAX_GIF_BYTES, X_MAX_IMAGE_BYTES } from '#lib/domain/media-limits.js';
+import { ALT_LIMITS } from '#lib/domain/alt-text.js';
 import { providerFetch } from './timed-fetch';
 
 export const X_MAX_CHARS = 280;
@@ -514,7 +515,7 @@ async function setAltText(
 	fetchImpl: FetchLike
 ): Promise<void> {
 	if (!altText?.trim()) return;
-	const alt = altText.trim().slice(0, 1000);
+	const alt = altText.trim().slice(0, ALT_LIMITS.x);
 	for (const shape of [
 		{ media_id: mediaId, alt_text: { text: alt } },
 		{ id: mediaId, alt_text: { text: alt } }

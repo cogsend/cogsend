@@ -1,4 +1,5 @@
 import { and, eq, inArray, ne } from 'drizzle-orm';
+import { MAX_ALT_LENGTH } from '#lib/domain/alt-text.js';
 import { MAX_IMAGES_PER_SEGMENT, videoMixProblem } from '#lib/domain/media-limits.js';
 import { splitThreadSegments } from '#lib/domain/thread-segments.js';
 import { chunkIds, first } from './db/client';
@@ -7,7 +8,6 @@ import { fail } from './http';
 import { draftEditBlock } from './publish-plan';
 
 const MAX_SEGMENT_INDEX = 100;
-const MAX_ALT_LENGTH = 1500;
 // No per-draft or per-user cap existed: segment math alone allows
 // ~400 files per draft (100 segments x 4), unbounded R2 cost and
 // Worker-memory pressure at publish (bytes are buffered ~2x).
