@@ -149,6 +149,13 @@
 	} from '#lib/domain/published-lock.js';
 	import { selectionDrift, summarizePost, type TargetSnapshot } from '#lib/domain/post-state.js';
 	import { isZernioConnection } from '#lib/domain/zernio.js';
+	import {
+		MAX_ALT_LENGTH,
+		altCutNote,
+		altLimitFor,
+		missingAlt,
+		missingAltMessage
+	} from '#lib/domain/alt-text.js';
 	import { setPostsNotice } from '#lib/components/posts-notice.js';
 	import { cancelWaitingExcept, handOff } from '#lib/components/publish-tracker.svelte.js';
 	import { showToast } from '#lib/components/toast.svelte.js';
@@ -528,6 +535,16 @@
 	);
 	// Platforms with a selected account CogSend posts to itself; Zernio takes
 	// the file as it is and applies its own rules.
+	// Who would read an image's description, for the alt text count and the
+	// missing-alt line.
+	const altDestinations = $derived(
+		connections
+			.filter((c) => selected.has(c.id))
+			.map((c) => ({
+				platform: c.platform as PlatformId,
+				viaZernio: isZernioConnection(c.metaJson)
+			}))
+	);
 	const directPlatforms = $derived(
 		new Set(
 			connections
@@ -1452,6 +1469,30 @@
 		const ids = [...selected];
 		if (!ids.length) return null;
 		return unconnectedProblem(ids) ?? firstPublishProblem(ids);
+	});
+	// Media nobody described, where an account would have shown a description.
+	// It never stops a post: the line says so and offers the field.
+	const altMissing = $derived.by(() => {
+		if (editLocked || loadFailedId || (!draftId && !baseBody.trim())) return [];
+		return missingAlt(
+			media.map((m) => ({
+				id: m.id,
+				kind: isVideoItem(m) ? ('video' as const) : ('image' as const),
+				altText: m.altText ?? null,
+				segmentIndex: m.segmentIndex ?? 0
+			})),
+			altDestinations
+		);
+	});
+	const altWarning = $derived(missingAltMessage(altMissing, segments.length));
+	// Said once when the first one appears, not again for each file after it.
+	let altAnnouncement = $state('');
+	let altWarned = false;
+	$effect(() => {
+		const showing = altWarning !== null && !publishBlocker;
+		if (showing && !altWarned) altAnnouncement = altWarning ?? '';
+		if (!showing) altAnnouncement = '';
+		altWarned = showing;
 	});
 	// Read out once per kind of problem, not on every keystroke that changes
 	// how far over the limit a post is.
@@ -2686,6 +2727,22 @@
 	function toggleAlt(id: string) {
 		altOpen = { ...altOpen, [id]: !altOpen[id] };
 	}
+	/** Closes the field and hands focus back to its ALT button. */
+	function closeAlt(id: string) {
+		altOpen = { ...altOpen, [id]: false };
+		void tick().then(() =>
+			document.querySelector<HTMLElement>(`[data-testid="alt-toggle-${id}"]`)?.focus()
+		);
+	}
+	/** Opens the field for this file and puts the cursor in it. */
+	function openAlt(id: string) {
+		altOpen = { ...altOpen, [id]: true };
+		void tick().then(() => {
+			const field = document.getElementById(`media-alt-${id}`);
+			field?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+			field?.focus({ preventScroll: true });
+		});
+	}
 
 	function handleSegmentInput(i: number, e: Event) {
 		const typed = (e.target as HTMLTextAreaElement).value;
@@ -3371,6 +3428,9 @@
 
 	$effect(() => {
 		const onKey = (event: KeyboardEvent) => {
+			// The alt text field handles its own Escape and Cmd+Enter (both close
+			// it); neither may publish or close the popovers around it.
+			if ((event.target as Element | null)?.closest?.('[data-alt-editor]')) return;
 			// Escape first, and before the publish guard below: the guard exists
 			// so the compose shortcuts cannot fire while the confirm popover is
 			// open, and it used to swallow Escape too — which is the one key a
@@ -3960,23 +4020,51 @@
 							{#if altOpen[m.id]}
 								<!-- In flow under the media strip: as a thumb-anchored popover this
 								     hung off the right edge whenever the thumb was not the first. -->
-								<div class="mt-2 rounded-xl border border-stone-200/80 bg-white p-2 shadow-sm">
-									<input
-										type="text"
+								{@const kind = isVideoItem(m) ? 'video' : 'image'}
+								{@const altLength = (m.altText || '').length}
+								{@const altLimit = altLimitFor(kind, altDestinations)}
+								{@const cutNote = altCutNote(altLength, kind, altDestinations)}
+								<div
+									class="mt-2 rounded-xl border border-stone-200/80 bg-white p-2 shadow-sm"
+									data-alt-editor
+								>
+									<textarea
 										value={m.altText || ''}
 										data-testid="media-alt-{m.id}"
+										id="media-alt-{m.id}"
+										rows="2"
+										maxlength={MAX_ALT_LENGTH}
 										readonly={editLocked}
 										oninput={(e) => updateMediaAlt(m.id, e.currentTarget.value)}
-										placeholder={isVideoItem(m) ? 'Describe this video…' : 'Describe this image…'}
-										aria-label={`Alt text for ${isVideoItem(m) ? 'video' : 'image'} ${index + 1}`}
-										class="w-full rounded-lg border border-stone-200 bg-stone-50 px-2 py-1 text-[11px] font-medium text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
-									/>
-									<div class="mt-1 flex justify-end">
+										onkeydown={(e) => {
+											if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) {
+												e.preventDefault();
+												closeAlt(m.id);
+											}
+										}}
+										placeholder={kind === 'video' ? 'Describe this video…' : 'Describe this image…'}
+										aria-label={`Alt text for ${kind} ${index + 1}`}
+										aria-describedby="media-alt-count-{m.id}"
+										class="block field-sizing-content max-h-48 min-h-12 w-full resize-none rounded-lg border border-stone-200 bg-stone-50 px-2 py-1 text-[12px] leading-snug font-medium text-stone-900 focus:border-stone-400 focus:bg-white focus:outline-none pointer-coarse:text-base"
+									></textarea>
+									<div class="mt-1 flex items-start justify-between gap-3">
+										<p
+											id="media-alt-count-{m.id}"
+											data-testid="media-alt-count-{m.id}"
+											class="text-[11px] font-semibold tabular-nums {altLimit !== null &&
+											altLength > altLimit
+												? 'text-amber-700'
+												: 'text-stone-400'}"
+										>
+											{altLength.toLocaleString('en-US')} / {MAX_ALT_LENGTH.toLocaleString('en-US')}
+											{#if cutNote}<span class="font-bold"> · {cutNote}</span>{/if}
+										</p>
 										<button
 											type="button"
 											data-testid="alt-done-{m.id}"
-											onclick={() => toggleAlt(m.id)}
-											class="text-[11px] font-bold text-stone-900 hover:underline">Done</button
+											onclick={() => closeAlt(m.id)}
+											class="shrink-0 text-[11px] font-bold text-stone-900 hover:underline"
+											>Done</button
 										>
 									</div>
 								</div>
@@ -4236,8 +4324,25 @@
 				>
 					{publishBlocker}
 				</p>
+			{:else if altWarning}
+				<p
+					data-testid="alt-warning"
+					class="mx-auto mb-2 flex w-fit max-w-full items-center gap-2 rounded-full border border-stone-200 bg-white/95 py-1 pr-1 pl-3 text-[12px] font-bold text-stone-700 shadow-sm backdrop-blur"
+				>
+					<span class="h-2 w-2 shrink-0 rounded-full bg-amber-400" aria-hidden="true"></span>
+					<span class="min-w-0">{altWarning}</span>
+					<button
+						type="button"
+						data-testid="alt-warning-add"
+						onclick={() => openAlt(altMissing[0].id)}
+						class="pointer-events-auto relative shrink-0 rounded-full bg-stone-900 px-2.5 py-0.5 text-[11px] font-bold text-white hover:bg-stone-700 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
+					>
+						Add alt text
+					</button>
+				</p>
 			{/if}
 			<p class="sr-only" aria-live="polite">{blockerAnnouncement}</p>
+			<p class="sr-only" aria-live="polite">{altAnnouncement}</p>
 			<div class="flex items-center justify-center gap-4">
 				<!-- Left side: Account Selector -->
 				<div class="accounts-popover-container pointer-events-auto relative flex items-center">
