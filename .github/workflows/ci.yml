@@ -174,10 +174,10 @@ jobs:
         # grows well past the others. If Playwright stops reading it, the split
         # falls back to equal counts: slower, but every spec still runs.
         include:
-          - { suite: main-1, script: 'test:e2e -- --shard=1/4', weights: '4:3:3:6' }
-          - { suite: main-2, script: 'test:e2e -- --shard=2/4', weights: '4:3:3:6' }
-          - { suite: main-3, script: 'test:e2e -- --shard=3/4', weights: '4:3:3:6' }
-          - { suite: main-4, script: 'test:e2e -- --shard=4/4', weights: '4:3:3:6' }
+          - { suite: main-1, script: 'test:e2e -- --shard=1/4', weights: '48:37:29:43' }
+          - { suite: main-2, script: 'test:e2e -- --shard=2/4', weights: '48:37:29:43' }
+          - { suite: main-3, script: 'test:e2e -- --shard=3/4', weights: '48:37:29:43' }
+          - { suite: main-4, script: 'test:e2e -- --shard=4/4', weights: '48:37:29:43' }
           - { suite: totp, script: 'test:e2e:totp' }
     steps:
       - uses: actions/checkout@v7
