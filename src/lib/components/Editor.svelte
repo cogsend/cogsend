@@ -149,6 +149,7 @@
 	} from '#lib/domain/published-lock.js';
 	import { selectionDrift, summarizePost, type TargetSnapshot } from '#lib/domain/post-state.js';
 	import { isZernioConnection } from '#lib/domain/zernio.js';
+	import { uploadWithProgress } from './upload-progress';
 	import {
 		MAX_ALT_LENGTH,
 		altCutNote,
@@ -947,11 +948,15 @@
 		videoJobs = [];
 	}
 
-	onDestroy(abortVideoJobs);
+	onDestroy(() => {
+		abortVideoJobs();
+		dropAllPendingUploads();
+	});
 
 	function resetEditorForNewDraft() {
 		editorGeneration++;
 		abortVideoJobs();
+		dropAllPendingUploads();
 		draftId = null;
 		baseBody = '';
 		overrides = {};
@@ -1055,6 +1060,7 @@
 			if (draftId !== d.id) {
 				editorGeneration++;
 				abortVideoJobs();
+				dropAllPendingUploads();
 			}
 			draftId = d.id;
 			const locked = isFullyPublished(d.targets || []);
@@ -2153,8 +2159,9 @@
 		// Shrink to Bluesky's cap, the strictest one, whatever is selected now:
 		// the file is stored once and may be published anywhere later.
 		uploadingSegment = segmentIndex;
-		const count = Math.min(room, picked.length);
-		uploadingLabel = count === 1 ? 'Uploading 1 image…' : `Uploading ${count} images…`;
+		uploadingLabel = '';
+		const generation = editorGeneration;
+		const tiles = picked.slice(0, room).map((file) => addPendingUpload(segmentIndex, file));
 		const images: File[] = [];
 		try {
 			for (const f of picked.slice(0, room)) {
@@ -2162,6 +2169,7 @@
 			}
 		} catch {
 			uploadingSegment = null;
+			for (const key of tiles) dropPendingUpload(key);
 			showToast('Could not read that image — try another file', 'error');
 			runQueuedUpload();
 			return;
@@ -2208,52 +2216,113 @@
 			advisories.push("An image is over X's 5MB cap (15MB for GIFs) — compress it or uncheck X.");
 		}
 		if (advisories.length) showToast(advisories[0], 'warn');
-		uploadingSegment = segmentIndex;
-		const generation = editorGeneration;
+		const attached: MediaItem[] = [];
+		const failed: string[] = [];
 		try {
 			const id = await persistAll(true);
 			if (!id) throw new Error(UPLOAD_SAVE_FAILED);
-			const form = new FormData();
-			form.set('segmentIndex', String(segmentIndex));
+			// One request per image, so each tile can show its own progress and a
+			// failure costs only that image.
 			for (const [n, f] of images.entries()) {
-				form.append('files', f);
-				const { preview, jpeg, thumb } = await makeImageCopies(f);
-				if (preview) form.append(`preview-${n}`, preview, 'preview.jpg');
-				if (jpeg) form.append(`jpeg-${n}`, jpeg, 'copy.jpg');
-				if (thumb) form.append(`thumb-${n}`, thumb, 'thumb.jpg');
+				if (generation !== editorGeneration) return;
+				const key = tiles[n];
+				try {
+					const form = new FormData();
+					form.set('segmentIndex', String(segmentIndex));
+					form.append('files', f);
+					const { preview, jpeg, thumb } = await makeImageCopies(f);
+					if (preview) form.append('preview-0', preview, 'preview.jpg');
+					if (jpeg) form.append('jpeg-0', jpeg, 'copy.jpg');
+					if (thumb) form.append('thumb-0', thumb, 'thumb.jpg');
+					const res = await uploadWithProgress(`/api/drafts/${id}/media`, form, (fraction) =>
+						updatePendingUpload(key, { fraction })
+					);
+					if (!res.ok) {
+						throw new Error(typeof res.data.error === 'string' ? res.data.error : 'Upload failed');
+					}
+					const data = res.data;
+					const items: MediaItem[] = Array.isArray(data.items)
+						? data.items
+						: data.media
+							? Array.isArray(data.media)
+								? data.media
+								: [data.media as MediaItem]
+							: [];
+					// Left for another post mid-upload: the images belong to the one
+					// they were sent with, which keeps them.
+					if (generation !== editorGeneration) return;
+					dropPendingUpload(key);
+					const added = items.map((it) => ({
+						...it,
+						segmentIndex: it.segmentIndex ?? segmentIndex
+					}));
+					attached.push(...added);
+					media = [...media, ...added];
+				} catch (e) {
+					const message = humanizeError(e instanceof Error ? e.message : 'Upload failed');
+					failed.push(message);
+					updatePendingUpload(key, { error: message });
+				}
 			}
-			const res = await fetch(`/api/drafts/${id}/media`, { method: 'POST', body: form });
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error || 'Upload failed');
-			const items: MediaItem[] = Array.isArray(data.items)
-				? data.items
-				: data.media
-					? Array.isArray(data.media)
-						? data.media
-						: [data.media]
-					: [];
-			// Left for another post mid-upload: the images belong to the one
-			// they were sent with, which keeps them.
-			if (generation !== editorGeneration) return;
-			media = [
-				...media,
-				...items.map((it) => ({ ...it, segmentIndex: it.segmentIndex ?? segmentIndex }))
-			];
-			const attached = items.length === 1 ? 'Image attached' : `${items.length} images attached`;
-			if (leftOut) {
+			const done = attached.length === 1 ? 'Image attached' : `${attached.length} images attached`;
+			if (failed.length && !attached.length) {
 				showToast(
-					`${attached} · ${leftOut} left out, a post takes ${MAX_IMAGES_PER_SEGMENT}`,
-					'warn'
+					failed.length === 1 ? failed[0] : `${failed.length} images did not upload`,
+					'error'
 				);
+			} else if (failed.length) {
+				showToast(`${done} · ${failed.length} did not upload`, 'warn');
+			} else if (leftOut) {
+				showToast(`${done} · ${leftOut} left out, a post takes ${MAX_IMAGES_PER_SEGMENT}`, 'warn');
 			} else {
-				showToast(attached, 'success');
+				showToast(done, 'success');
 			}
 		} catch (e) {
-			showToast(humanizeError(e instanceof Error ? e.message : 'Upload failed'), 'error');
+			const message = humanizeError(e instanceof Error ? e.message : 'Upload failed');
+			for (const key of tiles) updatePendingUpload(key, { error: message });
+			showToast(message, 'error');
 		} finally {
 			uploadingSegment = null;
 			runQueuedUpload();
 		}
+	}
+
+	type PendingUpload = {
+		key: string;
+		segmentIndex: number;
+		file: File;
+		preview: string;
+		fraction: number;
+		error: string | null;
+	};
+	// Images on their way up, each shown on its card until it lands or fails.
+	let pendingUploads = $state<PendingUpload[]>([]);
+	let pendingUploadSeq = 0;
+	function addPendingUpload(segmentIndex: number, file: File): string {
+		const key = `upload-${++pendingUploadSeq}`;
+		pendingUploads = [
+			...pendingUploads,
+			{ key, segmentIndex, file, preview: URL.createObjectURL(file), fraction: 0, error: null }
+		];
+		return key;
+	}
+	function updatePendingUpload(key: string, patch: Partial<PendingUpload>) {
+		pendingUploads = pendingUploads.map((u) => (u.key === key ? { ...u, ...patch } : u));
+	}
+	function dropPendingUpload(key: string) {
+		const tile = pendingUploads.find((u) => u.key === key);
+		if (tile) URL.revokeObjectURL(tile.preview);
+		pendingUploads = pendingUploads.filter((u) => u.key !== key);
+	}
+	function dropAllPendingUploads() {
+		for (const u of pendingUploads) URL.revokeObjectURL(u.preview);
+		pendingUploads = [];
+	}
+	function retryUpload(key: string) {
+		const tile = pendingUploads.find((u) => u.key === key);
+		if (!tile) return;
+		dropPendingUpload(key);
+		void attachFilesToSegment(tile.segmentIndex, [tile.file]);
 	}
 
 	function updateVideoJob(id: string, patch: Partial<VideoJob>) {
@@ -2967,6 +3036,10 @@
 		uploadQueue = uploadQueue
 			.filter((q) => q.segmentIndex !== index)
 			.map((q) => (q.segmentIndex > index ? { ...q, segmentIndex: q.segmentIndex - 1 } : q));
+		for (const u of pendingUploads) if (u.segmentIndex === index) URL.revokeObjectURL(u.preview);
+		pendingUploads = pendingUploads
+			.filter((u) => u.segmentIndex !== index)
+			.map((u) => (u.segmentIndex > index ? { ...u, segmentIndex: u.segmentIndex - 1 } : u));
 		revealTrailing = null;
 		setActiveBody(joinThreadSegments(removeSegment(segments, index)));
 		focusedSegment = Math.max(0, Math.min(index, segments.length - 2));
@@ -4003,6 +4076,64 @@
 									{/snippet}
 								</MediaPreview>
 							</div>
+						{/if}
+
+						{#if pendingUploads.some((u) => u.segmentIndex === index)}
+							<ul class="mt-3 grid grid-cols-4 gap-2" data-testid="upload-tiles-{index}">
+								{#each pendingUploads.filter((u) => u.segmentIndex === index) as u (u.key)}
+									<li
+										class="relative aspect-square overflow-hidden rounded-xl border border-stone-200 bg-stone-100"
+										data-testid="upload-file"
+										title={u.error ?? `Uploading ${u.file.name}`}
+									>
+										<img
+											src={u.preview}
+											alt=""
+											class="h-full w-full object-cover {u.error ? 'opacity-25' : 'opacity-60'}"
+										/>
+										{#if u.error}
+											<div
+												class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-1.5 text-center"
+												role="alert"
+											>
+												<span class="line-clamp-2 text-[11px] leading-tight font-bold text-red-700"
+													>Couldn't upload {u.file.name}</span
+												>
+												<span class="flex gap-1">
+													<button
+														type="button"
+														data-testid="upload-retry"
+														onclick={() => retryUpload(u.key)}
+														class="relative rounded-full bg-stone-900 px-2 py-0.5 text-[11px] font-bold text-white hover:bg-stone-700 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
+														>Retry</button
+													>
+													<button
+														type="button"
+														data-testid="upload-dismiss"
+														onclick={() => dropPendingUpload(u.key)}
+														class="relative rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-stone-700 ring-1 ring-stone-200 hover:bg-stone-50 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
+														>Remove</button
+													>
+												</span>
+											</div>
+										{:else}
+											<div
+												class="absolute inset-x-2 bottom-2 h-1.5 overflow-hidden rounded-full bg-white/80 shadow-sm"
+												role="progressbar"
+												aria-label={`Uploading ${u.file.name}`}
+												aria-valuemin={0}
+												aria-valuemax={100}
+												aria-valuenow={Math.round(u.fraction * 100)}
+											>
+												<div
+													class="h-full rounded-full bg-stone-900 transition-[width] duration-200"
+													style="width: {Math.max(4, Math.round(u.fraction * 100))}%"
+												></div>
+											</div>
+										{/if}
+									</li>
+								{/each}
+							</ul>
 						{/if}
 
 						{#if uploadingSegment === index && uploadingLabel}
