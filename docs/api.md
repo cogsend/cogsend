@@ -50,7 +50,7 @@ A failed request answers a JSON object with an `error` property.
 - `PUT /api/drafts/:id/variants`: `{"platform", "body?", "options?"}` sets one platform's copy. For `threads`, `options.topicTag` sets the post's topic tag: up to 50 characters, without `.` or `&`. `options` replaces what was stored, so send everything you want kept.
 - `DELETE /api/drafts/:id/variants?platform=`: remove that copy.
 - `POST /api/drafts/:id/media`: upload files, see [Media](#media).
-- `PATCH /api/drafts/:id/media`: `{"mediaId", "altText?", "segmentIndex?"}` changes an attachment.
+- `PATCH /api/drafts/:id/media`: `{"mediaId", "altText?", "segmentIndex?"}` changes an attachment. Alt text keeps up to 1,500 characters here and wherever `altText` is sent; anything longer is cut.
 - `DELETE /api/drafts/:id/media?mediaId=`: remove an attachment.
 - `POST /api/drafts/:id/media/reuse`: attach a file another draft already uses, see [Media](#media).
 - `POST /api/drafts/:id/duplicate`: copy a draft, media included, into a new draft. The copy's attachments point at the same stored files, which are deleted only with the last draft that uses them.
