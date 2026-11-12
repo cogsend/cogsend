@@ -92,7 +92,7 @@
 		"esbuild@0.28.2": true,
 		"fsevents@2.3.2": true,
 		"fsevents@2.3.3": true,
-		"workerd@1.20261104.1": true
+		"workerd@1.20261110.1": true
 	},
 	"overrides": {
 		"sharp": "^0.35.5"
