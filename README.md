@@ -34,7 +34,7 @@
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square"></a>
 </p>
 
-https://github.com/user-attachments/assets/d704f9fa-5c0e-429a-90ab-bbab4c341d85
+https://github.com/user-attachments/assets/5350020b-2cfb-474b-bf75-ef50bcdbf4ab
 
 <p align="center"><strong>Supported by <a href="https://zernio.link/cogsend?utm_source=cogsend&utm_medium=sponsorship&utm_campaign=cogsend-integration&utm_content=readme-sponsor">Zernio</a></strong>, which lets you connect X, Threads, Instagram, LinkedIn and Bluesky <a href="docs/zernio.md">without your own developer apps</a>.</p>
 
