@@ -1,6 +1,5 @@
 import type { PlatformId } from './platforms';
 import { platformName } from './platforms';
-import { plural } from './plural';
 
 /** What CogSend stores; the server cuts anything longer. */
 export const MAX_ALT_LENGTH = 1500;
@@ -71,46 +70,4 @@ export function altLimitFor(kind: AltKind, destinations: AltDestination[]): numb
 		least = least === null ? limit : Math.min(least, limit);
 	}
 	return least;
-}
-
-export type AltItem = { id: string; kind: AltKind; altText: string | null; segmentIndex: number };
-export type MissingAlt = AltItem & { position: number };
-
-/**
- * Media without a description that at least one account would have shown one
- * for, in the order of the posts and of the files in each. `position` counts
- * from 1 within its post.
- */
-export function missingAlt(items: AltItem[], destinations: AltDestination[]): MissingAlt[] {
-	const missing: MissingAlt[] = [];
-	const seen = new Map<number, number>();
-	const ordered = items
-		.map((item, at) => ({ item, at }))
-		.sort((a, b) => a.item.segmentIndex - b.item.segmentIndex || a.at - b.at);
-	for (const { item } of ordered) {
-		const position = (seen.get(item.segmentIndex) ?? 0) + 1;
-		seen.set(item.segmentIndex, position);
-		if ((item.altText ?? '').trim()) continue;
-		if (!destinations.some((d) => altReaches(d, item.kind))) continue;
-		missing.push({ ...item, position });
-	}
-	return missing;
-}
-
-/** "Image 2 in post 1 has no alt text", or a count when there are several. */
-export function missingAltMessage(missing: MissingAlt[], posts: number): string | null {
-	if (!missing.length) return null;
-	if (missing.length === 1) {
-		const [m] = missing;
-		const name = `${m.kind === 'video' ? 'The video' : `Image ${m.position}`}`;
-		const where = posts > 1 ? ` in post ${m.segmentIndex + 1}` : '';
-		return `${name}${where} has no alt text`;
-	}
-	const images = missing.filter((m) => m.kind === 'image').length;
-	const videos = missing.length - images;
-	const parts = [
-		images ? plural(images, 'image', 'images') : '',
-		videos ? plural(videos, 'video', 'videos') : ''
-	].filter(Boolean);
-	return `${parts.join(' and ')} have no alt text`;
 }

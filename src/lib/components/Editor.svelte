@@ -150,13 +150,7 @@
 	import { selectionDrift, summarizePost, type TargetSnapshot } from '#lib/domain/post-state.js';
 	import { isZernioConnection } from '#lib/domain/zernio.js';
 	import { uploadWithProgress } from './upload-progress';
-	import {
-		MAX_ALT_LENGTH,
-		altCutNote,
-		altLimitFor,
-		missingAlt,
-		missingAltMessage
-	} from '#lib/domain/alt-text.js';
+	import { MAX_ALT_LENGTH, altCutNote, altLimitFor } from '#lib/domain/alt-text.js';
 	import { setPostsNotice } from '#lib/components/posts-notice.js';
 	import { cancelWaitingExcept, handOff } from '#lib/components/publish-tracker.svelte.js';
 	import { showToast } from '#lib/components/toast.svelte.js';
@@ -534,10 +528,7 @@
 	const selectedPlatforms = $derived(
 		new Set(connections.filter((c) => selected.has(c.id)).map((c) => c.platform))
 	);
-	// Platforms with a selected account CogSend posts to itself; Zernio takes
-	// the file as it is and applies its own rules.
-	// Who would read an image's description, for the alt text count and the
-	// missing-alt line.
+	// Who would read an image's description, for the alt text count.
 	const altDestinations = $derived(
 		connections
 			.filter((c) => selected.has(c.id))
@@ -546,6 +537,8 @@
 				viaZernio: isZernioConnection(c.metaJson)
 			}))
 	);
+	// Platforms with a selected account CogSend posts to itself; Zernio takes
+	// the file as it is and applies its own rules.
 	const directPlatforms = $derived(
 		new Set(
 			connections
@@ -1475,30 +1468,6 @@
 		const ids = [...selected];
 		if (!ids.length) return null;
 		return unconnectedProblem(ids) ?? firstPublishProblem(ids);
-	});
-	// Media nobody described, where an account would have shown a description.
-	// It never stops a post: the line says so and offers the field.
-	const altMissing = $derived.by(() => {
-		if (editLocked || loadFailedId || (!draftId && !baseBody.trim())) return [];
-		return missingAlt(
-			media.map((m) => ({
-				id: m.id,
-				kind: isVideoItem(m) ? ('video' as const) : ('image' as const),
-				altText: m.altText ?? null,
-				segmentIndex: m.segmentIndex ?? 0
-			})),
-			altDestinations
-		);
-	});
-	const altWarning = $derived(missingAltMessage(altMissing, segments.length));
-	// Said once when the first one appears, not again for each file after it.
-	let altAnnouncement = $state('');
-	let altWarned = false;
-	$effect(() => {
-		const showing = altWarning !== null && !publishBlocker;
-		if (showing && !altWarned) altAnnouncement = altWarning ?? '';
-		if (!showing) altAnnouncement = '';
-		altWarned = showing;
 	});
 	// Read out once per kind of problem, not on every keystroke that changes
 	// how far over the limit a post is.
@@ -2794,7 +2763,9 @@
 	}
 
 	function toggleAlt(id: string) {
-		altOpen = { ...altOpen, [id]: !altOpen[id] };
+		const opening = !altOpen[id];
+		altOpen = { ...altOpen, [id]: opening };
+		if (opening) void tick().then(() => document.getElementById(`media-alt-${id}`)?.focus());
 	}
 	/** Closes the field and hands focus back to its ALT button. */
 	function closeAlt(id: string) {
@@ -2802,15 +2773,6 @@
 		void tick().then(() =>
 			document.querySelector<HTMLElement>(`[data-testid="alt-toggle-${id}"]`)?.focus()
 		);
-	}
-	/** Opens the field for this file and puts the cursor in it. */
-	function openAlt(id: string) {
-		altOpen = { ...altOpen, [id]: true };
-		void tick().then(() => {
-			const field = document.getElementById(`media-alt-${id}`);
-			field?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-			field?.focus({ preventScroll: true });
-		});
 	}
 
 	function handleSegmentInput(i: number, e: Event) {
@@ -4455,25 +4417,8 @@
 				>
 					{publishBlocker}
 				</p>
-			{:else if altWarning}
-				<p
-					data-testid="alt-warning"
-					class="mx-auto mb-2 flex w-fit max-w-full items-center gap-2 rounded-full border border-stone-200 bg-white/95 py-1 pr-1 pl-3 text-[12px] font-bold text-stone-700 shadow-sm backdrop-blur"
-				>
-					<span class="h-2 w-2 shrink-0 rounded-full bg-amber-400" aria-hidden="true"></span>
-					<span class="min-w-0">{altWarning}</span>
-					<button
-						type="button"
-						data-testid="alt-warning-add"
-						onclick={() => openAlt(altMissing[0].id)}
-						class="pointer-events-auto relative shrink-0 rounded-full bg-stone-900 px-2.5 py-0.5 text-[11px] font-bold text-white hover:bg-stone-700 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
-					>
-						Add alt text
-					</button>
-				</p>
 			{/if}
 			<p class="sr-only" aria-live="polite">{blockerAnnouncement}</p>
-			<p class="sr-only" aria-live="polite">{altAnnouncement}</p>
 			<div class="flex items-center justify-center gap-4">
 				<!-- Left side: Account Selector -->
 				<div class="accounts-popover-container pointer-events-auto relative flex items-center">

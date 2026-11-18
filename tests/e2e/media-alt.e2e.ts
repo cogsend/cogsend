@@ -4,8 +4,7 @@ import { d1, waitForLiveComposer } from './e2e-env';
 
 /**
  * Alt text and image uploads in the composer: the description field counts
- * and stops where the server would cut, a post with undescribed images says
- * so without being held back, and each image shows its own upload. Accounts
+ * and stops where the server would cut, and each image shows its own upload. Accounts
  * are seeded and never contacted; publishing is refused at the network.
  */
 
@@ -74,12 +73,7 @@ test('the alt text field counts, stops where the server would cut, and says what
 	await expect.poll(async () => (await media()).length, { timeout: 30000 }).toBe(1);
 	const [image] = await media();
 
-	// Undescribed: said above Publish, which it does not block.
-	const warning = page.getByTestId('alt-warning');
-	await expect(warning).toContainText('Image 1 has no alt text');
-	await expect(page.getByTestId('publish-blocker')).toHaveCount(0);
-
-	await warning.getByRole('button', { name: 'Add alt text' }).click();
+	await page.getByTestId(`alt-toggle-${image.id}`).click();
 	const field = page.getByTestId(`media-alt-${image.id}`);
 	await expect(field).toBeFocused();
 	const count = page.getByTestId(`media-alt-count-${image.id}`);
@@ -87,7 +81,6 @@ test('the alt text field counts, stops where the server would cut, and says what
 
 	await page.keyboard.insertText('a'.repeat(1200));
 	await expect(count).toHaveText('1,200 / 1,500 · X keeps the first 1,000 characters');
-	await expect(warning).toHaveCount(0);
 
 	// Typing past the cap stops at it, so nothing is cut without being seen.
 	await page.keyboard.insertText('b'.repeat(400));
@@ -102,17 +95,6 @@ test('the alt text field counts, stops where the server would cut, and says what
 	await page.waitForTimeout(300);
 	await expect(page.getByTestId('publish-confirm-destinations')).toHaveCount(0);
 	expect(sent).toEqual([]);
-});
-
-test('images without alt text are counted above Publish and do not stop it', async ({ page }) => {
-	const { media } = await openDraft(page);
-	await page.getByTestId('file-input-0').setInputFiles([dot(1), dot(2)]);
-	await expect.poll(async () => (await media()).length, { timeout: 30000 }).toBe(2);
-	await expect(page.getByTestId('alt-warning')).toContainText('2 images have no alt text');
-
-	await page.getByTestId('publish-now').click();
-	await expect(page.getByTestId('publish-confirm-destinations')).toBeVisible();
-	await page.keyboard.press('Escape');
 });
 
 test('each image shows its own upload, and one that fails can be tried again', async ({ page }) => {

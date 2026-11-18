@@ -5,10 +5,7 @@ import {
 	altCutNote,
 	altLimitFor,
 	altReaches,
-	missingAlt,
-	missingAltMessage,
-	type AltDestination,
-	type AltItem
+	type AltDestination
 } from '#lib/domain/alt-text.js';
 import { cleanAltText } from '#lib/server/draft-media.js';
 
@@ -60,39 +57,5 @@ describe('the count note', () => {
 		expect(altLimitFor('image', [direct('instagram'), direct('bluesky')])).toBe(
 			ALT_LIMITS.instagram
 		);
-	});
-});
-
-describe('media without alt text', () => {
-	const items: AltItem[] = [
-		{ id: 'b', kind: 'image', altText: 'A dog', segmentIndex: 1 },
-		{ id: 'a', kind: 'image', altText: null, segmentIndex: 0 },
-		{ id: 'c', kind: 'image', altText: '  ', segmentIndex: 1 },
-		{ id: 'v', kind: 'video', altText: '', segmentIndex: 2 }
-	];
-
-	it('lists them in post order, counted within each post', () => {
-		const missing = missingAlt(items, [direct('mastodon')]);
-		expect(missing.map((m) => [m.id, m.position])).toEqual([
-			['a', 1],
-			['c', 2],
-			['v', 1]
-		]);
-		expect(missingAltMessage(missing, 3)).toBe('2 images and 1 video have no alt text');
-	});
-
-	it('skips media no checked account would describe', () => {
-		expect(missingAlt(items, [direct('threads')]).map((m) => m.id)).toEqual(['v']);
-		expect(missingAlt(items, [direct('instagram')]).map((m) => m.id)).toEqual(['a', 'c']);
-		expect(missingAlt(items, [])).toEqual([]);
-	});
-
-	it('names a single one by where it is', () => {
-		const one = missingAlt([items[2]], [direct('x')]);
-		expect(missingAltMessage(one, 2)).toBe('Image 1 in post 2 has no alt text');
-		expect(missingAltMessage(one, 1)).toBe('Image 1 has no alt text');
-		const video = missingAlt([items[3]], [direct('x')]);
-		expect(missingAltMessage(video, 3)).toBe('The video in post 3 has no alt text');
-		expect(missingAltMessage([], 1)).toBeNull();
 	});
 });
