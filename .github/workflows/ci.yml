@@ -101,6 +101,13 @@ jobs:
         # document instead of advisory data, which otherwise turns every push
         # red while npm is down. That warns and passes; anything carrying
         # advisory data still fails.
+        #
+        # IGNORED lists advisories with no fixed release that reach only build
+        # and test tooling, never the Worker bundle. Drop an entry once upstream
+        # ships a fix. GHSA-fc5q-39xc-vjpf: picomatch <=4.0.7, via vite, vitest
+        # and eslint.
+        env:
+          IGNORED: GHSA-fc5q-39xc-vjpf
         run: |
           set +e
           report=$(npm audit --json 2>/dev/null)
@@ -122,13 +129,22 @@ jobs:
                 console.log("unavailable:" + String(reason).split("\n")[0].slice(0, 160));
                 return;
               }
-              const high = (counts.high ?? 0) + (counts.critical ?? 0);
-              console.log(high > 0 ? `vulnerable:${high}` : "clean");
+              const ignored = new Set((process.env.IGNORED ?? "").split(/\s+/).filter(Boolean));
+              const found = new Set();
+              for (const pkg of Object.values(data.vulnerabilities ?? {})) {
+                for (const via of pkg.via ?? []) {
+                  if (typeof via !== "object") continue;
+                  if (via.severity !== "high" && via.severity !== "critical") continue;
+                  const id = String(via.url ?? "").split("/").pop();
+                  if (!ignored.has(id)) found.add(id || via.title);
+                }
+              }
+              console.log(found.size > 0 ? `vulnerable:${[...found].join(" ")}` : "clean");
             });
           ')
           case "$verdict" in
             clean)
-              echo "No high or critical advisories."
+              echo "No high or critical advisories outside IGNORED ($IGNORED)."
               ;;
             unavailable:*)
               echo "::warning::npm audit could not run (${verdict#unavailable:}); skipping"
@@ -137,7 +153,7 @@ jobs:
               ;;
             *)
               npm audit --audit-level=high || true
-              echo "::error::${verdict#vulnerable:} high or critical advisories"
+              echo "::error::high or critical advisories: ${verdict#vulnerable:}"
               exit 1
               ;;
           esac
