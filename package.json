@@ -56,8 +56,8 @@
 		"@libsql/client": "^0.18.0",
 		"@modelcontextprotocol/client": "^2.0.0",
 		"@playwright/test": "^1.63.0",
-		"@sveltejs/adapter-cloudflare": "^8.0.0",
-		"@sveltejs/kit": "^3.0.1",
+		"@sveltejs/adapter-cloudflare": "^8.0.2",
+		"@sveltejs/kit": "^3.2.0",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"@tailwindcss/vite": "^4.3.0",
 		"@types/node": "^26",
@@ -67,7 +67,7 @@
 		"eslint-plugin-svelte": "^3.19.0",
 		"globals": "^17.12.0",
 		"prettier": "^3.8.3",
-		"prettier-plugin-svelte": "^4.1.0",
+		"prettier-plugin-svelte": "^4.1.1",
 		"prettier-plugin-tailwindcss": "^0.8.0",
 		"svelte": "^5.57.1",
 		"svelte-check": "^4.7.5",
@@ -76,7 +76,7 @@
 		"typescript-eslint": "^8.70.0",
 		"vite": "^8.3.0",
 		"vitest": "^5.0.0",
-		"wrangler": "^4.131.2"
+		"wrangler": "^4.163.0"
 	},
 	"dependencies": {
 		"@lucide/svelte": "^1.45.0",
@@ -92,7 +92,7 @@
 		"esbuild@0.28.2": true,
 		"fsevents@2.3.2": true,
 		"fsevents@2.3.3": true,
-		"workerd@1.20261110.1": true
+		"workerd@1.20261116.1": true
 	},
 	"overrides": {
 		"sharp": "^0.35.5"
