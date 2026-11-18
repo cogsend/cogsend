@@ -23,7 +23,7 @@ describe('where alt text goes', () => {
 		expect(altReaches(direct('mastodon'), 'image')).toBe(true);
 		expect(altReaches(direct('bluesky'), 'video')).toBe(true);
 		expect(altReaches(direct('x'), 'video')).toBe(true);
-		expect(altReaches(direct('threads'), 'image')).toBe(false);
+		expect(altReaches(direct('threads'), 'image')).toBe(true);
 		expect(altReaches(direct('threads'), 'video')).toBe(true);
 		expect(altReaches(direct('linkedin'), 'image')).toBe(true);
 		expect(altReaches(direct('linkedin'), 'video')).toBe(false);
@@ -46,6 +46,9 @@ describe('the count note', () => {
 		expect(altCutNote(1000, 'image', to)).toBeNull();
 		expect(altCutNote(1001, 'image', to)).toBe('X and Instagram keep the first 1,000 characters');
 		expect(altCutNote(1001, 'image', [direct('x')])).toBe('X keeps the first 1,000 characters');
+		expect(altCutNote(1001, 'image', [direct('x'), direct('threads')])).toBe(
+			'X and Threads keep the first 1,000 characters'
+		);
 	});
 
 	it('leaves out a platform the description never reaches', () => {

@@ -30,6 +30,7 @@ import type {
 } from './types';
 import { providerFetch } from './timed-fetch';
 import { THREADS_MAX_IMAGE_BYTES } from '#lib/domain/media-limits.js';
+import { ALT_LIMITS } from '#lib/domain/alt-text.js';
 
 export const THREADS_MAX_CHARS = 500;
 // Carousel children cap at 20 in the API; the apps allow 10 — match the apps.
@@ -89,6 +90,12 @@ const PERMALINK_ATTEMPTS = 3;
 const PERMALINK_RETRY_DELAYS_MS = [400, 1200];
 /** Meta's own transient failures, whatever HTTP status they arrive with. */
 const META_TRANSIENT_CODES = [1, 2];
+
+/** The `alt_text` param for one file, cut to what Threads keeps. */
+function altParam(m: { alt?: string | null }): Record<string, string> {
+	const alt = m.alt?.trim();
+	return alt ? { alt_text: alt.slice(0, ALT_LIMITS.threads) } : {};
+}
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((r) => setTimeout(r, ms));
@@ -682,7 +689,8 @@ export const threadsProvider: PlatformProvider = {
 						ids[i] = await createContainer({
 							media_type: 'IMAGE',
 							image_url: await opts.mediaUrlFor(m.storageKey),
-							is_carousel_item: 'true'
+							is_carousel_item: 'true',
+							...altParam(m)
 						});
 						retryNextRound = true;
 						continue;
@@ -752,18 +760,20 @@ export const threadsProvider: PlatformProvider = {
 				const params: Record<string, string> = {
 					media_type: 'IMAGE',
 					image_url: urls[0],
+					...altParam(media[0]),
 					...postParams
 				};
 				if (text) params.text = text;
 				return createContainer(params);
 			}
 			const children: string[] = [];
-			for (const imageUrl of urls) {
+			for (const [i, imageUrl] of urls.entries()) {
 				children.push(
 					await createContainer({
 						media_type: 'IMAGE',
 						image_url: imageUrl,
-						is_carousel_item: 'true'
+						is_carousel_item: 'true',
+						...altParam(media[i])
 					})
 				);
 			}
@@ -805,7 +815,7 @@ export const threadsProvider: PlatformProvider = {
 					...postParams
 				};
 				if (text) params.text = text;
-				if (video.alt) params.alt_text = video.alt;
+				Object.assign(params, altParam(video));
 				containerId = await createContainer(params);
 			}
 			const id = containerId;

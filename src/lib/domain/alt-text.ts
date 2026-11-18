@@ -9,7 +9,7 @@ export const MAX_ALT_LENGTH = 1500;
  * the composer can say so before it happens. Mastodon's default is the stored
  * cap itself, and LinkedIn's (4,086) is never reached.
  */
-export const ALT_LIMITS = { x: 1000, instagram: 1000 } as const;
+export const ALT_LIMITS = { x: 1000, instagram: 1000, threads: 1000 } as const;
 
 function limitOf(platform: PlatformId): number | undefined {
 	return (ALT_LIMITS as Partial<Record<PlatformId, number>>)[platform];
@@ -22,14 +22,12 @@ export type AltDestination = { platform: PlatformId; viaZernio: boolean };
 
 /**
  * Whether this account's post carries the description at all, as each
- * provider sends it: Threads takes it on video only, LinkedIn and Instagram on
- * images only (not LinkedIn video or Reels). Zernio takes it on everything.
+ * provider sends it: LinkedIn and Instagram take it on images only (not
+ * LinkedIn video or Reels). Zernio takes it on everything.
  */
 export function altReaches(destination: AltDestination, kind: AltKind): boolean {
 	if (destination.viaZernio) return true;
 	switch (destination.platform) {
-		case 'threads':
-			return kind === 'video';
 		case 'linkedin':
 		case 'instagram':
 			return kind === 'image';

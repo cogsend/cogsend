@@ -809,7 +809,7 @@ describe('threadsProvider.publish', () => {
 		const result = await threadsProvider.publish(
 			{
 				text: 'look',
-				media: [{ storageKey: 'k1', mime: 'image/png', size: 100 }]
+				media: [{ storageKey: 'k1', mime: 'image/png', size: 100, alt: ' A red door ' }]
 			},
 			{ accessToken: 'tok', threadsUserId: '123' },
 			undefined,
@@ -821,6 +821,7 @@ describe('threadsProvider.publish', () => {
 		expect(bodies[0]).toContain('media_type=IMAGE');
 		expect(bodies[0]).toContain('image_url=');
 		expect(bodies[0]).toContain('text=look');
+		expect(new URLSearchParams(bodies[0]).get('alt_text')).toBe('A red door');
 	});
 
 	it('posts a carousel for multiple images after every child is FINISHED', async () => {
@@ -848,7 +849,7 @@ describe('threadsProvider.publish', () => {
 			{
 				text: 'gallery',
 				media: [
-					{ storageKey: 'k1', mime: 'image/jpeg', size: 100 },
+					{ storageKey: 'k1', mime: 'image/jpeg', size: 100, alt: 'x'.repeat(1200) },
 					{ storageKey: 'k2', mime: 'image/png', size: 100 }
 				]
 			},
@@ -858,6 +859,9 @@ describe('threadsProvider.publish', () => {
 			{ mediaUrlFor: (key: string) => `https://cdn.test/${key}` }
 		);
 		expect(result.remotePostId).toBe('car-post');
+		// Each child carries its own description, cut to what Threads keeps.
+		const alts = bodies.map((b) => new URLSearchParams(b).get('alt_text'));
+		expect(alts).toEqual(['x'.repeat(1000), null, null]);
 		expect(bodies).toHaveLength(3);
 		expect(bodies[0]).toContain('is_carousel_item=true');
 		expect(bodies[2]).toContain('media_type=CAROUSEL');
