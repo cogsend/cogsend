@@ -328,6 +328,48 @@ describe('mastodonProvider.publish', () => {
 			)
 		).rejects.toThrow(/429/);
 	});
+
+	it('sends MIME-matched filenames, labels multi-image failures, collapses HTML 503s and honors Retry-After', async () => {
+		const filenames: string[] = [];
+		let uploads = 0;
+		const masto: typeof fetch = async (_input, init) => {
+			uploads++;
+			const form = init?.body as FormData;
+			const file = form.get('file') as File;
+			filenames.push(file.name);
+			if (uploads === 1) return Response.json({ id: 'm1' });
+			return new Response(
+				'<!DOCTYPE html><html><head><title>This page is not correct - Mastodon</title></head></html>',
+				{
+					status: 503,
+					headers: { 'content-type': 'text/html; charset=utf-8', 'retry-after': '180' }
+				}
+			);
+		};
+		let caught: unknown;
+		try {
+			await mastodonProvider.publish(
+				{
+					text: 'two pics',
+					media: [
+						{ bytes: new Uint8Array([1, 2, 3]), mime: 'image/png' },
+						{ bytes: new Uint8Array([4, 5, 6]), mime: 'image/jpeg' }
+					]
+				},
+				{ accessToken: 't', instanceUrl: 'https://mastodon.test' },
+				undefined,
+				masto
+			);
+		} catch (err) {
+			caught = err;
+		}
+		expect(filenames).toEqual(['upload.png', 'upload.jpg']);
+		expect(caught).toMatchObject({
+			status: 503,
+			retryAfterMs: 180_000,
+			message: 'Mastodon media upload (image 2/2) failed (503): This page is not correct - Mastodon'
+		});
+	});
 });
 
 describe('mastodon async media processing', () => {

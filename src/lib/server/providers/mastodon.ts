@@ -2,7 +2,14 @@ import { isBlockedInstanceHost } from '#lib/domain/instance-host.js';
 import { validatePollConfig } from '#lib/domain/poll.js';
 import { mastodonCountedText, validateMastodonText } from '#lib/domain/validation/text.js';
 import { randomHex } from '#lib/domain/bytes.js';
-import { mediaByteLength, processingError, resumedVideoState } from './types';
+import {
+	mediaByteLength,
+	processingError,
+	providerErrorForStatus,
+	ProviderError,
+	PublishPartialError,
+	resumedVideoState
+} from './types';
 import {
 	fixedLengthBody,
 	isVideoAttachment,
@@ -23,7 +30,6 @@ import type {
 	PublishResult,
 	ValidationIssue
 } from './types';
-import { ProviderError, PublishPartialError } from './types';
 import { providerFetch } from './timed-fetch';
 
 function normalizeInstance(url: string, allowLocal: boolean): string {
@@ -122,15 +128,42 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const MIME_EXTENSIONS: Record<string, string> = {
+	'image/png': 'png',
+	'image/jpeg': 'jpg',
+	'image/jpg': 'jpg',
+	'image/gif': 'gif',
+	'image/webp': 'webp',
+	'image/heic': 'heic',
+	'image/avif': 'avif'
+};
+
+function filenameForMime(mime: string): string {
+	const ext = MIME_EXTENSIONS[(mime || '').split(';')[0].trim().toLowerCase()];
+	return ext ? `upload.${ext}` : 'upload';
+}
+
+async function mastodonError(prefix: string, res: Response): Promise<ProviderError> {
+	return providerErrorForStatus(prefix, res.status, await res.text(), {
+		contentType: res.headers.get('content-type'),
+		retryAfter: res.headers.get('retry-after')
+	});
+}
+
 async function uploadMedia(
 	instanceUrl: string,
 	token: string,
 	media: MediaAttachment,
-	fetchImpl: FetchLike
+	fetchImpl: FetchLike,
+	attachmentLabel?: string
 ): Promise<string> {
 	const bytes = loadMediaBytes(media);
 	const form = new FormData();
-	form.append('file', new Blob([bytes as BlobPart], { type: media.mime }), 'upload');
+	form.append(
+		'file',
+		new Blob([bytes as BlobPart], { type: media.mime }),
+		filenameForMime(media.mime)
+	);
 	if (media.alt) form.append('description', media.alt);
 	const res = await fetchImpl(`${instanceUrl}/api/v2/media`, {
 		method: 'POST',
@@ -138,12 +171,10 @@ async function uploadMedia(
 		body: form
 	});
 	if (!res.ok) {
-		throw Object.assign(
-			new Error(
-				`Mastodon media upload failed (${res.status}): ${(await res.text()).slice(0, 300)}`
-			),
-			{ status: res.status }
-		);
+		const prefix = attachmentLabel
+			? `Mastodon media upload (${attachmentLabel})`
+			: 'Mastodon media upload';
+		throw await mastodonError(prefix, res);
 	}
 	const data = (await res.json()) as { id: string };
 	if (res.status !== 202) return data.id;
@@ -175,12 +206,7 @@ export async function waitForMastodonMedia(
 		if (poll.status === 200) return;
 		if (poll.status === 206) continue;
 		if (!poll.ok) {
-			throw Object.assign(
-				new Error(
-					`Mastodon media processing failed (${poll.status}): ${(await poll.text()).slice(0, 300)}`
-				),
-				{ status: poll.status }
-			);
+			throw await mastodonError('Mastodon media processing', poll);
 		}
 		return;
 	}
@@ -269,12 +295,7 @@ async function readyVideo(
 			duplex: 'half'
 		} as RequestInit);
 		if (!res.ok) {
-			throw Object.assign(
-				new Error(
-					`Mastodon media upload failed (${res.status}): ${(await res.text()).slice(0, 300)}`
-				),
-				{ status: res.status }
-			);
+			throw await mastodonError('Mastodon media upload', res);
 		}
 		const data = (await res.json()) as { id: string };
 		if (res.status !== 202) return data.id;
@@ -295,12 +316,7 @@ async function readyVideo(
 			});
 			if (res.status === 206) return null;
 			if (res.status === 200 || (res.status === 404 && resumed)) return res.status;
-			throw Object.assign(
-				new Error(
-					`Mastodon media processing failed (${res.status}): ${(await res.text()).slice(0, 300)}`
-				),
-				{ status: res.status }
-			);
+			throw await mastodonError('Mastodon media processing', res);
 		}
 	);
 	if (status === 200) return mediaId;
@@ -342,12 +358,7 @@ async function postStatus(
 		body: JSON.stringify(params)
 	});
 	if (!res.ok) {
-		throw Object.assign(
-			new Error(
-				`Mastodon status create failed (${res.status}): ${(await res.text()).slice(0, 300)}`
-			),
-			{ status: res.status }
-		);
+		throw await mastodonError('Mastodon status create', res);
 	}
 	return (await res.json()) as { id: string; url: string };
 }
@@ -455,11 +466,14 @@ export const mastodonProvider: PlatformProvider = {
 				if (video) {
 					mediaIds.push(await readyVideo(instanceUrl, creds.accessToken, video, i, guarded, opts));
 				} else {
-					for (const m of (seg.media ?? []).slice(0, 4)) {
+					const images = (seg.media ?? []).slice(0, 4);
+					for (let idx = 0; idx < images.length; idx++) {
+						const m = images[idx];
 						if (isVideoAttachment(m)) {
 							throw new Error('Videos cannot mix with images on the same post');
 						}
-						mediaIds.push(await uploadMedia(instanceUrl, creds.accessToken, m, guarded));
+						const label = images.length > 1 ? `image ${idx + 1}/${images.length}` : undefined;
+						mediaIds.push(await uploadMedia(instanceUrl, creds.accessToken, m, guarded, label));
 					}
 				}
 				const pollOptions = i === 0 ? (seg.options?.poll ?? content.options?.poll) : undefined;
@@ -550,12 +564,7 @@ export async function mastodonRegisterApp(
 		})
 	});
 	if (!res.ok) {
-		throw Object.assign(
-			new Error(
-				`Mastodon app register failed (${res.status}): ${(await res.text()).slice(0, 300)}`
-			),
-			{ status: res.status }
-		);
+		throw await mastodonError('Mastodon app register', res);
 	}
 	const data = (await res.json()) as { client_id: string; client_secret: string };
 	return { clientId: data.client_id, clientSecret: data.client_secret, instanceUrl: base };
@@ -624,12 +633,7 @@ export async function mastodonExchangeCode(
 		body
 	});
 	if (!res.ok) {
-		throw Object.assign(
-			new Error(
-				`Mastodon token exchange failed (${res.status}): ${(await res.text()).slice(0, 300)}`
-			),
-			{ status: res.status }
-		);
+		throw await mastodonError('Mastodon token exchange', res);
 	}
 	const token = (await res.json()) as { access_token: string };
 
