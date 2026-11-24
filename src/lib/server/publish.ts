@@ -56,11 +56,15 @@ export const MAX_PUBLISH_ATTEMPTS = 5;
  *  that never finishes cannot keep a target parked for ever. */
 export const VIDEO_PROCESSING_DEADLINE_MS = 45 * 60_000;
 
-// Exponential backoff for retryable failures: 1m, 2m, 4m, 8m … capped at 30m.
-// Without this, a 429 parks as past-due `scheduled` and the next tick hammers
-// the provider immediately, burning all 5 attempts in seconds.
+// Stepped backoff for retryable failures: 1m, 3m, 10m, 30m (~44m total across
+// five attempts). Fast on the first retry for transient blips, wide enough on
+// later attempts to ride out a 20–30 minute upstream 503 outage without
+// spending all five attempts in 15 minutes.
+const RETRY_DELAYS_MS = [60_000, 3 * 60_000, 10 * 60_000, 30 * 60_000];
+
 export function retryDelayMs(attempt: number): number {
-	return Math.min(60_000 * 2 ** Math.max(0, attempt - 1), 30 * 60_000);
+	const index = Math.min(Math.max(0, attempt - 1), RETRY_DELAYS_MS.length - 1);
+	return RETRY_DELAYS_MS[index];
 }
 
 /**
@@ -822,7 +826,10 @@ export async function publishTarget(
 				// then polls) must be resumed, not created twice. An empty list is the
 				// provider saying that post is dead, so the retry starts fresh.
 				lastCheckpoint: resumeState.last,
-				retryAfterMs: err instanceof ProviderError ? err.retryAfterMs : undefined
+				retryAfterMs:
+					err instanceof ProviderError || err instanceof PublishPartialError
+						? err.retryAfterMs
+						: undefined
 			}
 		);
 		return { status: nextStatus, error: finalMessage };

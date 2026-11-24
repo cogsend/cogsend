@@ -19,6 +19,7 @@ import {
 	isRetryableError,
 	publishTarget,
 	refreshDraftStatus,
+	retryDelayMs,
 	statusAfterFailedPublish
 } from '#lib/server/publish.js';
 import type { AppDb } from '#lib/server/db/client.js';
@@ -605,6 +606,14 @@ describe('publishTarget integration', () => {
 		expect(isRetryableError('X allows max 15MB per GIF')).toBe(false);
 		expect(isRetryableError('Text exceeds 3000 UTF-8 bytes (3100)')).toBe(false);
 		expect(isRetryableError('Mastodon allows max 16MB per image')).toBe(false);
+	});
+
+	it('steps retryDelayMs across 1m, 3m, 10m, 30m and caps at 30m', () => {
+		expect(retryDelayMs(1)).toBe(60_000);
+		expect(retryDelayMs(2)).toBe(3 * 60_000);
+		expect(retryDelayMs(3)).toBe(10 * 60_000);
+		expect(retryDelayMs(4)).toBe(30 * 60_000);
+		expect(retryDelayMs(5)).toBe(30 * 60_000);
 	});
 
 	it('claims so two concurrent publishes only post once', async () => {
