@@ -60,4 +60,23 @@ describe('humanizeError', () => {
 		expect(humanizeError('Already publishing')).toMatch(/wait for it to finish/i);
 		expect(humanizeError('Already published')).toMatch(/already published/i);
 	});
+
+	it('maps 502/503/504 and strips raw HTML error pages', () => {
+		const html503 =
+			'Mastodon media upload failed (503): <!DOCTYPE html><html lang="en"><head><title>This page is not correct - Mastodon</title></head></html>';
+		expect(humanizeError(html503)).toBe(
+			'Platform is temporarily unavailable (503) — try again in a moment'
+		);
+		expect(humanizeError('Bluesky uploadBlob failed (502): Bad Gateway')).toBe(
+			'Platform returned a gateway error (502) — try again in a moment'
+		);
+		expect(humanizeError('LinkedIn post failed (504): <!DOCTYPE html><html></html>')).toBe(
+			'Platform timed out (504) — try again in a moment'
+		);
+		expect(
+			humanizeError('Mastodon status create failed (500): <!DOCTYPE html><html><body>oops</body>')
+		).toBe('Mastodon status create failed (500)');
+		expect(humanizeError('<!DOCTYPE html><html><body>down</body></html>')).toMatch(/error page/i);
+		expect(humanizeError('Post 503123 rejected by policy')).toBe('Post 503123 rejected by policy');
+	});
 });

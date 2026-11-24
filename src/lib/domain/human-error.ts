@@ -82,6 +82,15 @@ export function humanizedCause(raw: string | null | undefined): string | null {
 	if (s.includes('timeout') || s.includes('timed out')) {
 		return 'Took too long to answer — try again';
 	}
+	if (/(?:\(503\)|\b503\b.*(?:service unavailable|<!doctype|<html))/.test(s)) {
+		return 'Platform is temporarily unavailable (503) — try again in a moment';
+	}
+	if (/(?:\(502\)|\b502\b.*(?:bad gateway|<!doctype|<html))/.test(s)) {
+		return 'Platform returned a gateway error (502) — try again in a moment';
+	}
+	if (/(?:\(504\)|\b504\b.*(?:gateway timeout|<!doctype|<html))/.test(s)) {
+		return 'Platform timed out (504) — try again in a moment';
+	}
 	if (s.includes('econnrefused') || s.includes('fetch failed') || s.includes('enotfound')) {
 		return 'Could not reach the network — check connection and try again';
 	}
@@ -95,7 +104,17 @@ export function humanizeError(raw: string | null | undefined): string {
 	if (!raw) return 'Something went wrong';
 	// Recognised failures get fixed copy; anything else is echoed, capped, so a
 	// provider's own message still reaches the person who has to act on it.
-	return humanizedCause(raw) ?? truncate(raw);
+	return humanizedCause(raw) ?? truncate(stripHtmlTail(raw));
+}
+
+function stripHtmlTail(raw: string): string {
+	const htmlAt = raw.search(/<!doctype\s+html\b|<html[\s>]/i);
+	if (htmlAt === -1) return raw;
+	const prefix = raw
+		.slice(0, htmlAt)
+		.replace(/[:\s-]+$/, '')
+		.trim();
+	return prefix || 'Platform returned an unexpected error page — try again';
 }
 
 function truncate(raw: string): string {
