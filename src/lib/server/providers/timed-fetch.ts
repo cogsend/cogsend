@@ -34,11 +34,24 @@ function isTimeoutError(err: unknown): boolean {
 	return err.name === 'TimeoutError' || err.name === 'AbortError';
 }
 
+export const DEFAULT_USER_AGENT = 'CogSend';
+
+function withDefaultUserAgent(input: RequestInfo | URL, init?: RequestInit): Headers {
+	const headers = new Headers(
+		init?.headers ?? (input instanceof Request ? input.headers : undefined)
+	);
+	// Some edge WAFs (e.g. Fastly in front of Mastodon instances) reject or
+	// throttle outbound Worker fetches that carry no User-Agent header.
+	if (!headers.has('user-agent')) headers.set('User-Agent', DEFAULT_USER_AGENT);
+	return headers;
+}
+
 export function timedFetch(timeoutMs: number): FetchLike {
 	return async (input, init) => {
 		const signal = mergeSignals(timeoutMs, init?.signal);
+		const headers = withDefaultUserAgent(input, init);
 		try {
-			return await fetch(input, { ...init, signal });
+			return await fetch(input, { ...init, headers, signal });
 		} catch (err) {
 			if (isTimeoutError(err)) {
 				throw Object.assign(new Error('Provider request timed out'), { status: 504 });

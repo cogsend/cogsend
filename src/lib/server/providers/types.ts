@@ -273,6 +273,51 @@ export function unconfirmedPostError(platformLabel: string, cause: unknown): Pro
 	);
 }
 
+const MAX_RETRY_AFTER_MS = 60 * 60_000;
+
+/**
+ * Cap an upstream error body for user-facing messages. Proxies (Fastly,
+ * Cloudflare, nginx) answer 5xx API calls with HTML pages; slicing those to
+ * 300 chars leaks raw `<!DOCTYPE html>` into the UI, so collapse HTML down to
+ * its `<title>` (or a plain marker when there is none).
+ */
+export function summarizeUpstreamBody(body: string, contentType?: string | null): string {
+	const ct = (contentType || '').toLowerCase();
+	const trimmed = body.trimStart();
+	const isHtml =
+		ct.includes('text/html') ||
+		ct.includes('application/xhtml') ||
+		/^<!doctype\s+html\b/i.test(trimmed) ||
+		/^<html[\s>]/i.test(trimmed);
+	if (!isHtml) return body.slice(0, 300);
+	const titleMatch = trimmed.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+	const title = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : '';
+	return title ? title.slice(0, 120) : 'HTML error page';
+}
+
+/**
+ * Parse an HTTP `Retry-After` header (delta-seconds or HTTP-date) into ms.
+ * Clamped to [1s, 1h] so a bogus upstream value cannot park a post for days.
+ */
+export function parseRetryAfterMs(
+	header: string | null | undefined,
+	nowMs = Date.now()
+): number | undefined {
+	if (!header) return undefined;
+	const trimmed = header.trim();
+	if (!trimmed) return undefined;
+	let ms: number;
+	if (/^\d+$/.test(trimmed)) {
+		ms = Number(trimmed) * 1000;
+	} else {
+		const dateMs = Date.parse(trimmed);
+		if (Number.isNaN(dateMs)) return undefined;
+		ms = dateMs - nowMs;
+	}
+	if (!Number.isFinite(ms) || ms <= 0) return undefined;
+	return Math.min(Math.max(ms, 1_000), MAX_RETRY_AFTER_MS);
+}
+
 /**
  * Classify an upstream HTTP failure. 401 means the credential was rejected
  * (auth). 403 means the credential was accepted but the action refused
@@ -282,13 +327,18 @@ export function unconfirmedPostError(platformLabel: string, cause: unknown): Pro
 export function providerErrorForStatus(
 	prefix: string,
 	status: number,
-	body: string
+	body: string,
+	opts?: { contentType?: string | null; retryAfter?: string | null }
 ): ProviderError {
-	const message = `${prefix} failed (${status}): ${body.slice(0, 300)}`;
+	const summary = summarizeUpstreamBody(body, opts?.contentType);
+	const message = `${prefix} failed (${status}): ${summary}`;
+	const retryAfterMs =
+		status === 429 || status >= 500 ? parseRetryAfterMs(opts?.retryAfter) : undefined;
 	if (status === 401) return new ProviderError(message, { status, code: 'auth' });
 	if (status === 403) return new ProviderError(message, { status, code: 'forbidden' });
-	if (status === 429) return new ProviderError(message, { status, code: 'rate_limited' });
-	return new ProviderError(message, { status });
+	if (status === 429)
+		return new ProviderError(message, { status, code: 'rate_limited', retryAfterMs });
+	return new ProviderError(message, { status, retryAfterMs });
 }
 
 /**
@@ -342,9 +392,9 @@ export class PublishPartialError extends Error {
 		this.segmentCids = opts.segmentCids;
 		this.metaPatch = opts.metaPatch;
 		this.remoteUrl = opts.remoteUrl;
-		if (opts.cause instanceof ProviderError && opts.cause.code === 'processing') {
-			this.pending = opts.cause.pending;
-			this.retryAfterMs = opts.cause.retryAfterMs;
+		if (opts.cause instanceof ProviderError) {
+			if (opts.cause.code === 'processing') this.pending = opts.cause.pending;
+			if (opts.cause.retryAfterMs !== undefined) this.retryAfterMs = opts.cause.retryAfterMs;
 		}
 	}
 }

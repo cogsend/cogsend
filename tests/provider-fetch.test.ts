@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+	DEFAULT_USER_AGENT,
 	PROVIDER_FETCH_TIMEOUT_MS,
 	PROVIDER_UPLOAD_TIMEOUT_MS,
 	providerTimeoutMs,
@@ -30,12 +31,18 @@ describe('timedFetch', () => {
 		});
 	});
 
-	it('returns a fast response', async () => {
-		vi.stubGlobal('fetch', () => Promise.resolve(new Response('ok')));
+	it('returns a fast response and adds a default User-Agent without overriding an explicit one', async () => {
+		const seen: Array<string | null> = [];
+		vi.stubGlobal('fetch', (_input: unknown, init?: RequestInit) => {
+			seen.push(new Headers(init?.headers).get('user-agent'));
+			return Promise.resolve(new Response('ok'));
+		});
 		const run = timedFetch(200);
 		const res = await run('https://example.com/api');
 		expect(res.ok).toBe(true);
 		expect(await res.text()).toBe('ok');
+		await run('https://example.com/api', { headers: { 'User-Agent': 'Custom/1.0' } });
+		expect(seen).toEqual([DEFAULT_USER_AGENT, 'Custom/1.0']);
 	});
 
 	it('gives uploads the longer limit, a streamed video included', () => {

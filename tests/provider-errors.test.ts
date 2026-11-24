@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
 	classifyProviderError,
+	parseRetryAfterMs,
 	providerErrorForStatus,
-	ProviderError
+	ProviderError,
+	summarizeUpstreamBody
 } from '#lib/server/providers/types.js';
 import { getProvider } from '#lib/server/providers/index.js';
 import { isAuthFailure, isFailureRetryable } from '#lib/server/publish.js';
@@ -25,6 +27,31 @@ describe('providerErrorForStatus', () => {
 		expect(providerErrorForStatus('p', 401, 'x').retryable).toBe(false);
 		expect(providerErrorForStatus('p', 403, 'x').retryable).toBe(false);
 		expect(providerErrorForStatus('p', 429, 'x').retryable).toBe(true);
+	});
+
+	it('collapses HTML error pages and parses Retry-After on 429/5xx', () => {
+		const html =
+			'\n <!DOCTYPE html>\n <html lang="en"><head><title>This page is not correct - Mastodon</title></head></html>';
+		const err = providerErrorForStatus('Mastodon media upload', 503, html, {
+			contentType: 'text/html; charset=utf-8',
+			retryAfter: '120'
+		});
+		expect(err.message).toBe(
+			'Mastodon media upload failed (503): This page is not correct - Mastodon'
+		);
+		expect(err.retryAfterMs).toBe(120_000);
+		expect(summarizeUpstreamBody('<html><body>503</body></html>')).toBe('HTML error page');
+		expect(summarizeUpstreamBody('{"error":"bad"}', 'application/json')).toBe('{"error":"bad"}');
+	});
+
+	it('parses and clamps Retry-After headers', () => {
+		const now = Date.UTC(2026, 10, 24, 6, 0, 0);
+		expect(parseRetryAfterMs('45', now)).toBe(45_000);
+		expect(parseRetryAfterMs('Tue, 24 Nov 2026 06:05:00 GMT', now)).toBe(5 * 60_000);
+		expect(parseRetryAfterMs('999999', now)).toBe(60 * 60_000);
+		expect(parseRetryAfterMs('0', now)).toBeUndefined();
+		expect(parseRetryAfterMs('not-a-date', now)).toBeUndefined();
+		expect(parseRetryAfterMs(null, now)).toBeUndefined();
 	});
 });
 
