@@ -142,6 +142,7 @@
 		longestBlueskyLinkStyle
 	} from '#lib/domain/bluesky-links.js';
 	import { utf8ByteLength } from '#lib/domain/bytes.js';
+	import { MAX_TARGET_CONNECTION_IDS } from '#lib/domain/request-limits.js';
 	import { draftExcerpt } from '#lib/domain/excerpt.js';
 	import {
 		PUBLISHED_EDIT_ERROR,
@@ -761,8 +762,7 @@
 		}) ||
 			threadsLinksOver ||
 			linkedinMediaOver ||
-			(blueskyBytesOver > 0 &&
-				(selectedPlatforms.has('bluesky') || isPlatformCustomized(overrides, 'bluesky')))
+			(blueskyBytesOver > 0 && selectedPlatforms.has('bluesky'))
 	);
 	// Which platform and which post, so the fix is a glance away. LinkedIn and
 	// Instagram flatten a thread into one post, so there it is the whole text.
@@ -784,6 +784,9 @@
 				return `${platformName(p)}: post ${i + 1} is ${count(posts[i]) - max} over the limit`;
 			}
 			return `${platformName(p)}: ${len - max} over the limit`;
+		}
+		if (blueskyBytesOver > 0 && selectedPlatforms.has('bluesky')) {
+			return `Bluesky: ${blueskyBytesOver} UTF-8 bytes over the 3,000-byte limit`;
 		}
 		return 'A post is over the character limit';
 	});
@@ -1461,6 +1464,9 @@
 	 * the buttons can never disagree.
 	 */
 	function firstPublishProblem(connectionIds: string[]): string | null {
+		if (connectionIds.length > MAX_TARGET_CONNECTION_IDS) {
+			return `Select at most ${MAX_TARGET_CONNECTION_IDS} accounts per post (${connectionIds.length} selected)`;
+		}
 		const to = (platform: string) => connectionIds.some((id) => platformOf(id) === platform);
 		if (threadsLinksOver && to('threads')) {
 			return `Threads allows max ${THREADS_MAX_LINKS} links per post (${threadsLinkCount} in one post)`;

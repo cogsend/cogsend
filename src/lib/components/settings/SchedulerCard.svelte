@@ -20,6 +20,7 @@
 		deployCron: { status: 'attached' | 'disabled' | 'unavailable'; code: string | null } | null;
 	};
 	let tickHealth = $state<TickHealth | null>(null);
+	let healthFailed = $state(false);
 	let schedulerMessage = $state<string | null>(null);
 	type TickTokenMeta = { configured: boolean; prefix: string | null; createdAt: string | null };
 	let tickToken = $state<TickTokenMeta | null>(null);
@@ -36,7 +37,7 @@
 	const tickUrl = $derived(`${origin}/api/internal/tick`);
 	const tickStatusLine = $derived.by(() => {
 		const h = tickHealth;
-		if (!h) return 'Checking…';
+		if (!h) return healthFailed ? 'Could not load scheduler status' : 'Checking…';
 		if (h.stuckPublishing) {
 			return `${h.stuckPublishing} post${h.stuckPublishing === 1 ? '' : 's'} stuck publishing`;
 		}
@@ -65,6 +66,7 @@
 		if (health?.ok) {
 			const h = await health.json();
 			if (gen !== loadGen) return;
+			healthFailed = false;
 			schedulerMessage = h.message ?? null;
 			tickHealth = {
 				ok: Boolean(h.ok),
@@ -74,6 +76,8 @@
 				stuckPublishing: h.stuckPublishing ?? 0,
 				deployCron: h.deployCron ?? null
 			};
+		} else {
+			healthFailed = true;
 		}
 		if (token?.ok) {
 			const t = await token.json();

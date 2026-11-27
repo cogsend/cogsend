@@ -119,6 +119,8 @@
 				err instanceof Error && err.message.startsWith('Logout failed')
 					? 'Could not sign out — try again'
 					: 'Could not sign out — check your connection';
+			// Reopen the menu so the inline error message is visible.
+			showProfileDropdown = true;
 		}
 	}
 

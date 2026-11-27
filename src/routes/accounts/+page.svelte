@@ -480,16 +480,26 @@
 		}
 	}
 
+	function clearDialogSecrets() {
+		appPassword = '';
+		zernioApiKey = '';
+		appForm = {};
+		appFormError = null;
+	}
+
 	function closeConnectDialog() {
 		showConnectDialog = false;
 		dialogErr = null;
 		modalForm = 'none';
 		setupPanel = null;
+		clearDialogSecrets();
 	}
 
 	function backToPlatforms() {
 		modalForm = 'none';
 		setupPanel = null;
+		dialogErr = null;
+		clearDialogSecrets();
 	}
 
 	async function confirmDisconnect() {

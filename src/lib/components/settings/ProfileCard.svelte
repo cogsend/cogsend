@@ -65,18 +65,20 @@
 		profileBusy = true;
 		notice.clearError();
 		clearProfileSaved();
+		const sentName = displayName.trim();
 		try {
 			// This card owns the name only. Sending the picture or the new-post
 			// defaults would commit edits the user never saved in those sections.
 			const res = await fetch('/api/settings', {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ displayName: displayName.trim() })
+				body: JSON.stringify({ displayName: sentName })
 			});
 			const payload = await res.json();
 			if (!res.ok) throw new Error(payload.error || 'Could not save');
-			displayName = payload.displayName ?? '';
-			savedDisplayName = displayName.trim();
+			const returnedName = payload.displayName ?? '';
+			savedDisplayName = returnedName.trim();
+			if (displayName.trim() === sentName) displayName = returnedName;
 			flashProfileSaved('Profile saved');
 			await invalidateAll();
 		} catch (e) {
