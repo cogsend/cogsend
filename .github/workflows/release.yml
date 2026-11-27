@@ -83,6 +83,7 @@ jobs:
         with:
           name: release-build-${{ env.TAG }}
           retention-days: 1
+          include-hidden-files: true
           path: |
             .release/worker
             .release/deploy-repo
