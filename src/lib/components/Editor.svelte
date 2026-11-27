@@ -131,6 +131,7 @@
 		mostCashtagsInAPost,
 		mostThreadsLinksInAPost,
 		THREADS_MAX_LINKS,
+		threadsTextLength,
 		validateInstagramText,
 		X_CASHTAG_MESSAGE,
 		xWeightedLength
@@ -410,6 +411,8 @@
 	// it because the stored segmentIndex — not the optimistic UI order — is
 	// what the provider attaches images by.
 	let mediaSync: Promise<void> = Promise.resolve();
+	let mediaSyncPending = $state(0);
+	let mediaLayoutFailed = $state(false);
 	// Cleared only by a save that succeeds: the autosave keeps retrying a failed
 	// save, and the status must not flicker back to "Saving…" on every attempt.
 	let saveFailed = $state(false);
@@ -589,6 +592,7 @@
 		}
 		// Every post of a Mastodon thread carries the content warning, and counts it.
 		if (platform === 'mastodon') return mastodonWeightedLength(mastodonCountedText(text, mastoCW));
+		if (platform === 'threads') return threadsTextLength(text);
 		if (platform === 'x') return xWeightedLength(text);
 		return countGraphemes(text);
 	}
@@ -667,7 +671,7 @@
 			},
 			linkedin: { len: countGraphemes(linkedinFlat), max: PLATFORM_LIMITS.linkedin },
 			threads: {
-				len: maxThreadSegmentLength(threadsText, countGraphemes),
+				len: maxThreadSegmentLength(threadsText, threadsTextLength),
 				max: PLATFORM_LIMITS.threads
 			},
 			instagram: {
@@ -763,7 +767,7 @@
 		const perPost: Partial<Record<PlatformId, (s: string) => number>> = {
 			bluesky: (s) => countForPlatform(s, 'bluesky'),
 			mastodon: (s) => countForPlatform(s, 'mastodon'),
-			threads: countGraphemes,
+			threads: threadsTextLength,
 			x: xWeightedLength
 		};
 		for (const p of PLATFORM_ORDER) {
@@ -968,6 +972,7 @@
 		busyAction = null;
 		dirty = false;
 		saveFailed = false;
+		mediaLayoutFailed = false;
 		savedSnapshot = null;
 		loadFailedId = null;
 		storedVariants = new Set();
@@ -1061,6 +1066,7 @@
 			targets = d.targets || [];
 			clock = Date.now();
 			sendBlocked = false;
+			mediaLayoutFailed = false;
 			// Text typed while a published post loaded cannot be saved, so the
 			// stored copy wins outright instead of being merged with it.
 			const merge = before !== null && !locked;
@@ -1342,8 +1348,9 @@
 		opts: { navigate?: boolean } = {}
 	): Promise<string | null> {
 		// Backstop for every caller (autosave, Cmd+S, publish, schedule,
-		// beforeunload): never write a draft whose stored copy never loaded.
-		if (loadFailedId) return null;
+		// beforeunload): never write a draft whose stored copy never loaded or
+		// is still loading.
+		if (loadFailedId || loadingDraftId) return null;
 		if (publishedLock) return draftId;
 		if (sendingNow) return null;
 		const emptyNew = !draftId && !baseBody.trim();
@@ -1424,9 +1431,14 @@
 	 * redundant PATCH + variant fan-out before the real action starts.
 	 */
 	async function persistForAction(): Promise<string | null> {
+		if (loadingDraftId) return null;
 		// Media moves are written next to the body; publish reads the stored
 		// index, so any in-flight layout write has to land first.
 		await mediaSync;
+		if (mediaLayoutFailed) {
+			showToast('Couldn’t save the image layout — check the images and try again', 'error');
+			return null;
+		}
 		if (draftId && !dirty && !saving && Object.keys(altPending).length === 0) return draftId;
 		await flushAltPending();
 		return persistClean();
@@ -1497,7 +1509,7 @@
 	async function requestPublish(connectionIds: string[]) {
 		// Prevent overlapping publishes/schedules (publishing covers both), and
 		// a publish racing an unschedule of the same targets.
-		if (publishing || unscheduling || editLocked) return;
+		if (publishing || unscheduling || editLocked || loadingDraftId) return;
 		// Fast empty check before opening any UI: mirrors doPersist's
 		// emptyNew guard so an empty composer toasts without flashing the
 		// dialog (or the publishing spinner in skip-ask mode).
@@ -1532,7 +1544,8 @@
 			try {
 				const id = await persistForAction();
 				if (!id) {
-					if (!publishedLock && !sendInFlight) showToast('Nothing to publish', 'warn');
+					if (!publishedLock && !sendInFlight && !mediaLayoutFailed)
+						showToast('Nothing to publish', 'warn');
 					return;
 				}
 				pendingPublish = null;
@@ -1552,7 +1565,13 @@
 		// await so first paint happens in ~1 frame, not after 2-7 round-trips.
 		// A clean, already-saved draft skips the persist entirely.
 		const requestId = ++publishRequestSeq;
-		const ready = draftId !== null && !dirty && !saving && Object.keys(altPending).length === 0;
+		const ready =
+			draftId !== null &&
+			!dirty &&
+			!saving &&
+			!mediaLayoutFailed &&
+			mediaSyncPending === 0 &&
+			Object.keys(altPending).length === 0;
 		pendingPublish = { draftId, connectionIds, saving: !ready };
 		isPostConfirmOpen = true;
 		if (ready) return;
@@ -1562,7 +1581,8 @@
 			if (!id) {
 				pendingPublish = null;
 				isPostConfirmOpen = false;
-				if (!publishedLock && !sendInFlight) showToast('Nothing to publish', 'warn');
+				if (!publishedLock && !sendInFlight && !mediaLayoutFailed)
+					showToast('Nothing to publish', 'warn');
 				return;
 			}
 			if (pendingPublish && requestId === publishRequestSeq) {
@@ -1841,10 +1861,11 @@
 				await mediaSync;
 				await flushAltPending();
 				const id = await persistClean();
-				if (!id || dirty || Object.keys(altPending).length) {
+				if (!id || dirty || mediaLayoutFailed || Object.keys(altPending).length) {
 					// The save said why (a toast, or the sending and lock banners);
 					// a post still changing under the save stays open too.
-					if (id) showToast("Couldn't save this post — it's still open", 'error');
+					if (id && !mediaLayoutFailed)
+						showToast("Couldn't save this post — it's still open", 'error');
 					return;
 				}
 				note = hasSchedule
@@ -1994,7 +2015,7 @@
 	});
 
 	async function onSchedule() {
-		if (editLocked || unscheduling) return;
+		if (editLocked || unscheduling || loadingDraftId) return;
 		if (!selected.size) {
 			showToast('Select at least one account', 'warn');
 			return;
@@ -2039,7 +2060,8 @@
 		try {
 			const id = await persistForAction();
 			if (!id) {
-				if (!publishedLock && !sendInFlight) showToast('Nothing to schedule', 'warn');
+				if (!publishedLock && !sendInFlight && !mediaLayoutFailed)
+					showToast('Nothing to schedule', 'warn');
 				return;
 			}
 			const res = await fetch(`/api/drafts/${id}/schedule`, {
@@ -2077,7 +2099,7 @@
 		'Could not save the post before uploading — check your connection and try again';
 
 	async function attachFilesToSegment(segmentIndex: number, files: File[]) {
-		if (editLocked) return;
+		if (editLocked || loadingDraftId) return;
 		const picked = files.filter((f) => isMediaFile(f.type));
 		if (!picked.length) {
 			showToast('Only images (PNG, JPEG, WebP, GIF) and videos are supported', 'warn');
@@ -2312,7 +2334,7 @@
 
 	/** Attach files already used in a post; nothing is stored again. */
 	async function attachFromLibrary(segmentIndex: number, files: LibraryFile[]) {
-		if (editLocked || !files.length || libraryBusy) return;
+		if (editLocked || loadingDraftId || !files.length || libraryBusy) return;
 		if (uploadingSegment !== null) {
 			showToast('Wait for the upload to finish', 'warn');
 			return;
@@ -2378,6 +2400,7 @@
 	 * and the platforms that take one have something to show.
 	 */
 	async function attachVideo(segmentIndex: number, file: File) {
+		if (editLocked || loadingDraftId) return;
 		const job: VideoJob = {
 			id: crypto.randomUUID(),
 			segmentIndex,
@@ -2609,7 +2632,7 @@
 		}
 	}
 	async function updateMediaAlt(mediaId: string, altText: string) {
-		if (editLocked) return;
+		if (editLocked || loadingDraftId) return;
 		media = media.map((m) => (m.id === mediaId ? { ...m, altText } : m));
 		if (!draftId) return;
 		altPending[mediaId] = altText;
@@ -2688,6 +2711,7 @@
 	}
 
 	function requestDiscard() {
+		if (loadingDraftId) return;
 		const waitingFor = busyWaitMessage();
 		if (waitingFor) {
 			showToast(waitingFor, 'warn');
@@ -2698,7 +2722,7 @@
 	}
 
 	async function confirmDiscard() {
-		if (discarding) return;
+		if (discarding || loadingDraftId) return;
 		if (saving || publishing) {
 			showToast(busyWaitMessage() ?? 'Wait a moment', 'warn');
 			return;
@@ -2730,13 +2754,13 @@
 	}
 
 	function requestRemoveMedia(mediaId: string) {
-		if (editLocked) return;
+		if (editLocked || loadingDraftId) return;
 		pendingMediaRemove = mediaId;
 	}
 
 	async function confirmRemoveMedia() {
 		const mediaId = pendingMediaRemove;
-		if (!mediaId || !draftId || mediaRemoving.includes(mediaId)) return;
+		if (!mediaId || !draftId || loadingDraftId || mediaRemoving.includes(mediaId)) return;
 		mediaRemoving = [...mediaRemoving, mediaId];
 		try {
 			const res = await fetch(
@@ -2970,31 +2994,40 @@
 	) {
 		const id = draftId;
 		if (!id || (!moves.length && !removals.length)) return mediaSync;
+		const generation = editorGeneration;
+		mediaSyncPending++;
 		mediaSync = mediaSync
 			.catch(() => {})
 			.then(async () => {
-				// The server refuses an image on a card the stored draft does not
-				// have yet, so a move onto a card a split just created waits for
-				// the body that created it instead of the autosave. persistClean,
-				// because a save already in flight may predate the split.
-				if (opts.saveBodyFirst) await persistClean();
-				const result = await persistMediaLayout({ draftId: id, moves, removals });
-				if (!result.ok) {
-					showToast('Couldn’t save the image layout — check the images and try again', 'error');
+				try {
+					// The server refuses an image on a card the stored draft does not
+					// have yet, so a move onto a card a split just created waits for
+					// the body that created it instead of the autosave. persistClean,
+					// because a save already in flight may predate the split.
+					if (opts.saveBodyFirst) await persistClean();
+					const result = await persistMediaLayout({ draftId: id, moves, removals });
+					if (generation === editorGeneration) mediaLayoutFailed = !result.ok;
+					if (!result.ok) {
+						showToast('Couldn’t save the image layout — check the images and try again', 'error');
+					}
+				} finally {
+					mediaSyncPending = Math.max(0, mediaSyncPending - 1);
 				}
 			});
 		return mediaSync;
 	}
 
+	function uploadInFlight(): boolean {
+		return uploadingSegment !== null || libraryBusy || videoJobs.length > 0;
+	}
+
 	function onRemoveSegment(index: number) {
-		if (editLocked) return;
+		if (editLocked || loadingDraftId) return;
 		// An upload in flight was told which post it belongs to.
-		if (videoJobs.some((job) => job.segmentIndex >= index)) {
-			showToast('Wait for the video to finish uploading', 'warn');
+		if (uploadInFlight()) {
+			showToast('Wait for the upload to finish', 'warn');
 			return;
 		}
-		if (uploadingSegment === index) uploadingSegment = null;
-		else if (uploadingSegment !== null && uploadingSegment > index) uploadingSegment -= 1;
 		uploadQueue = uploadQueue
 			.filter((q) => q.segmentIndex !== index)
 			.map((q) => (q.segmentIndex > index ? { ...q, segmentIndex: q.segmentIndex - 1 } : q));
@@ -3022,7 +3055,11 @@
 	}
 
 	function applyReorder(from: number, to: number) {
-		if (editLocked) return;
+		if (editLocked || loadingDraftId) return;
+		if (uploadInFlight()) {
+			showToast('Wait for the upload to finish', 'warn');
+			return;
+		}
 		if (from === to) return;
 		const next = reorderSegments(segments, from, to);
 		if (next === segments) return;
@@ -3428,7 +3465,7 @@
 			);
 			return;
 		}
-		if (editLocked) return;
+		if (editLocked || loadingDraftId) return;
 		if (!dirty && Object.keys(altPending).length === 0) return;
 		void persistAll(false, { navigate: false });
 		void flushAltPending();

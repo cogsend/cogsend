@@ -138,11 +138,38 @@ export function validateLinkedinText(
 	return { ok: true, length, max: maxChars };
 }
 
+const EMOJI_GRAPHEME_RE = /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u;
+
+/**
+ * Meta counts Threads emojis by their UTF-8 byte length toward the 500 limit,
+ * while non-emoji graphemes count as 1.
+ */
+export function threadsTextLength(text: string): number {
+	if (!text) return 0;
+	let graphemes: Iterable<string>;
+	try {
+		const Seg = Intl.Segmenter;
+		if (Seg) {
+			const seg = new Seg(undefined, { granularity: 'grapheme' });
+			graphemes = Array.from(seg.segment(text), (s) => s.segment);
+		} else {
+			graphemes = [...text];
+		}
+	} catch {
+		graphemes = [...text];
+	}
+	let total = 0;
+	for (const g of graphemes) {
+		total += EMOJI_GRAPHEME_RE.test(g) ? utf8ByteLength(g) : 1;
+	}
+	return total;
+}
+
 export function validateThreadsText(
 	text: string,
 	maxChars = THREADS_MAX_CHARS
 ): { ok: boolean; length: number; max: number; message?: string } {
-	const length = countGraphemes(text);
+	const length = threadsTextLength(text);
 	if (length > maxChars) return tooLong(length, maxChars, 'Threads max 500');
 	return { ok: true, length, max: maxChars };
 }

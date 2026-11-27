@@ -11,9 +11,11 @@ import {
 	mastodonCountedText,
 	mastodonWeightedLength,
 	mostCashtagsInAPost,
+	threadsTextLength,
 	validateBlueskyText,
 	validateInstagramText,
-	validateMastodonText
+	validateMastodonText,
+	validateThreadsText
 } from '#lib/domain/validation/text.js';
 import { blueskyProvider, mastodonProvider, xProvider } from '#lib/server/providers/index.js';
 
@@ -105,6 +107,15 @@ describe('cashtags and hashtags the composer checks before publishing does', () 
 			ok: false,
 			message: 'Instagram takes up to 30 hashtags (31 used)'
 		});
+	});
+
+	it('counts Threads emojis by UTF-8 bytes without inflating non-emoji scripts', () => {
+		expect(threadsTextLength('😀')).toBe(4);
+		expect(threadsTextLength('🇺🇸')).toBe(8);
+		expect(threadsTextLength('日本語')).toBe(3);
+		expect(validateThreadsText('😀'.repeat(125)).ok).toBe(true);
+		expect(validateThreadsText('😀'.repeat(126)).ok).toBe(false);
+		expect(validateThreadsText('日'.repeat(500)).ok).toBe(true);
 	});
 });
 
