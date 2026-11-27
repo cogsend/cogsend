@@ -419,7 +419,8 @@ function processingState(payload: unknown): {
 async function uploadOneMedia(
 	token: string,
 	m: MediaAttachment,
-	fetchImpl: FetchLike
+	fetchImpl: FetchLike,
+	budget?: { callsLeft?: () => number; timeLeft?: () => number }
 ): Promise<string> {
 	const bytes = await loadBytes(m);
 	const mediaType = (m.mime || 'image/jpeg').toLowerCase().split(';')[0].trim();
@@ -486,7 +487,10 @@ async function uploadOneMedia(
 				`X media processing failed${proc.error?.message ? `: ${proc.error.message}` : ''}`
 			);
 		}
-		await sleep(Math.min((proc.checkAfterSecs ?? 1) * 1000, X_MEDIA_POLL_MAX_WAIT_MS));
+		const waitMs = Math.min((proc.checkAfterSecs ?? 1) * 1000, X_MEDIA_POLL_MAX_WAIT_MS);
+		if (budget?.callsLeft && budget.callsLeft() <= 4) break;
+		if (budget?.timeLeft && budget.timeLeft() < waitMs + 2000) break;
+		await sleep(waitMs);
 		const stRes = await fetchImpl(
 			`${X_API}/2/media/upload?command=STATUS&media_id=${encodeURIComponent(mediaId)}`,
 			{ headers: { Authorization: `Bearer ${token}` } }
@@ -515,21 +519,15 @@ async function setAltText(
 	fetchImpl: FetchLike
 ): Promise<void> {
 	if (!altText?.trim()) return;
-	const alt = altText.trim().slice(0, ALT_LIMITS.x);
-	for (const shape of [
-		{ media_id: mediaId, alt_text: { text: alt } },
-		{ id: mediaId, alt_text: { text: alt } }
-	]) {
-		try {
-			const metaRes = await fetchImpl(`${X_API}/2/media/metadata`, {
-				method: 'POST',
-				headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-				body: JSON.stringify(shape)
-			});
-			if (metaRes.ok) break;
-		} catch {
-			break;
-		}
+	const alt = [...altText.trim()].slice(0, ALT_LIMITS.x).join('');
+	try {
+		await fetchImpl(`${X_API}/2/media/metadata`, {
+			method: 'POST',
+			headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify({ id: mediaId, metadata: { alt_text: { text: alt } } })
+		});
+	} catch {
+		// Best effort only.
 	}
 }
 
@@ -735,7 +733,12 @@ export const xProvider: PlatformProvider = {
 					mediaIds.push(await uploadVideo(token, video, i, fetchImpl, opts));
 				} else {
 					for (const m of segMedia) {
-						mediaIds.push(await uploadOneMedia(token, m, fetchImpl));
+						mediaIds.push(
+							await uploadOneMedia(token, m, fetchImpl, {
+								callsLeft: opts?.callsLeft,
+								timeLeft: opts?.timeLeft
+							})
+						);
 					}
 				}
 

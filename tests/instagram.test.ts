@@ -660,4 +660,39 @@ describe('Instagram tokens and profile', () => {
 			userId: '1789'
 		});
 	});
+
+	it('retries Instagram 4279004/4279009 and transient Reel ERROR while dropping dead pending state', async () => {
+		for (const subcode of [4279004, 4279009]) {
+			const err = instagramUpstreamError(
+				'Instagram publish',
+				400,
+				JSON.stringify({ error: { code: 100, error_subcode: subcode, message: 'Media not ready' } })
+			);
+			expect(err.code, `subcode ${subcode}`).toBe('upstream');
+			expect(err.retryable, `subcode ${subcode}`).toBe(true);
+		}
+		const { fetchImpl } = fakeMeta({
+			'/cont-dead?fields=status_code,status': () =>
+				json({ status_code: 'ERROR', status: 'Media download has failed with error code 2207052' })
+		});
+		await expect(
+			instagramProvider.publish(
+				{ text: 'reel', media: [reel] },
+				creds,
+				undefined,
+				fetchImpl,
+				opts({
+					resume: {
+						segmentIds: [],
+						pending: {
+							segment: 0,
+							storageKey: reel.storageKey!,
+							state: { containerId: 'cont-dead' },
+							startedAt: Date.now() - 1000
+						}
+					}
+				})
+			)
+		).rejects.toMatchObject({ code: 'upstream', retryable: true, dropPending: true });
+	});
 });

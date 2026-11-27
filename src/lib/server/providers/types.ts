@@ -196,6 +196,8 @@ export class ProviderError extends Error {
 	/** `processing`: where to pick up, and how soon to look again. */
 	readonly pending?: ParkedVideo;
 	readonly retryAfterMs?: number;
+	/** Drop any previously parked pending video state when this error is retried. */
+	readonly dropPending?: boolean;
 
 	constructor(
 		message: string,
@@ -206,6 +208,7 @@ export class ProviderError extends Error {
 			metaPatch?: Record<string, unknown>;
 			pending?: ParkedVideo;
 			retryAfterMs?: number;
+			dropPending?: boolean;
 		} = {}
 	) {
 		super(message);
@@ -216,6 +219,7 @@ export class ProviderError extends Error {
 		this.metaPatch = opts.metaPatch;
 		this.pending = opts.pending;
 		this.retryAfterMs = opts.retryAfterMs;
+		this.dropPending = opts.dropPending;
 		this.retryable =
 			opts.code === 'rate_limited' ||
 			opts.code === 'network' ||

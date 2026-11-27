@@ -215,4 +215,12 @@ describe('opengraph hardening', () => {
 		// Bounded: the chain is abandoned instead of reading a redirect body.
 		expect(hops).toBeLessThanOrEqual(8);
 	});
+
+	it('parses adversarial repeated meta tags in linear time', () => {
+		const hostile = `${'<meta property="og:other" '.repeat(4000)}<meta property="og:title" content="Still fast">`;
+		const start = Date.now();
+		const og = parseOpenGraphHtml(hostile, 'https://example.com/');
+		expect(Date.now() - start).toBeLessThan(200);
+		expect(og.url).toBe('https://example.com/');
+	});
 });

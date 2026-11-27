@@ -90,6 +90,8 @@ const PERMALINK_ATTEMPTS = 3;
 const PERMALINK_RETRY_DELAYS_MS = [400, 1200];
 /** Meta's own transient failures, whatever HTTP status they arrive with. */
 const META_TRANSIENT_CODES = [1, 2];
+/** Meta's throttling codes, which arrive as HTTP 400. */
+const META_RATE_CODES = new Set([4, 17, 32, 613]);
 
 /** The `alt_text` param for one file, cut to what Threads keeps. */
 function altParam(m: { alt?: string | null }): Record<string, string> {
@@ -175,6 +177,12 @@ export function threadsUpstreamError(prefix: string, status: number, body: strin
 	if (status === 400 && threadsPermissionDenied(body)) {
 		return new ProviderError(message, { status, code: 'auth', detail });
 	}
+	if (status === 429 || (code !== undefined && META_RATE_CODES.has(code))) {
+		return new ProviderError(message, { status, code: 'rate_limited', detail });
+	}
+	if (status >= 500 || (code !== undefined && META_TRANSIENT_CODES.includes(code))) {
+		return new ProviderError(message, { status, code: 'upstream', detail });
+	}
 	const base = providerErrorForStatus(prefix, status, body);
 	// Rebuild on the local message (identical shape plus the meta marker);
 	// base.message alone would drop the marker downstream matchers gate on.
@@ -185,11 +193,13 @@ export function threadsUpstreamError(prefix: string, status: number, body: strin
 /**
  * Whether a failed threads_publish may be live anyway. Threads takes no
  * idempotency key, so only an answer that proves nothing was posted may retry
- * on its own: a refusal, or a container Meta calls not ready. Its server errors
- * say nothing about how far the post got.
+ * on its own: a refusal, a rate limit, or a container Meta calls not ready.
+ * Its server errors (5xx or Meta 1/2) say nothing about how far the post got.
  */
 function mayHavePublished(err: ProviderError): boolean {
-	if (err.code || isThreadsMediaFetchFailure(err.message)) return false;
+	if (isThreadsMediaFetchFailure(err.message)) return false;
+	if (err.code === 'upstream') return true;
+	if (err.code) return false;
 	const code = parseThreadsMetaMarker(err.message)?.code;
 	return (err.status ?? 0) >= 500 || (code !== undefined && META_TRANSIENT_CODES.includes(code));
 }
@@ -614,6 +624,7 @@ export const threadsProvider: PlatformProvider = {
 			attempts = CONTAINER_STATUS_ATTEMPTS
 		): Promise<void> {
 			for (let attempt = 0; attempt < attempts; attempt++) {
+				if (attempt > 0 && opts?.callsLeft && opts.callsLeft() <= 6) break;
 				const state = await readContainerStatus(containerId);
 				// Unreadable status: let the publish call decide (unchanged).
 				if (!state) return;
@@ -624,7 +635,11 @@ export const threadsProvider: PlatformProvider = {
 						{ code: 'upstream', detail: state.detail }
 					);
 				}
-				if (attempt + 1 < attempts) await sleep(CONTAINER_STATUS_POLL_MS);
+				if (attempt + 1 < attempts) {
+					if (opts?.callsLeft && opts.callsLeft() <= 6) break;
+					if (opts?.timeLeft && opts.timeLeft() < CONTAINER_STATUS_POLL_MS + 2000) break;
+					await sleep(CONTAINER_STATUS_POLL_MS);
+				}
 			}
 			// Still processing after the budget: try publishing anyway so a
 			// slow-but-finished container still succeeds. A genuinely unready
@@ -648,6 +663,7 @@ export const threadsProvider: PlatformProvider = {
 			let calls = 0;
 			for (let round = 0; round <= CAROUSEL_CHILD_ROUNDS; round++) {
 				if (calls + ids.length > CAROUSEL_CHILD_CALL_BUDGET) break;
+				if (opts?.callsLeft && opts.callsLeft() <= ids.length + 6) break;
 				const states: Awaited<ReturnType<typeof readContainerStatus>>[] = [];
 				for (let i = 0; i < ids.length; i += CAROUSEL_STATUS_CONCURRENCY) {
 					states.push(
@@ -699,7 +715,10 @@ export const threadsProvider: PlatformProvider = {
 					retryNextRound = true;
 				}
 				if (!retryNextRound) return ids;
-				if (round < CAROUSEL_CHILD_ROUNDS) await sleep(CONTAINER_STATUS_POLL_MS);
+				if (round < CAROUSEL_CHILD_ROUNDS) {
+					if (opts?.timeLeft && opts.timeLeft() < CONTAINER_STATUS_POLL_MS + 2000) break;
+					await sleep(CONTAINER_STATUS_POLL_MS);
+				}
 			}
 			// Still not ready: park it retryable instead of handing Meta an
 			// unready child (which would fail the whole publish with 4279004).
@@ -839,9 +858,14 @@ export const threadsProvider: PlatformProvider = {
 							expired = true;
 							return id;
 						}
+						const retryable = isThreadsMediaFetchFailure(state.detail);
 						throw new ProviderError(
 							`Threads media container ${state.status.toLowerCase()}: ${state.detail}`,
-							{ code: 'forbidden', detail: state.detail }
+							{
+								code: retryable ? 'upstream' : 'forbidden',
+								detail: state.detail,
+								dropPending: retryable
+							}
 						);
 					}
 					return null;

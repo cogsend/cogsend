@@ -51,7 +51,6 @@ function assertPublicHttpUrl(raw: string): URL {
 
 export function decodeHtmlEntities(s: string): string {
 	return s
-		.replace(/&amp;/gi, '&')
 		.replace(/&lt;/gi, '<')
 		.replace(/&gt;/gi, '>')
 		.replace(/&quot;/gi, '"')
@@ -69,44 +68,205 @@ export function decodeHtmlEntities(s: string): string {
 			} catch {
 				return '';
 			}
-		});
+		})
+		.replace(/&amp;/gi, '&');
 }
 
-function metaContent(html: string, attr: 'property' | 'name', key: string): string | null {
-	// Both attribute orders: <meta property="og:x" content="..."> and reversed.
-	// Capture with backreference so values containing the other quote type
-	// (e.g. content="Alex's Blog") are not truncated at the apostrophe.
-	const esc = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	const patterns = [
-		new RegExp(
-			`<meta[^>]*${attr}\\s*=\\s*["']${esc}["'][^>]*content\\s*=\\s*(["'])((?:(?!\\1).)*)\\1`,
-			'is'
-		),
-		new RegExp(
-			`<meta[^>]*content\\s*=\\s*(["'])((?:(?!\\1).)*)\\1[^>]*${attr}\\s*=\\s*["']${esc}["']`,
-			'is'
-		)
-	];
-	for (const re of patterns) {
-		const m = re.exec(html);
-		if (m?.[2]) return decodeHtmlEntities(m[2].trim());
-	}
-	return null;
+const MAX_META_TAGS = 250;
+const MAX_TAG_LENGTH = 8_192;
+const MAX_ATTRS_PER_TAG = 32;
+
+function isAsciiSpace(code: number): boolean {
+	return code === 32 || code === 9 || code === 10 || code === 13 || code === 12;
+}
+
+function isAttrNameChar(code: number): boolean {
+	return (
+		(code >= 65 && code <= 90) ||
+		(code >= 97 && code <= 122) ||
+		(code >= 48 && code <= 57) ||
+		code === 45 ||
+		code === 95 ||
+		code === 58
+	);
 }
 
 /**
- * The part of the page worth scanning. A dozen patterns over a whole 2 MB page
- * is CPU the Workers Free plan (10 ms a request) cannot spare on the publish
- * path, and the tags live in <head>. `</head>` is optional in HTML, so the
- * body's opening tag ends the head too. A head without any og:/twitter: tag
- * (tags misplaced in the body, or no head at all) gets the whole page, so no
- * card is lost to the shortcut.
+ * Single-pass linear scan for `<meta>` tags. Replaces per-key `dotAll` regexes
+ * that backtrack quadratically on hostile/malformed HTML under the 10 ms
+ * Workers Free CPU cap.
+ */
+function scanMetaTags(html: string): {
+	property: Map<string, string>;
+	name: Map<string, string>;
+} {
+	const property = new Map<string, string>();
+	const name = new Map<string, string>();
+	const lower = html.toLowerCase();
+	const len = html.length;
+	let pos = 0;
+	let tags = 0;
+
+	while (pos < len && tags < MAX_META_TAGS) {
+		const lt = lower.indexOf('<', pos);
+		if (lt === -1) break;
+		if (lower.startsWith('<!--', lt)) {
+			const end = lower.indexOf('-->', lt + 4);
+			if (end === -1) break;
+			pos = end + 3;
+			continue;
+		}
+		if (
+			lower.startsWith('<script', lt) &&
+			(isAsciiSpace(lower.charCodeAt(lt + 7)) || lower.charCodeAt(lt + 7) === 62)
+		) {
+			const end = lower.indexOf('</script', lt + 7);
+			if (end === -1) break;
+			pos = end + 8;
+			continue;
+		}
+		if (
+			lower.startsWith('<style', lt) &&
+			(isAsciiSpace(lower.charCodeAt(lt + 6)) || lower.charCodeAt(lt + 6) === 62)
+		) {
+			const end = lower.indexOf('</style', lt + 6);
+			if (end === -1) break;
+			pos = end + 7;
+			continue;
+		}
+		if (!lower.startsWith('<meta', lt)) {
+			pos = lt + 1;
+			continue;
+		}
+		const after = lt + 5;
+		if (after >= len) break;
+		const nextCode = lower.charCodeAt(after);
+		if (!isAsciiSpace(nextCode) && nextCode !== 47 && nextCode !== 62) {
+			pos = after;
+			continue;
+		}
+		tags++;
+
+		const tagLimit = Math.min(len, after + MAX_TAG_LENGTH);
+		let i = after;
+		let attrs = 0;
+		let propKey = '';
+		let nameKey = '';
+		let contentVal = '';
+		let hasContent = false;
+		let unclosed = false;
+
+		while (i < tagLimit && attrs < MAX_ATTRS_PER_TAG) {
+			while (i < tagLimit && (isAsciiSpace(html.charCodeAt(i)) || html.charCodeAt(i) === 47)) i++;
+			if (i >= tagLimit || html.charCodeAt(i) === 62) {
+				if (i < tagLimit && html.charCodeAt(i) === 62) i++;
+				break;
+			}
+			const nameStart = i;
+			while (i < tagLimit && isAttrNameChar(html.charCodeAt(i))) i++;
+			if (i === nameStart) {
+				i++;
+				continue;
+			}
+			const attrName = lower.slice(nameStart, i);
+			attrs++;
+
+			while (i < tagLimit && isAsciiSpace(html.charCodeAt(i))) i++;
+			if (i >= tagLimit || html.charCodeAt(i) !== 61) continue;
+			i++; // skip '='
+			while (i < tagLimit && isAsciiSpace(html.charCodeAt(i))) i++;
+			if (i >= tagLimit) break;
+
+			const quote = html.charCodeAt(i);
+			let val: string;
+			if (quote === 34 || quote === 39) {
+				i++;
+				const valStart = i;
+				const close = html.indexOf(quote === 34 ? '"' : "'", valStart);
+				if (close === -1 || close >= tagLimit) {
+					unclosed = true;
+					break;
+				}
+				val = html.slice(valStart, close);
+				i = close + 1;
+			} else {
+				const valStart = i;
+				while (i < tagLimit && !isAsciiSpace(html.charCodeAt(i)) && html.charCodeAt(i) !== 62) i++;
+				val = html.slice(valStart, i);
+			}
+
+			if (attrName === 'property') propKey = val.trim().toLowerCase();
+			else if (attrName === 'name') nameKey = val.trim().toLowerCase();
+			else if (attrName === 'content') {
+				contentVal = val.trim();
+				hasContent = true;
+			}
+		}
+
+		if (hasContent && contentVal) {
+			const decoded = decodeHtmlEntities(contentVal);
+			if (propKey && !property.has(propKey)) property.set(propKey, decoded);
+			if (nameKey && !name.has(nameKey)) name.set(nameKey, decoded);
+		}
+		if (unclosed) {
+			const nextGt = html.indexOf('>', after);
+			pos = nextGt !== -1 && nextGt < tagLimit ? nextGt + 1 : after;
+		} else {
+			pos = Math.max(i, after);
+		}
+	}
+
+	return { property, name };
+}
+
+function extractTitle(html: string): string {
+	const lower = html.toLowerCase();
+	let pos = 0;
+	while (pos < lower.length) {
+		const start = lower.indexOf('<title', pos);
+		if (start === -1) return '';
+		const after = start + 6;
+		const nextCode = lower.charCodeAt(after);
+		if (nextCode !== 62 && !isAsciiSpace(nextCode)) {
+			pos = after;
+			continue;
+		}
+		const gt = lower.indexOf('>', after);
+		if (gt === -1 || gt - start > 512) return '';
+		const end = lower.indexOf('</title>', gt + 1);
+		if (end === -1 || end - (gt + 1) > 500) return '';
+		const raw = html.slice(gt + 1, end);
+		if (raw.includes('<')) return '';
+		return raw.trim();
+	}
+	return '';
+}
+
+/**
+ * The part of the page worth scanning. Tags live in `<head>`, and `</head>` is
+ * optional in HTML so `<body` ends the head too. A head without any og:/twitter:
+ * meta tag falls back to the whole page so misplaced tags still produce a card.
  */
 function metaScope(html: string): string {
-	const end = html.search(/<\/head\s*>|<body[\s>]/i);
+	const lower = html.toLowerCase();
+	const headEnd = lower.indexOf('</head');
+	const bodyStart = lower.indexOf('<body');
+	const end =
+		headEnd !== -1 && bodyStart !== -1
+			? Math.min(headEnd, bodyStart)
+			: headEnd !== -1
+				? headEnd
+				: bodyStart;
 	if (end === -1) return html;
 	const head = html.slice(0, end);
-	return /<meta[^>]+(?:property|name)\s*=\s*["']?(?:og|twitter):/i.test(head) ? head : html;
+	const scanned = scanMetaTags(head);
+	for (const key of scanned.property.keys()) {
+		if (key.startsWith('og:') || key.startsWith('twitter:')) return head;
+	}
+	for (const key of scanned.name.keys()) {
+		if (key.startsWith('og:') || key.startsWith('twitter:')) return head;
+	}
+	return html;
 }
 
 /**
@@ -115,23 +275,20 @@ function metaScope(html: string): string {
  */
 export function parseOpenGraphHtml(page: string, baseUrl: string): OpenGraphData {
 	const html = metaScope(page);
+	const { property, name } = scanMetaTags(html);
 	const title =
-		metaContent(html, 'property', 'og:title') ||
-		metaContent(html, 'name', 'twitter:title') ||
-		/<title[^>]*>([^<]{1,500})<\/title>/i.exec(html)?.[1]?.trim() ||
+		property.get('og:title') ||
+		name.get('twitter:title') ||
+		decodeHtmlEntities(extractTitle(html)) ||
 		'';
 	const description =
-		metaContent(html, 'property', 'og:description') ||
-		metaContent(html, 'name', 'twitter:description') ||
-		metaContent(html, 'name', 'description') ||
+		property.get('og:description') ||
+		name.get('twitter:description') ||
+		name.get('description') ||
 		'';
-	const siteName =
-		metaContent(html, 'property', 'og:site_name') || metaContent(html, 'name', 'twitter:site');
+	const siteName = property.get('og:site_name') || name.get('twitter:site') || null;
 	let image =
-		metaContent(html, 'property', 'og:image') ||
-		metaContent(html, 'property', 'og:image:url') ||
-		metaContent(html, 'name', 'twitter:image') ||
-		null;
+		property.get('og:image') || property.get('og:image:url') || name.get('twitter:image') || null;
 	if (image) {
 		try {
 			image = new URL(image, baseUrl).toString();
@@ -144,8 +301,8 @@ export function parseOpenGraphHtml(page: string, baseUrl: string): OpenGraphData
 	}
 	return {
 		url: baseUrl,
-		title: decodeHtmlEntities(title).slice(0, 300),
-		description: decodeHtmlEntities(description).slice(0, 1000),
+		title: title.slice(0, 300),
+		description: description.slice(0, 1000),
 		image,
 		siteName: siteName?.slice(0, 200) ?? null
 	};

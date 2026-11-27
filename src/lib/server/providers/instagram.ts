@@ -53,12 +53,12 @@ const RATE_CODES = new Set([4, 9, 17, 32, 613]);
 const TRANSIENT_CODES = new Set([1, 2]);
 // The crawler sometimes fails to pull a URL that works moments later, and a
 // container made before its parts finished says it is not ready yet.
-const MEDIA_FETCH_SUBCODES = new Set([2207003, 2207027, 2207052]);
+const MEDIA_FETCH_SUBCODES = new Set([2207003, 2207027, 2207052, 4279004, 4279009]);
 const DAILY_LIMIT_SUBCODE = 2207042;
-// A photo container reports its failure as text ("Media upload has failed with
+// Container failures reported as status text ("Media upload has failed with
 // error code 2207052"), and these are the codes worth another try. 2207001 is
 // Meta's own server error.
-const RETRIED_PHOTO_CODES = new Set([...MEDIA_FETCH_SUBCODES, 2207001]);
+const RETRIED_MEDIA_CODES = new Set([...MEDIA_FETCH_SUBCODES, 2207001]);
 
 function parseMetaError(body: string): { code?: number; subcode?: number; message?: string } {
 	try {
@@ -136,9 +136,10 @@ function mayHavePublished(err: ProviderError): boolean {
 	return subcode === undefined || !MEDIA_FETCH_SUBCODES.has(subcode);
 }
 
-function isRetriedPhotoFailure(status: string): boolean {
-	const code = status.match(/\b2207\d{3}\b/)?.[0];
-	return code !== undefined && RETRIED_PHOTO_CODES.has(Number(code));
+function isRetriedMediaFailure(status: string): boolean {
+	const code = status.match(/\b(?:2207\d{3}|4279004|4279009)\b/)?.[0];
+	if (code !== undefined && RETRIED_MEDIA_CODES.has(Number(code))) return true;
+	return /media download has failed|could not be fetched|media could not be fetched/i.test(status);
 }
 
 function isJpeg(m: MediaAttachment): boolean {
@@ -266,7 +267,7 @@ export const instagramProvider: PlatformProvider = {
 						const state = await containerState(id);
 						if (state?.state === 'failed') {
 							throw new ProviderError(`Instagram could not take a photo: ${state.status}`, {
-								code: isRetriedPhotoFailure(state.status) ? 'upstream' : 'forbidden',
+								code: isRetriedMediaFailure(state.status) ? 'upstream' : 'forbidden',
 								detail: state.status
 							});
 						}
@@ -324,9 +325,13 @@ export const instagramProvider: PlatformProvider = {
 							expired = true;
 							return containerId;
 						}
+						const retryable = isRetriedMediaFailure(state.status);
 						throw new ProviderError(`Instagram could not take the video: ${state.status}`, {
-							code: 'forbidden',
-							detail: state.status
+							code: retryable ? 'upstream' : 'forbidden',
+							detail: state.status,
+							// Drop the dead containerId so the retry creates a fresh container
+							// instead of polling this failed one forever.
+							dropPending: retryable
 						});
 					}
 					return null;

@@ -225,7 +225,11 @@ export function zernioProviderFor(
 			// publish.ts to forget it, so the next attempt creates a fresh post.
 			const forgetPost = () => publishOpts?.checkpoint?.({ segmentIds: [], remoteUrl: null });
 			for (let poll = 0; poll < maxPolls; poll++) {
-				if (poll > 0) await sleep(pollIntervalMs);
+				if (poll > 0) {
+					if (publishOpts?.callsLeft && publishOpts.callsLeft() <= 4) break;
+					if (publishOpts?.timeLeft && publishOpts.timeLeft() < pollIntervalMs + 2000) break;
+					await sleep(pollIntervalMs);
+				}
 				let post: ZernioPost;
 				try {
 					post = await getPost({ apiKey, postId, fetchImpl });

@@ -323,8 +323,9 @@ describe('xProvider.publish', () => {
 				calls.push('finalize');
 				return Response.json({ data: { id: '999' } });
 			},
-			'/2/media/metadata': () => {
+			'/2/media/metadata': async (req) => {
 				calls.push('metadata');
+				expect(await req.json()).toEqual({ id: '999', metadata: { alt_text: { text: 'cat' } } });
 				return Response.json({}, { status: 200 });
 			},
 			'/2/tweets': async (req) => {

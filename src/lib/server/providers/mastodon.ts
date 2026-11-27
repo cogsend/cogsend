@@ -155,7 +155,8 @@ async function uploadMedia(
 	token: string,
 	media: MediaAttachment,
 	fetchImpl: FetchLike,
-	attachmentLabel?: string
+	attachmentLabel?: string,
+	budget?: { callsLeft?: () => number; timeLeft?: () => number }
 ): Promise<string> {
 	const bytes = loadMediaBytes(media);
 	const form = new FormData();
@@ -179,7 +180,7 @@ async function uploadMedia(
 	const data = (await res.json()) as { id: string };
 	if (res.status !== 202) return data.id;
 	// 202: the full-size file is still processing; wait until it is usable.
-	await waitForMastodonMedia(instanceUrl, token, data.id, fetchImpl);
+	await waitForMastodonMedia(instanceUrl, token, data.id, fetchImpl, budget);
 	return data.id;
 }
 
@@ -194,11 +195,18 @@ export async function waitForMastodonMedia(
 	token: string,
 	mediaId: string,
 	fetchImpl: FetchLike,
-	opts: { attempts?: number; delayMs?: number } = {}
+	opts: {
+		attempts?: number;
+		delayMs?: number;
+		callsLeft?: () => number;
+		timeLeft?: () => number;
+	} = {}
 ): Promise<void> {
 	const attempts = opts.attempts ?? MEDIA_PROCESS_POLL_ATTEMPTS;
 	const delayMs = opts.delayMs ?? MEDIA_PROCESS_POLL_MS;
 	for (let attempt = 0; attempt < attempts; attempt++) {
+		if (opts.callsLeft && opts.callsLeft() <= 4) break;
+		if (opts.timeLeft && opts.timeLeft() < delayMs + 2000) break;
 		await sleep(delayMs);
 		const poll = await fetchImpl(`${instanceUrl}/api/v1/media/${encodeURIComponent(mediaId)}`, {
 			headers: { Authorization: `Bearer ${token}` }
@@ -473,7 +481,12 @@ export const mastodonProvider: PlatformProvider = {
 							throw new Error('Videos cannot mix with images on the same post');
 						}
 						const label = images.length > 1 ? `image ${idx + 1}/${images.length}` : undefined;
-						mediaIds.push(await uploadMedia(instanceUrl, creds.accessToken, m, guarded, label));
+						mediaIds.push(
+							await uploadMedia(instanceUrl, creds.accessToken, m, guarded, label, {
+								callsLeft: opts?.callsLeft,
+								timeLeft: opts?.timeLeft
+							})
+						);
 					}
 				}
 				const pollOptions = i === 0 ? (seg.options?.poll ?? content.options?.poll) : undefined;

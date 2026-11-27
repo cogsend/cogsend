@@ -6,6 +6,7 @@ import {
 	isThreadsMediaFetchFailure,
 	parseThreadsMetaMarker
 } from '#lib/domain/threads-error.js';
+import { threadsUpstreamError } from '#lib/server/providers/threads.js';
 
 describe('threads meta marker', () => {
 	it('formats and parses codes with and without subcodes', () => {
@@ -71,5 +72,28 @@ describe('isThreadsMediaFetchFailure', () => {
 		const mediaNotFound =
 			'Threads publish failed (400): {"error":{"message":"Media not found","code":24,"error_subcode":4279009}} [meta 24.4279009]';
 		expect(isThreadsMediaFetchFailure(mediaNotFound)).toBe(true);
+	});
+});
+
+describe('threadsUpstreamError', () => {
+	it('classifies Meta 400 rate-limit and transient codes as retryable', () => {
+		for (const code of [4, 17, 32, 613]) {
+			const err = threadsUpstreamError(
+				'Threads container',
+				400,
+				JSON.stringify({ error: { code, message: 'Rate limited' } })
+			);
+			expect(err.code, `code ${code}`).toBe('rate_limited');
+			expect(err.retryable, `code ${code}`).toBe(true);
+		}
+		for (const code of [1, 2]) {
+			const err = threadsUpstreamError(
+				'Threads container',
+				400,
+				JSON.stringify({ error: { code, message: 'An unknown error occurred' } })
+			);
+			expect(err.code, `code ${code}`).toBe('upstream');
+			expect(err.retryable, `code ${code}`).toBe(true);
+		}
 	});
 });
