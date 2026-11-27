@@ -563,6 +563,37 @@ describe('in-app updater', () => {
 		expect((await stepPrepare(ctx({ now: later }), { tag: TAG })).phase).toBe('prepared');
 	});
 
+	it('refuses to promote or revert an out-of-band deploy that replaced the live version', async () => {
+		await updateToStaged();
+		w.state.deployments = [
+			{ id: 'dep-ext', versions: [{ version_id: 'external-ver', percentage: 100 }] }
+		];
+		await expect(stepPromote(ctx(), {})).rejects.toThrow(/deployed again/);
+		expect(w.state.deployments[0].versions).toEqual([
+			{ version_id: 'external-ver', percentage: 100 }
+		]);
+
+		// Re-stage, then simulate an out-of-band deploy before aborting.
+		w.state.deployments = [{ id: 'dep-1', versions: [{ version_id: OLD, percentage: 100 }] }];
+		await updateToStaged();
+		w.state.deployments = [
+			{ id: 'dep-ext-2', versions: [{ version_id: 'external-ver-2', percentage: 100 }] }
+		];
+		await stepAbort(ctx());
+		expect(w.state.deployments[0].versions).toEqual([
+			{ version_id: 'external-ver-2', percentage: 100 }
+		]);
+		expect(await readJob(test.db)).toBeNull();
+	});
+
+	it('cleans up the 0% version when dropping an expired staged job', async () => {
+		await updateToStaged();
+		const later = () => Date.now() + 2 * 60 * 60_000;
+		const res = await stepPrepare(ctx({ now: later }), { tag: TAG });
+		expect(res.phase).toBe('prepared');
+		expect(w.state.deployments[0].versions).toEqual([{ version_id: OLD, percentage: 100 }]);
+	});
+
 	it('only answers a verified browser session, and never echoes the token', async () => {
 		const call = (locals: Record<string, unknown>, body: unknown) =>
 			stepPOST({

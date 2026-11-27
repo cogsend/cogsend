@@ -180,6 +180,12 @@ export function cloudflareApi(
 		deploy: (accountId: string, name: string, versions: DeploymentVersion[], message: string) =>
 			call<Deployment>('POST', `${script(accountId, name)}/deployments`, {
 				json: { strategy: 'percentage', versions, annotations: { 'workers/message': message } }
+			}),
+
+		/** Apply non-versioned script settings such as `observability`. */
+		patchScriptSettings: (accountId: string, name: string, settings: Record<string, unknown>) =>
+			call<Record<string, unknown>>('PATCH', `${script(accountId, name)}/script-settings`, {
+				json: settings
 			})
 	};
 }

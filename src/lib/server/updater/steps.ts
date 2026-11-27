@@ -292,6 +292,44 @@ function prepared(job: UpdateJob, manifest: UpdateManifest): PrepareResult {
 	};
 }
 
+function isServingVersion(
+	versions: Array<{ version_id: string; percentage: number }>,
+	id: string
+): boolean {
+	return versions.length === 1 && versions[0].version_id === id && versions[0].percentage === 100;
+}
+
+function isServingStagedSplit(
+	versions: Array<{ version_id: string; percentage: number }>,
+	previousId: string,
+	stagedId: string | undefined
+): boolean {
+	if (!stagedId || versions.length !== 2) return false;
+	return (
+		versions.some((v) => v.version_id === previousId && v.percentage === 100) &&
+		versions.some((v) => v.version_id === stagedId && v.percentage === 0)
+	);
+}
+
+async function assertJobMatchesLive(
+	ctx: UpdaterContext,
+	job: UpdateJob,
+	opts: { allowStaged?: boolean } = {}
+): Promise<void> {
+	const [current] = await ctx.api.deployments(job.accountId, job.scriptName);
+	const serving = current?.versions ?? [];
+	const matches =
+		isServingVersion(serving, job.previousVersionId) ||
+		(opts.allowStaged && isServingStagedSplit(serving, job.previousVersionId, job.newVersionId));
+	if (!matches) {
+		await dropJob(ctx, job);
+		throw new UpdateError(
+			'This Worker was deployed again while the update was in progress: reload the page and start over',
+			409
+		);
+	}
+}
+
 export async function stepPrepare(
 	ctx: UpdaterContext,
 	input: { tag?: string }
@@ -303,10 +341,38 @@ export async function stepPrepare(
 
 	const existing = await readJob(ctx.db);
 	if (existing && !jobExpired(existing, now)) {
-		if (existing.tag === tag) return prepared(existing, await stagedManifest(ctx, existing));
+		if (existing.tag === tag) {
+			await assertJobMatchesLive(ctx, existing, { allowStaged: existing.phase === 'staged' });
+			const manifest = await stagedManifest(ctx, existing);
+			const blockers = updateBlockers(manifest, ctx.currentVersion, existing.bindings);
+			if (blockers.length) {
+				await dropJob(ctx, existing);
+				throw new UpdateError(blockers.join('. '));
+			}
+			return prepared(existing, manifest);
+		}
 		throw new UpdateError(`An update to ${existing.tag} is in progress: finish or abort it first`);
 	}
-	if (existing) await dropJob(ctx, existing);
+	if (existing) {
+		if (existing.phase === 'staged') {
+			const [current] = await ctx.api.deployments(existing.accountId, existing.scriptName);
+			if (
+				isServingStagedSplit(
+					current?.versions ?? [],
+					existing.previousVersionId,
+					existing.newVersionId
+				)
+			) {
+				await ctx.api.deploy(
+					existing.accountId,
+					existing.scriptName,
+					[{ version_id: existing.previousVersionId, percentage: 100 }],
+					`CogSend ${existing.version}: expired staged update cleared`
+				);
+			}
+		}
+		await dropJob(ctx, existing);
+	}
 
 	const version = tag.slice(1);
 	const base = `${RELEASE_DOWNLOAD_BASE}/${tag}/cogsend-${version}`;
@@ -517,6 +583,7 @@ export async function stepStage(ctx: UpdaterContext): Promise<StageResult> {
 	const job = await requireJob(ctx);
 	if (!job.newVersionId) throw new UpdateError('The new version is not uploaded yet');
 	if (job.phase !== 'staged') {
+		await assertJobMatchesLive(ctx, job);
 		await ctx.api.deploy(
 			job.accountId,
 			job.scriptName,
@@ -541,13 +608,10 @@ export async function stepPromote(
 	if (job.phase !== 'staged' && !input.skipStage) {
 		throw new UpdateError('Check the new version before sending traffic to it');
 	}
+	await assertJobMatchesLive(ctx, job, { allowStaged: job.phase === 'staged' });
 	const manifest = await stagedManifest(ctx, job);
-	await ctx.api.deploy(
-		job.accountId,
-		job.scriptName,
-		[{ version_id: job.newVersionId, percentage: 100 }],
-		`CogSend ${job.version}, installed from Settings`
-	);
+	// Record rollback state before deploying so a crash after deploy still
+	// leaves a valid Roll back target; clear it if the deploy itself fails.
 	await writePrevious(ctx.db, {
 		versionId: job.previousVersionId,
 		installedVersionId: job.newVersionId,
@@ -556,6 +620,24 @@ export async function stepPromote(
 		schemaChange: manifest.schemaChange,
 		at: ctx.now?.() ?? Date.now()
 	});
+	try {
+		await ctx.api.deploy(
+			job.accountId,
+			job.scriptName,
+			[{ version_id: job.newVersionId, percentage: 100 }],
+			`CogSend ${job.version}, installed from Settings`
+		);
+	} catch (err) {
+		await clearPrevious(ctx.db).catch(() => undefined);
+		throw err;
+	}
+	if (manifest.worker.observability && ctx.api.patchScriptSettings) {
+		await ctx.api
+			.patchScriptSettings(job.accountId, job.scriptName, {
+				observability: manifest.worker.observability
+			})
+			.catch(() => undefined);
+	}
 	await dropJob(ctx, job);
 	await clearUnlockedToken(ctx.db);
 	return { version: job.version };
@@ -565,9 +647,14 @@ export async function stepRollback(ctx: UpdaterContext): Promise<{ version: stri
 	const previous = await readPrevious(ctx.db);
 	if (!previous) throw new UpdateError('There is no earlier version to return to');
 	const target = await requireTarget(ctx);
+	const job = await readJob(ctx.db);
 	const [current] = await ctx.api.deployments(target.accountId, target.scriptName);
-	const serving = current?.versions?.length === 1 ? current.versions[0].version_id : null;
-	if (!previous.installedVersionId || serving !== previous.installedVersionId) {
+	const serving = current?.versions ?? [];
+	const matches =
+		Boolean(previous.installedVersionId) &&
+		(isServingVersion(serving, previous.installedVersionId!) ||
+			isServingStagedSplit(serving, previous.installedVersionId!, job?.newVersionId));
+	if (!matches) {
 		await clearPrevious(ctx.db);
 		throw new UpdateError(
 			`This Worker was deployed again after the update to ${previous.replacedBy}, so Roll back no longer applies. Pick a version under Workers & Pages → your Worker → Deployments instead.`,
@@ -580,6 +667,7 @@ export async function stepRollback(ctx: UpdaterContext): Promise<{ version: stri
 		[{ version_id: previous.versionId, percentage: 100 }],
 		`CogSend: rolled back to ${previous.version} from Settings`
 	);
+	if (job) await dropJob(ctx, job);
 	await clearPrevious(ctx.db);
 	await clearUnlockedToken(ctx.db);
 	return { version: previous.version };
@@ -590,13 +678,17 @@ export async function stepAbort(ctx: UpdaterContext): Promise<{ aborted: boolean
 	const job = await readJob(ctx.db);
 	if (!job) return { aborted: false };
 	if (job.phase === 'staged') {
-		// Take the 0% version back out, so the deployment is the old one alone.
-		await ctx.api.deploy(
-			job.accountId,
-			job.scriptName,
-			[{ version_id: job.previousVersionId, percentage: 100 }],
-			`CogSend ${job.version}: update cancelled`
-		);
+		// Only remove our 0% staged split if Cloudflare is still serving it;
+		// never revert an out-of-band deploy that replaced it.
+		const [current] = await ctx.api.deployments(job.accountId, job.scriptName);
+		if (isServingStagedSplit(current?.versions ?? [], job.previousVersionId, job.newVersionId)) {
+			await ctx.api.deploy(
+				job.accountId,
+				job.scriptName,
+				[{ version_id: job.previousVersionId, percentage: 100 }],
+				`CogSend ${job.version}: update cancelled`
+			);
+		}
 	}
 	await dropJob(ctx, job);
 	return { aborted: true };
