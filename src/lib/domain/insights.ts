@@ -312,9 +312,11 @@ function boundsFor(
  */
 export function insightFrames(nowMs: number, days: InsightRange, timeZone: string): InsightFrames {
 	const weekly = bucketKind(days) === 'week';
-	const { span, currentKeys, previousKeys } = windowKeys(nowMs, days, timeZone);
-	const sinceMs = nowMs - span * DAY_MS;
-	const previousSinceMs = sinceMs - span * DAY_MS;
+	const { currentKeys, previousKeys } = windowKeys(nowMs, days, timeZone);
+	// Start each window on the local calendar midnight of its first labeled day
+	// so bucket 0 holds one calendar day rather than up to 48 hours.
+	const sinceMs = localDayStartMs(currentKeys[0]!, timeZone);
+	const previousSinceMs = localDayStartMs(previousKeys[0]!, timeZone);
 	const labelsOf = (keys: string[]) =>
 		Array.from({ length: weekly ? keys.length / 7 : keys.length }, (_, i) =>
 			labelFor(keys[weekly ? i * 7 : i] ?? keys[0]!)

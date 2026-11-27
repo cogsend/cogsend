@@ -221,6 +221,11 @@ async function execStatements(d1: D1Database, sql: string) {
 		.split(';')
 		.map((s) => s.trim())
 		.filter((s) => s.length > 0);
+	if (!statements.length) return;
+	if (typeof d1.batch === 'function' && statements.length > 1) {
+		await d1.batch(statements.map((statement) => d1.prepare(statement)));
+		return;
+	}
 	for (const statement of statements) {
 		await d1.prepare(statement).run();
 	}
