@@ -18,10 +18,26 @@
 const URL_RE = /https?:\/\/[^\s<>"'`]+/gi;
 
 // Trailing punctuation is almost never part of the URL (typed `see this.`).
-const TRAILING_PUNCT_RE = /[.,);:!?'\]"'`]+$/;
+const TRAILING_PUNCT_RE = /[.,;:!?'\]"'`]+$/;
 
 export function cleanUrl(raw: string): string {
-	return raw.replace(TRAILING_PUNCT_RE, '');
+	let s = raw;
+	for (;;) {
+		const trimmed = s.replace(TRAILING_PUNCT_RE, '');
+		if (trimmed !== s) {
+			s = trimmed;
+			continue;
+		}
+		if (s.endsWith(')')) {
+			const opens = (s.match(/\(/g) || []).length;
+			const closes = (s.match(/\)/g) || []).length;
+			if (closes > opens) {
+				s = s.slice(0, -1);
+				continue;
+			}
+		}
+		return s;
+	}
 }
 
 /** All http(s) URLs in text, cleaned, in order. */

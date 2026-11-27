@@ -23,6 +23,46 @@ function graphemes(text: string): string[] {
 	}
 }
 
+/**
+ * Split a paragraph into sentences without breaking URLs, domains or decimals.
+ * Only treats `.!?` (with optional closing quotes/brackets) as a boundary when
+ * followed by whitespace or end-of-string. No regex lookbehind (Safari < 16.4).
+ */
+function splitSentences(t: string): string[] {
+	const out: string[] = [];
+	const len = t.length;
+	let start = 0;
+	let i = 0;
+	while (i < len) {
+		const ch = t[i];
+		if (ch === '\n') {
+			const piece = t.slice(start, i).trim();
+			if (piece) out.push(piece);
+			i++;
+			start = i;
+			continue;
+		}
+		if (ch === '.' || ch === '!' || ch === '?') {
+			let end = i + 1;
+			while (end < len && (t[end] === '.' || t[end] === '!' || t[end] === '?')) end++;
+			while (end < len && (t[end] === '"' || t[end] === "'" || t[end] === ')' || t[end] === ']'))
+				end++;
+			if (end === len || /\s/.test(t[end])) {
+				const piece = t.slice(start, end).trim();
+				if (piece) out.push(piece);
+				while (end < len && /[ \t]/.test(t[end])) end++;
+				start = end;
+				i = end;
+				continue;
+			}
+		}
+		i++;
+	}
+	const tail = t.slice(start).trim();
+	if (tail) out.push(tail);
+	return out.length ? out : [t];
+}
+
 function hardSliceByCount(text: string, maxChars: number, count: (s: string) => number): string[] {
 	const parts: string[] = [];
 	let current = '';
@@ -70,7 +110,7 @@ export function splitLongText(
 		}
 		flush();
 		// Sentence-ish boundaries (newlines act as boundaries too).
-		const sentences = t.match(/[^.!?\n]+[.!?]+["')\]]*\s*|[^.!?\n]+/g) ?? [t];
+		const sentences = splitSentences(t);
 		for (const raw of sentences) {
 			const sentence = raw.trim();
 			if (!sentence) continue;

@@ -96,7 +96,7 @@ const META_RATE_CODES = new Set([4, 17, 32, 613]);
 /** The `alt_text` param for one file, cut to what Threads keeps. */
 function altParam(m: { alt?: string | null }): Record<string, string> {
 	const alt = m.alt?.trim();
-	return alt ? { alt_text: alt.slice(0, ALT_LIMITS.threads) } : {};
+	return alt ? { alt_text: [...alt].slice(0, ALT_LIMITS.threads).join('') } : {};
 }
 
 function sleep(ms: number): Promise<void> {

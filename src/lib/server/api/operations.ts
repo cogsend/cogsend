@@ -687,8 +687,17 @@ function validateVariantOptions(options: unknown): string | null {
 	if (!options || typeof options !== 'object' || Array.isArray(options))
 		return 'options must be an object';
 	const value = options as Record<string, unknown>;
-	if (value.visibility !== undefined && !VISIBILITIES.has(String(value.visibility)))
+	if (
+		value.visibility !== undefined &&
+		(typeof value.visibility !== 'string' || !VISIBILITIES.has(value.visibility))
+	)
 		return 'Invalid visibility';
+	if (
+		value.spoilerText !== undefined &&
+		value.spoilerText !== null &&
+		(typeof value.spoilerText !== 'string' || value.spoilerText.length > 10_000)
+	)
+		return 'Invalid spoilerText';
 	if (value.poll !== undefined && value.poll !== null) {
 		const poll = validatePollConfig(value.poll);
 		if (!poll.ok) return poll.error;

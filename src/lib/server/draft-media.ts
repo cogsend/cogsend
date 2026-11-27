@@ -27,7 +27,7 @@ export function cleanAltText(value: unknown): string | null {
 	if (typeof value !== 'string') return null;
 	const trimmed = value.trim();
 	if (!trimmed) return null;
-	return trimmed.slice(0, MAX_ALT_LENGTH);
+	return [...trimmed].slice(0, MAX_ALT_LENGTH).join('');
 }
 
 export async function rejectIfNotEditable(db: App.Locals['db'], draftId: string) {

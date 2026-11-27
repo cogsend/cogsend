@@ -282,7 +282,7 @@ export const instagramProvider: PlatformProvider = {
 		function photoParams(m: MediaAttachment, url: string): Record<string, string> {
 			const params: Record<string, string> = { image_url: url };
 			const alt = m.alt?.trim();
-			if (alt) params.alt_text = alt.slice(0, ALT_LIMITS.instagram);
+			if (alt) params.alt_text = [...alt].slice(0, ALT_LIMITS.instagram).join('');
 			return params;
 		}
 

@@ -24,14 +24,36 @@ export const MAX_IMAGES_PER_SEGMENT = 4;
 // (api/drafts/[id]/media/uploads), so the 100 MB request limit does not apply.
 export const MAX_VIDEO_BYTES = 300_000_000;
 
+// Non-MP4 ISO-BMFF major brands (QuickTime MOV, HEIF/AVIF images, 3GPP) that
+// share the `ftyp` box header and must not be stored as `video/mp4`.
+const NON_MP4_BRANDS = new Set([
+	'qt  ',
+	'avif',
+	'avis',
+	'heic',
+	'heix',
+	'hevc',
+	'hevx',
+	'mif1',
+	'msf1',
+	'3gp4',
+	'3gp5',
+	'3gp6',
+	'3g2a'
+]);
+
 function looksLikeMp4(bytes: Uint8Array): boolean {
-	return (
-		bytes.length >= 12 &&
-		bytes[4] === 0x66 &&
-		bytes[5] === 0x74 &&
-		bytes[6] === 0x79 &&
-		bytes[7] === 0x70
-	);
+	if (
+		bytes.length < 12 ||
+		bytes[4] !== 0x66 ||
+		bytes[5] !== 0x74 ||
+		bytes[6] !== 0x79 ||
+		bytes[7] !== 0x70
+	) {
+		return false;
+	}
+	const major = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]);
+	return !NON_MP4_BRANDS.has(major);
 }
 
 /** Video validation (mp4 only). Sniffs ftyp when bytes are present. */
