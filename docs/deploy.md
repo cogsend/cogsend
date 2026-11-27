@@ -131,8 +131,7 @@ node scripts/wrangler.mjs secret put APP_ENCRYPTION_KEY
 npm run build && npm run deploy
 ```
 
-The account comes last: open the Worker's URL and create it on the login page with the `APP_ENCRYPTION_KEY` you just set, or run `npm run setup` once, which finds the database and bucket you just made, uploads the secrets and creates the account from the terminal. Either way, only someone holding the key can create it. `npm run deploy:release` runs tests, migrations, build and deploy in one
-go.
+The account comes last: open the Worker's URL and create it on the login page with the `APP_ENCRYPTION_KEY` you just set, or run `npm run setup` once, which finds the database and bucket you just made, uploads the secrets and creates the account from the terminal. Either way, only someone holding the key can create it. `npm run deploy:release` runs tests, build, migrations and deploy in one go.
 
 A fresh database needs no migration step — the schema bootstraps itself on the
 first request; an older one gets new migrations with `npm run db:migrate:remote`.

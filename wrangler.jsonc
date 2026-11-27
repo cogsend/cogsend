@@ -86,8 +86,9 @@
 		}
 	],
 	// Optional: binding Cloudflare Images (`"images": { "binding": "IMAGES" }`)
-	// makes the Posts grid serve cached 160px thumbnails instead of full-size
-	// originals. Without it, originals are served. See docs/configuration.md.
+	// serves cached 160px thumbnails for Your media (when no browser-made thumb
+	// was uploaded) and generates missing JPEG copies for Instagram PNG/WebP
+	// posts. Without it, originals are served. See docs/configuration.md.
 	// No vars: the instance name is set in the app (Settings → Instance) and
 	// falls back to "CogSend", and the scheduled handler runs whenever the
 	// trigger fires. Keys, passwords and OAuth client secrets belong in Worker

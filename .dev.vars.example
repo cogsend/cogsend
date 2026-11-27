@@ -55,15 +55,10 @@ APP_ENCRYPTION_KEY=
 # when the instance resolves to a localhost URL — never on a real host.
 # Set to 1 to enable.
 # SKIP_TOTP=1
-# Optional. Enables video uploads (LinkedIn only: one MP4 per post, no images
-# mixed in). The upload path is wired but has not been verified end to end
-# against LinkedIn's live API, so it is off unless you set this. The file
-# picker hides video while it is off, and the API refuses video files.
-# ENABLE_VIDEO_UPLOAD=1
 # Optional. Calls one request may make (D1 statements, R2 operations, platform
 # requests). Unset means the Workers Free plan's 50, and the scheduler publishes
 # what fits and leaves the rest for the next tick. On a paid Workers plan, set
-# 10000 to publish everything due at once.
+# 10000 to publish up to 50 due posts per tick.
 # SUBREQUEST_LIMIT=10000
 
 # Optional. Failure digest via Resend: the API key plus the address that

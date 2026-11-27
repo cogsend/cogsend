@@ -53,13 +53,7 @@ All of these must pass. CI runs the same list, plus `npm audit --audit-level=hig
 a newly published advisory can fail a build that passes locally, so run it before
 pushing a dependency change. `npm run format` fixes formatting.
 
-CI splits that into two jobs. `check` runs the audit, lint, svelte-check, the unit
-suite and the build; the browser suites run as a matrix, the main one and the TOTP
-one on separate runners at the same time. A push that only touches documentation
-skips the browser suites — prose cannot break them — while `check` always runs,
-because `tests/platform-setup.test.ts` reads `docs/oauth-apps.md`. Pushing a tag
-starts no run at all: the commit it points at was already tested by the branch
-push.
+CI splits that into three jobs: `changes` decides whether browser suites need to run, `check` runs the audit, lint, svelte-check, the unit suite and the build, and `e2e` runs a 5-entry matrix (four weighted shards of the main suite plus the TOTP suite) in parallel. A push that only touches documentation skips the browser suites — prose cannot break them — while `check` always runs, because `tests/platform-setup.test.ts` reads `docs/oauth-apps.md`. Pushing a tag starts no run at all: the commit it points at was already tested by the branch push.
 
 The e2e suite keeps to itself: its D1/R2 state lives in `.wrangler/e2e-state`, so
 your `npm run dev` data is never touched, and it creates its own account there
