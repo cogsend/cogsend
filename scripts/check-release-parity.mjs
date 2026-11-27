@@ -188,6 +188,12 @@ function compare(capture) {
 	) {
 		problems.push('asset config differs');
 	}
+	if (
+		JSON.stringify(metadata.observability ?? null) !==
+		JSON.stringify(manifest.worker.observability ?? null)
+	) {
+		problems.push('observability differs');
+	}
 	for (const m of manifest.worker.modules) {
 		const uploaded = parts[m.name];
 		if (!uploaded) problems.push(`module ${m.name} is not in wrangler's upload`);

@@ -15,9 +15,11 @@ import {
 	listAssets,
 	manifestBytes,
 	publicKeyOf,
+	requiredBindingsFromConfig,
 	signManifest,
 	verifyManifest
 } from '../scripts/lib/release-bundle.mjs';
+import { parseJsonc } from '../scripts/lib/wrangler-config.mjs';
 import {
 	CORE_BINDINGS,
 	bindingSignature,
@@ -277,5 +279,20 @@ describe('update blockers', () => {
 			'DB:d1',
 			'MEDIA:r2_bucket'
 		]);
+	});
+
+	it('derives mandatory bindings from wrangler.jsonc while excluding optional ones', () => {
+		const config = parseJsonc(readFileSync(join(process.cwd(), 'wrangler.jsonc'), 'utf8'));
+		const derived = requiredBindingsFromConfig(config);
+		expect(derived).toEqual(REQUIRED_BINDINGS);
+		// Adding a new KV binding shows up as required automatically.
+		const withKv = requiredBindingsFromConfig({
+			...config,
+			kv_namespaces: [{ binding: 'CACHE', id: 'abc' }]
+		});
+		expect(withKv).toContainEqual({ name: 'CACHE', type: 'kv_namespace' });
+		// Optional bindings stay excluded so older personal configs can still update.
+		expect(derived.some((b) => b.name === 'CF_VERSION_METADATA')).toBe(false);
+		expect(derived.some((b) => b.name === 'AUTH_RATE_LIMITER')).toBe(false);
 	});
 });

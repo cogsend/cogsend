@@ -44,6 +44,9 @@ const outDir = flag('--out', '.release/dist');
 const keysFile = flag('--keys', 'src/lib/domain/release-keys.json');
 // The generated deploy repository, whose files the manifest then signs too.
 const deployRepoDir = flag('--deploy-repo', '');
+const packageFile = flag('--package', 'package.json');
+const configFile = flag('--config', 'wrangler.jsonc');
+const releaseFile = flag('--release', 'release.json');
 
 function fail(message) {
 	ui.error(message);
@@ -58,10 +61,10 @@ const ownPublic = publicKeyOf(privateKey);
 const keyId = keys.find((k) => k.publicKey === ownPublic)?.id;
 if (!keyId) fail('RELEASE_SIGNING_KEY does not match any key in src/lib/domain/release-keys.json');
 
-const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+const { version } = JSON.parse(readFileSync(packageFile, 'utf8'));
 // The generic config, never a personal override: a release is the same for everyone.
-const config = parseJsonc(readFileSync('wrangler.jsonc', 'utf8'));
-const release = JSON.parse(readFileSync('release.json', 'utf8'));
+const config = parseJsonc(readFileSync(configFile, 'utf8'));
+const release = JSON.parse(readFileSync(releaseFile, 'utf8'));
 
 const { manifest, pack } = buildBundle({
 	version,

@@ -33,6 +33,43 @@ export const REQUIRED_BINDINGS = [
 	{ name: 'ASSETS', type: 'assets' }
 ];
 
+/** Optional bindings tolerated as absent on older personal configs. */
+export const OPTIONAL_BINDING_NAMES = new Set(['CF_VERSION_METADATA', 'AUTH_RATE_LIMITER']);
+
+/**
+ * Derive every mandatory binding declared in a wrangler config, excluding
+ * explicitly optional bindings so older instances can still update in place.
+ *
+ * @param {Record<string, any>} config
+ * @returns {Array<{ name: string, type: string }>}
+ */
+export function requiredBindingsFromConfig(config) {
+	/** @type {Array<{ name: string, type: string }>} */
+	const bindings = [];
+	for (const d of config?.d1_databases ?? []) {
+		if (d?.binding) bindings.push({ name: d.binding, type: 'd1' });
+	}
+	for (const r of config?.r2_buckets ?? []) {
+		if (r?.binding) bindings.push({ name: r.binding, type: 'r2_bucket' });
+	}
+	if (config?.assets?.binding) bindings.push({ name: config.assets.binding, type: 'assets' });
+	for (const k of config?.kv_namespaces ?? []) {
+		if (k?.binding) bindings.push({ name: k.binding, type: 'kv_namespace' });
+	}
+	for (const q of config?.queues?.producers ?? []) {
+		if (q?.binding) bindings.push({ name: q.binding, type: 'queue' });
+	}
+	if (config?.images?.binding) bindings.push({ name: config.images.binding, type: 'images' });
+	for (const r of config?.ratelimits ?? []) {
+		if (r?.name) bindings.push({ name: r.name, type: 'ratelimit' });
+	}
+	if (config?.version_metadata?.binding) {
+		bindings.push({ name: config.version_metadata.binding, type: 'version_metadata' });
+	}
+	const filtered = bindings.filter((b) => !OPTIONAL_BINDING_NAMES.has(b.name));
+	return filtered.length ? filtered : REQUIRED_BINDINGS;
+}
+
 /** wrangler's table for the types a SvelteKit build and `static/` produce, with
  *  its rule of adding a utf-8 charset to text types. */
 /** @type {Record<string, string>} */
@@ -268,7 +305,7 @@ export function buildBundle({
 			...(config.observability && { observability: config.observability }),
 			assetConfig
 		},
-		requiredBindings: REQUIRED_BINDINGS,
+		requiredBindings: requiredBindingsFromConfig(config),
 		assets,
 		...(deployRepoDir && { deployRepo: { files: deployRepoFiles(deployRepoDir) } })
 	};

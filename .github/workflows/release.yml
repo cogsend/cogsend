@@ -29,16 +29,77 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-bundle-${{ github.event.release.tag_name || inputs.tag }}
   cancel-in-progress: false
 
 jobs:
-  bundle:
+  # Untrusted tag code builds in isolation with no signing or deploy secrets.
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      # The tag must be the version the build reports, or the updater would
+      # install something that calls itself another release.
+      - name: Check the tag matches package.json
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v${version}" != "${TAG}" ]; then
+            echo "::error::Tag ${TAG} does not match package.json version ${version}"
+            exit 1
+          fi
+
+      - name: Test and build
+        run: |
+          npm test
+          npm run build
+          npx wrangler deploy --dry-run --outdir .release/worker
+
+      # Generated first so the bundle can sign its files too: an update through
+      # GitHub checks the whole repository, deploy script included.
+      - name: Generate the deploy repository
+        run: node scripts/deploy-repo.mjs --worker .release/worker --out .release/deploy-repo
+
+      - name: Upload build output for signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build-${{ env.TAG }}
+          retention-days: 1
+          path: |
+            .release/worker
+            .release/deploy-repo
+            .svelte-kit/cloudflare
+            package.json
+            wrangler.jsonc
+            release.json
+
+  # Signing, verification and deploy-repo publishing run from protected `main`
+  # inside the `release` environment so tag-controlled scripts never see secrets.
+  sign-and-publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: write
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
@@ -64,7 +125,8 @@ jobs:
       - uses: actions/checkout@v7
         if: steps.config.outputs.ready == 'true'
         with:
-          ref: ${{ env.TAG }}
+          ref: main
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         if: steps.config.outputs.ready == 'true'
@@ -75,43 +137,51 @@ jobs:
       - run: npm ci
         if: steps.config.outputs.ready == 'true'
 
-      # The tag must be the version the build reports, or the updater would
-      # install something that calls itself another release.
-      - name: Check the tag matches package.json
+      - name: Download build output
+        if: steps.config.outputs.ready == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: release-build-${{ env.TAG }}
+          path: .release/input
+
+      - name: Verify artifact version matches tag
         if: steps.config.outputs.ready == 'true'
         run: |
-          version="$(node -p "require('./package.json').version")"
+          version="$(node -p "require('./.release/input/package.json').version")"
           if [ "v${version}" != "${TAG}" ]; then
-            echo "::error::Tag ${TAG} does not match package.json version ${version}"
+            echo "::error::Artifact version ${version} does not match tag ${TAG}"
             exit 1
           fi
-
-      - name: Test and build
-        if: steps.config.outputs.ready == 'true'
-        run: |
-          npm test
-          npm run build
-          npx wrangler deploy --dry-run --outdir .release/worker
-
-      # Generated first so the bundle can sign its files too: an update through
-      # GitHub checks the whole repository, deploy script included.
-      - name: Generate the deploy repository
-        if: steps.config.outputs.ready == 'true'
-        run: node scripts/deploy-repo.mjs --worker .release/worker --out .release/deploy-repo
 
       - name: Build and sign the bundle
         if: steps.config.outputs.ready == 'true'
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
         run: |
-          node scripts/release-bundle.mjs --worker .release/worker --out .release/dist --deploy-repo .release/deploy-repo
-          node scripts/verify-bundle.mjs --dir .release/dist --deploy-repo .release/deploy-repo
+          node scripts/release-bundle.mjs \
+            --worker .release/input/.release/worker \
+            --assets .release/input/.svelte-kit/cloudflare \
+            --deploy-repo .release/input/.release/deploy-repo \
+            --package .release/input/package.json \
+            --config .release/input/wrangler.jsonc \
+            --release .release/input/release.json \
+            --out .release/dist
+          node scripts/verify-bundle.mjs \
+            --dir .release/dist \
+            --deploy-repo .release/input/.release/deploy-repo
 
       # Proves both paths upload exactly what wrangler would: the updater's
       # bundle, and a button install from the generated repository.
       - name: Compare with wrangler
         if: steps.config.outputs.ready == 'true'
-        run: node scripts/check-release-parity.mjs --bundle .release/dist --repo .release/deploy-repo
+        run: |
+          mkdir -p .svelte-kit
+          rm -rf .svelte-kit/cloudflare
+          cp -R .release/input/.svelte-kit/cloudflare .svelte-kit/cloudflare
+          cp .release/input/wrangler.jsonc wrangler.jsonc
+          node scripts/check-release-parity.mjs \
+            --bundle .release/dist \
+            --repo .release/input/.release/deploy-repo
 
       - name: Attach the bundle to the release
         if: steps.config.outputs.ready == 'true'
@@ -189,9 +259,22 @@ jobs:
               git -C .release/deploy-clone remote add origin "$remote"
             fi
           fi
+          # Refuse to downgrade cogsend/deploy to an older version.
+          if [ -f .release/deploy-clone/package.json ]; then
+            node --input-type=module -e "
+              import { readFileSync } from 'node:fs';
+              import { compareVersions } from './scripts/lib/deployed-version.mjs';
+              const cur = JSON.parse(readFileSync('.release/deploy-clone/package.json', 'utf8')).version;
+              const next = JSON.parse(readFileSync('.release/input/package.json', 'utf8')).version;
+              if (compareVersions(next, cur) < 0) {
+                console.error('Refusing to downgrade deploy repo from ' + cur + ' to ' + next);
+                process.exit(1);
+              }
+            "
+          fi
           # Replace everything but the history: the copy is exactly this release.
           find .release/deploy-clone -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -R .release/deploy-repo/. .release/deploy-clone/
+          cp -R .release/input/.release/deploy-repo/. .release/deploy-clone/
           cd .release/deploy-clone
           git add -A
           if git diff --cached --quiet; then
