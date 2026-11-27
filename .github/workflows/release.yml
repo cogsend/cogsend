@@ -87,7 +87,7 @@ jobs:
           path: |
             .release/worker
             .release/deploy-repo
-            .svelte-kit/cloudflare
+            .svelte-kit
             package.json
             wrangler.jsonc
             release.json
@@ -176,9 +176,8 @@ jobs:
       - name: Compare with wrangler
         if: steps.config.outputs.ready == 'true'
         run: |
-          mkdir -p .svelte-kit
-          rm -rf .svelte-kit/cloudflare
-          cp -R .release/input/.svelte-kit/cloudflare .svelte-kit/cloudflare
+          rm -rf .svelte-kit
+          cp -R .release/input/.svelte-kit .svelte-kit
           cp .release/input/wrangler.jsonc wrangler.jsonc
           node scripts/check-release-parity.mjs \
             --bundle .release/dist \
