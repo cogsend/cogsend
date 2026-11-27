@@ -95,6 +95,25 @@ export async function readAppSetting(
 	}
 }
 
+/** Store a value, or clear it when blank. Throws on D1 failure (for security-critical writes). */
+export async function writeAppSettingStrict(db: AppDb, key: string, value: string): Promise<void> {
+	const stored = value.trim();
+	const memo = memoFor(db);
+	try {
+		await db
+			.insert(appSettings)
+			.values({ key, value: stored, updatedAt: new Date() })
+			.onConflictDoUpdate({
+				target: appSettings.key,
+				set: { value: stored, updatedAt: new Date() }
+			});
+		memo?.set(key, { value: stored || null, at: Date.now() });
+	} catch (err) {
+		memo?.delete(key);
+		throw err;
+	}
+}
+
 /** Store a value, or clear it when blank. Best effort. */
 export async function writeAppSetting(db: AppDb, key: string, value: string): Promise<void> {
 	const stored = value.trim();

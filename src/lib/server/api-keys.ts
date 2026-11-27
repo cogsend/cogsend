@@ -56,7 +56,7 @@ export async function rotateApiKey(
 	const now = new Date();
 	const id = newId();
 	const finalScopes = normalizeApiScopes(scopes);
-	await db.insert(apiKeys).values({
+	const insertStmt = db.insert(apiKeys).values({
 		id,
 		userId,
 		keyHash: await hashApiKey(raw),
@@ -66,10 +66,18 @@ export async function rotateApiKey(
 		lastUsedAt: null,
 		revokedAt: null
 	});
-	await db
+	const revokeStmt = db
 		.update(apiKeys)
 		.set({ revokedAt: now })
 		.where(and(eq(apiKeys.userId, userId), isNull(apiKeys.revokedAt), ne(apiKeys.id, id)));
+	// Run insert + revoke atomically on D1 so two keys are never left active.
+	const batchable = db as unknown as { batch?: (q: unknown[]) => Promise<unknown[]> };
+	if (typeof batchable.batch === 'function') {
+		await batchable.batch([insertStmt, revokeStmt]);
+	} else {
+		await insertStmt;
+		await revokeStmt;
+	}
 	return { raw, prefix: raw.slice(0, 12), createdAt: now, scopes: finalScopes };
 }
 

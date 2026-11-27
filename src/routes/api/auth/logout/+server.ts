@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { destroySession, getSessionUser, SESSION_COOKIE } from '#lib/server/auth.js';
 import { clearMfaCookie, clearSessionCookie } from '#lib/server/cookies.js';
@@ -12,7 +12,15 @@ export const POST: RequestHandler = async ({ locals, cookies, url }) => {
 	const session = await getSessionUser(locals.db, locals.env, raw);
 	await destroySession(locals.db, locals.env, raw);
 	if (session) {
-		await locals.db.delete(mfaChallenges).where(eq(mfaChallenges.userId, session.user.id));
+		// Delete only MFA flow challenges, never auth-gate lockout counters.
+		await locals.db
+			.delete(mfaChallenges)
+			.where(
+				and(
+					eq(mfaChallenges.userId, session.user.id),
+					inArray(mfaChallenges.kind, ['login', 'enroll', 'rotate'])
+				)
+			);
 	}
 	clearSessionCookie(cookies, locals.env, url.host);
 	clearMfaCookie(cookies, locals.env, url.host);

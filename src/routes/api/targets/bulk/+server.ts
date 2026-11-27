@@ -33,7 +33,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		const user = requireUser(locals.user);
 		requireScope(locals, 'write');
-		const body = await request.json().catch(() => ({}));
+		const body = await request.json().catch(() => null);
+		if (!body || typeof body !== 'object' || Array.isArray(body)) {
+			return fail('Invalid JSON body', 400);
+		}
 		const op = body.op as BulkOp;
 		if (op !== 'cancel' && op !== 'retry' && op !== 'reschedule') {
 			return fail('op must be cancel, retry, or reschedule', 400);

@@ -79,6 +79,11 @@ function withPageSecurity(path: string, response: Response, secure: boolean): Re
 	for (const [name, value] of Object.entries(securityHeadersFor(path, secure))) {
 		next.headers.set(name, value);
 	}
+	// Preserve explicit Cache-Control on immutable media routes; default everything
+	// else (authenticated JSON and HTML) to no-store.
+	if (!next.headers.has('cache-control')) {
+		next.headers.set('cache-control', 'no-store');
+	}
 	return next;
 }
 
@@ -95,7 +100,14 @@ let lastLocalTickAt = 0;
 let warnedMissingMedia = false;
 
 export const handle: Handle = async ({ event, resolve }) => {
-	const path = event.url.pathname;
+	// Decode pathname before auth/CSRF/MCP matching so encoded aliases like
+	// `/%61pi/mcp` follow the exact same checks as the route SvelteKit resolves.
+	let path: string;
+	try {
+		path = decodeURIComponent(event.url.pathname);
+	} catch {
+		return new Response('Bad Request', { status: 400 });
+	}
 	const secureRequest = event.url.protocol === 'https:';
 	if (event.request.method === 'OPTIONS' && path.startsWith('/api/') && path !== '/api/mcp') {
 		// Same-origin app: no CORS preflight needed. Bare 204 (no

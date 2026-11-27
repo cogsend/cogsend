@@ -15,6 +15,11 @@ function d1Shim(client: Client): D1Database {
 		(await client.execute({ sql, args: args as never })) as unknown as { rows: unknown[] };
 	return {
 		exec: (sql: string) => client.executeMultiple(sql) as unknown as Promise<unknown>,
+		batch: async (stmts: Array<{ all: () => Promise<unknown> }>) => {
+			const results: unknown[] = [];
+			for (const s of stmts) results.push(await s.all());
+			return results;
+		},
 		prepare: (sql: string) => {
 			const stmt = (bindArgs: unknown[] = []) => ({
 				run: () => client.execute({ sql, args: bindArgs as never }) as Promise<unknown>,

@@ -236,6 +236,15 @@ export async function connectUrl(opts: {
 		prefix: 'connect'
 	});
 	if (!data.authUrl) throw new ProviderError('Zernio connect returned no authorization URL');
+	let parsed: URL;
+	try {
+		parsed = new URL(data.authUrl);
+	} catch {
+		throw new ProviderError('Zernio connect returned an invalid authorization URL');
+	}
+	if (parsed.protocol !== 'https:') {
+		throw new ProviderError('Zernio connect returned a non-HTTPS authorization URL');
+	}
 	return data.authUrl;
 }
 

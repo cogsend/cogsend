@@ -136,9 +136,16 @@ describe('api keys', () => {
 			userId,
 			scopes: ['read']
 		});
-		// Unknown entries are dropped; empty falls back to full access.
-		const fallback = (await (await json(['root'])).json()) as { scopes: string[] };
-		expect(fallback.scopes).toEqual(['read', 'write']);
+		// Unknown or empty scope lists are rejected instead of escalating to full access.
+		const unknownRes = await json(['root']);
+		expect(unknownRes.status).toBe(400);
+		const emptyRes = await json([]);
+		expect(emptyRes.status).toBe(400);
+		// Rejected requests leave the read-only key active.
+		expect(await verifyApiKey(db, readOnly.key)).toMatchObject({
+			userId,
+			scopes: ['read']
+		});
 	});
 
 	it('replaces the active key sequentially with the selected scopes', async () => {

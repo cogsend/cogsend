@@ -95,9 +95,18 @@ function isBlockedHostname(host: string): boolean {
 	if (h === 'kubernetes.default.svc' || h.includes('.svc.cluster.local')) return true;
 	if (h.endsWith('.internal') || h.endsWith('.cluster.local')) return true;
 	if (h.endsWith('.localdomain') || h.endsWith('.lan') || h.endsWith('.home')) return true;
-	// Wildcard-DNS helpers resolve any subdomain to an attacker-chosen IP and
-	// defeat string checks via DNS rebinding; no legitimate instance lives here.
-	if (h.endsWith('.nip.io') || h.endsWith('.sslip.io') || h.endsWith('.xip.io')) return true;
+	// Wildcard-DNS helpers resolve any subdomain to an attacker-chosen IP or
+	// loopback and defeat string checks via DNS rebinding; no legitimate instance lives here.
+	const wildcardSuffixes = [
+		'nip.io',
+		'sslip.io',
+		'xip.io',
+		'localtest.me',
+		'lvh.me',
+		'vcap.me',
+		'traefik.me'
+	];
+	if (wildcardSuffixes.some((d) => h === d || h.endsWith(`.${d}`))) return true;
 	return false;
 }
 

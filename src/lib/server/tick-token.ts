@@ -18,7 +18,7 @@
  * already using them, and the built-in cron is unaffected either way.
  */
 import { bytesToHex, randomHex, timingSafeEqual, utf8Bytes } from '#lib/domain/bytes.js';
-import { readAppSetting, writeAppSetting } from './app-settings';
+import { readAppSetting, writeAppSettingStrict } from './app-settings';
 import type { AppDb } from './db/client';
 
 export const TICK_TOKEN_PREFIX = 'tick_';
@@ -79,9 +79,9 @@ export async function rotateTickToken(
 	const prefix = token.slice(0, DISPLAY_PREFIX_LEN);
 	const createdAt = new Date();
 	const hash = await hashTickToken(token);
-	await writeAppSetting(db, HASH_KEY, hash);
-	await writeAppSetting(db, PREFIX_KEY, prefix);
-	await writeAppSetting(db, CREATED_KEY, createdAt.toISOString());
+	await writeAppSettingStrict(db, HASH_KEY, hash);
+	await writeAppSettingStrict(db, PREFIX_KEY, prefix);
+	await writeAppSettingStrict(db, CREATED_KEY, createdAt.toISOString());
 	return { token, prefix, createdAt };
 }
 
@@ -89,9 +89,9 @@ export async function rotateTickToken(
 export async function revokeTickToken(db: AppDb): Promise<boolean> {
 	const existing = await readTickToken(db);
 	if (!existing.configured) return false;
-	await writeAppSetting(db, HASH_KEY, '');
-	await writeAppSetting(db, PREFIX_KEY, '');
-	await writeAppSetting(db, CREATED_KEY, '');
+	await writeAppSettingStrict(db, HASH_KEY, '');
+	await writeAppSettingStrict(db, PREFIX_KEY, '');
+	await writeAppSettingStrict(db, CREATED_KEY, '');
 	return true;
 }
 

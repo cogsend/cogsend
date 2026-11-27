@@ -56,8 +56,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		if (!body || typeof body !== 'object' || Array.isArray(body)) {
 			return fail('Invalid JSON body', 400);
 		}
-		if ('scopes' in body && !Array.isArray((body as { scopes?: unknown }).scopes)) {
-			return fail('scopes must be an array', 400);
+		if ('scopes' in body) {
+			const rawScopes = (body as { scopes?: unknown }).scopes;
+			if (!Array.isArray(rawScopes)) {
+				return fail('scopes must be an array', 400);
+			}
+			if (rawScopes.length === 0) {
+				return fail('scopes must not be empty', 400);
+			}
+			const valid = new Set(['read', 'write']);
+			if (rawScopes.some((s) => typeof s !== 'string' || !valid.has(s))) {
+				return fail('Invalid scope (use read or write)', 400);
+			}
 		}
 		const requestedScopes = (body as { scopes?: unknown }).scopes;
 		const { raw, prefix, createdAt, scopes } = await rotateApiKey(

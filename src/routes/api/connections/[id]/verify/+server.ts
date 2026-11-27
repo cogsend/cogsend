@@ -336,7 +336,14 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 					updatedAt: new Date()
 				})
 				.where(owned);
-		} else if (conn.platform === 'mastodon' && creds.instanceUrl && creds.accessToken) {
+		} else if (conn.platform === 'mastodon') {
+			if (!creds.instanceUrl || !creds.accessToken) {
+				await locals.db
+					.update(connections)
+					.set({ status: 'expired', updatedAt: new Date() })
+					.where(owned);
+				return fail('Mastodon credentials incomplete — reconnect', 401);
+			}
 			// Re-normalizes and re-blocks the stored instance (fail closed on a
 			// poisoned row) and re-checks every redirect hop, like publishing does.
 			const res = await mastodonVerifyCredentials(
@@ -376,6 +383,8 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 					updatedAt: new Date()
 				})
 				.where(owned);
+		} else {
+			return fail(`Unsupported platform: ${conn.platform}`, 400);
 		}
 		return ok({ ok: true, status: 'active' });
 	} catch (err) {
