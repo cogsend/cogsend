@@ -23,7 +23,8 @@
  */
 
 /** Wrangler's wording for a Worker that does not exist yet (`secret list`). */
-const MISSING_WORKER = /not found|does not exist|is a new Worker|run `wrangler deploy` first/i;
+const MISSING_WORKER =
+	/10007|script_not_found|worker(?:s\.api\.error\.script_not_found|[^.\n]*does not exist|[^.\n]*not found)|is a new Worker|run `wrangler deploy` first/i;
 
 /**
  * @typedef {{ status: number, stdout?: string, stderr?: string, output?: string }} WranglerRun

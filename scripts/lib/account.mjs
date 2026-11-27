@@ -397,6 +397,13 @@ export async function resetAccount({
 	});
 	await d1(wrangler, clearSessionsSql(), { remote, extraArgs, allowFailure: true });
 	await d1(wrangler, clearAuthGatesSql(), { remote, extraArgs, allowFailure: true });
+	// Drop any password-locked or unlocked Cloudflare update token: the old
+	// password can no longer unlock it, and a reset should not leave one open.
+	await d1(
+		wrangler,
+		`DELETE FROM app_settings WHERE key IN ('update_token_saved', 'update_token_unlocked');`,
+		{ remote, extraArgs, allowFailure: true }
+	);
 
 	const after = await readAccount({ wrangler, remote, extraArgs });
 	if (!after.ok) throw new Error(after.error ?? 'could not confirm the reset');

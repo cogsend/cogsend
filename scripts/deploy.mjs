@@ -117,6 +117,11 @@ if (!allowDowngrade) {
 const tests = run('the test suite', 'npx', ['vitest', 'run'], 'running the test suite');
 ui.ok(`tests passed in ${ui.duration(tests.elapsedMs)}`);
 
+// Build before migrating production D1 so a failed build never leaves the old
+// Worker serving against a newer schema.
+const build = run('the build', 'npm', ['run', 'build'], 'building');
+ui.ok(`built in ${ui.duration(build.elapsedMs)}`);
+
 // A database the app bootstrapped has the schema but no migration history, so
 // record what it already satisfies before wrangler replays anything. Shared with
 // `npm run db:migrate:remote` and `db:seed:local` so the three cannot drift
@@ -136,9 +141,6 @@ const migrate = run(
 	'applying migrations'
 );
 ui.ok(ui.migrationsSummary(migrate.text) ?? 'remote database up to date');
-
-const build = run('the build', 'npm', ['run', 'build'], 'building');
-ui.ok(`built in ${ui.duration(build.elapsedMs)}`);
 
 const deploy = run(
 	'the deploy',
