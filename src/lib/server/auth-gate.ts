@@ -42,6 +42,55 @@ export async function assertAuthGateOpen(
 	}
 }
 
+/**
+ * Atomically claim one verification attempt BEFORE running PBKDF2/TOTP so a
+ * concurrent burst cannot slip past the gate. A successful verification calls
+ * `clearAuthGate`; a failed one leaves the claimed count in place.
+ */
+export async function reserveAuthGateAttempt(
+	db: AppDb,
+	env: AppEnv,
+	userId: string,
+	kind: AuthGateKind,
+	opts: { scope?: string; max?: number } = {}
+): Promise<{ locked: boolean }> {
+	const max = opts.max ?? AUTH_GATE_MAX_FAILURES;
+	const tokenHash = await gateTokenHash(env, kind, userId, opts.scope);
+	const now = new Date();
+	const nowMs = now.getTime();
+	const expiry = gateExpires(now);
+	const rows = await db
+		.insert(mfaChallenges)
+		.values({
+			id: newId(),
+			userId,
+			tokenHash,
+			kind,
+			remember: false,
+			failedAttempts: 1,
+			expiresAt: expiry,
+			createdAt: now
+		})
+		.onConflictDoUpdate({
+			target: mfaChallenges.tokenHash,
+			set: {
+				failedAttempts: sql`CASE WHEN ${mfaChallenges.expiresAt} < ${nowMs} THEN 1 ELSE ${mfaChallenges.failedAttempts} + 1 END`,
+				expiresAt: sql`CASE
+						WHEN ${mfaChallenges.expiresAt} < ${nowMs} THEN ${expiry.getTime()}
+						WHEN ${mfaChallenges.failedAttempts} >= ${max} THEN ${mfaChallenges.expiresAt}
+						WHEN ${mfaChallenges.failedAttempts} + 1 >= ${max} THEN ${expiry.getTime()}
+						ELSE ${mfaChallenges.expiresAt}
+					END`
+			}
+		})
+		.returning({ failedAttempts: mfaChallenges.failedAttempts });
+	const count = rows[0]?.failedAttempts ?? 1;
+	if (count > max) {
+		throw Object.assign(new Error('Too many attempts — try again in 15 minutes'), { status: 401 });
+	}
+	return { locked: count >= max };
+}
+
 export async function recordAuthGateFailure(
 	db: AppDb,
 	env: AppEnv,
@@ -167,6 +216,37 @@ export async function recordPasswordFailure(
 	return { locked: own.locked || (knownEmail && all.locked) };
 }
 
+export async function reservePasswordAttempt(
+	db: AppDb,
+	env: AppEnv,
+	userId: string,
+	ip: string | null | undefined,
+	opts: { knownEmail?: boolean; skipGlobal?: boolean } = {}
+): Promise<{ locked: boolean }> {
+	const knownEmail = opts.knownEmail ?? true;
+	const skipGlobal = opts.skipGlobal ?? false;
+	const scope = clientAddressBucket(ip);
+	if (!knownEmail && !scope) {
+		await assertPasswordGateOpen(db, env, userId, ip);
+		return { locked: false };
+	}
+	const own = await reserveAuthGateAttempt(db, env, userId, 'password', { scope });
+	if (skipGlobal) return own;
+	if (!knownEmail) {
+		// Timing sink only: an unknown email never locks or throws on the
+		// account-wide counter (see recordPasswordFailure).
+		await recordAuthGateFailure(db, env, userId, 'password-all', {
+			max: PASSWORD_GATE_GLOBAL_MAX,
+			scope: 'unknown-email'
+		});
+		return own;
+	}
+	const all = await reserveAuthGateAttempt(db, env, userId, 'password-all', {
+		max: PASSWORD_GATE_GLOBAL_MAX
+	});
+	return { locked: own.locked || all.locked };
+}
+
 /** A correct password clears this address's count and the account-wide one. */
 export async function clearPasswordGate(
 	db: AppDb,
@@ -179,9 +259,10 @@ export async function clearPasswordGate(
 }
 
 /**
- * The account password, checked behind the same gate as the login form: a
- * live session must not become an unlimited oracle for it, and it is the same
- * secret, so the counters are shared.
+ * The account password, checked behind the per-address gate: a live session
+ * must not become an unlimited oracle for it, and skipping the account-wide
+ * counter means a distributed login brute-force cannot lock an already-signed-in
+ * owner out of settings or updates.
  */
 export async function checkAccountPassword(
 	db: AppDb,
@@ -190,9 +271,9 @@ export async function checkAccountPassword(
 	password: string,
 	ip: string | null | undefined
 ): Promise<'ok' | 'wrong' | 'locked'> {
-	await assertPasswordGateOpen(db, env, user.id, ip);
+	const attempt = await reservePasswordAttempt(db, env, user.id, ip, { skipGlobal: true });
 	if (!(await verifyPassword(password, user.passwordHash))) {
-		return (await recordPasswordFailure(db, env, user.id, ip)).locked ? 'locked' : 'wrong';
+		return attempt.locked ? 'locked' : 'wrong';
 	}
 	await clearPasswordGate(db, env, user.id, ip);
 	return 'ok';

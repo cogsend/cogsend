@@ -1,4 +1,4 @@
-import { and, count, eq, isNull, lt, or } from 'drizzle-orm';
+import { and, count, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import { generateBackupCodes, normalizeBackupCode } from '#lib/domain/backup-codes.js';
 import { formatSecretGroups } from '#lib/domain/base32.js';
 import { randomHex } from '#lib/domain/bytes.js';
@@ -15,7 +15,7 @@ import { first, newId, type AppDb } from './db/client';
 import { mfaChallenges, totpBackupCodes, users } from './db/schema';
 import type { AppEnv } from './env';
 import { qrSvg } from './qr';
-import { assertAuthGateOpen, clearAuthGate, recordAuthGateFailure } from './auth-gate';
+import { clearAuthGate, reserveAuthGateAttempt } from './auth-gate';
 
 export const MFA_COOKIE = 'cog_mfa';
 export const MFA_MAX_AGE = 10 * 60;
@@ -106,16 +106,17 @@ export async function startEnrollChallenge(
 	return createChallenge(db, env, { userId, kind: 'enroll', remember });
 }
 
-async function bumpFailure(db: AppDb, challengeId: string, current: number) {
-	const next = current + 1;
+async function bumpFailure(db: AppDb, challengeId: string) {
+	const rows = await db
+		.update(mfaChallenges)
+		.set({ failedAttempts: sql`${mfaChallenges.failedAttempts} + 1` })
+		.where(eq(mfaChallenges.id, challengeId))
+		.returning({ failedAttempts: mfaChallenges.failedAttempts });
+	const next = rows[0]?.failedAttempts ?? MFA_MAX_FAILURES;
 	if (next >= MFA_MAX_FAILURES) {
 		await db.delete(mfaChallenges).where(eq(mfaChallenges.id, challengeId));
 		return { locked: true as const };
 	}
-	await db
-		.update(mfaChallenges)
-		.set({ failedAttempts: next })
-		.where(eq(mfaChallenges.id, challengeId));
 	return { locked: false as const };
 }
 
@@ -184,14 +185,13 @@ export async function enrollConfirm(db: AppDb, env: AppEnv, rawToken: string, co
 	const user = await first(db.select().from(users).where(eq(users.id, challenge.userId)));
 	if (!user) throw Object.assign(new Error('Unauthorized'), { status: 401 });
 	// Cross-challenge throttle: per-challenge bumpFailure resets when a fresh
-	// challenge is minted, so count TOTP guesses globally per user too.
-	await assertAuthGateOpen(db, env, user.id, 'totp-gate');
+	// challenge is minted, so claim a global TOTP attempt atomically up front.
+	const gate = await reserveAuthGateAttempt(db, env, user.id, 'totp-gate');
 
 	const secretBase32 = await decryptSecret(challenge.secretEnc, env.APP_ENCRYPTION_KEY);
 	const checked = await verifyTotp(secretFromBase32(secretBase32), code);
 	if (!checked.ok) {
-		const fail = await bumpFailure(db, challenge.id, challenge.failedAttempts);
-		const gate = await recordAuthGateFailure(db, env, user.id, 'totp-gate');
+		const fail = await bumpFailure(db, challenge.id);
 		if (fail.locked || gate.locked)
 			throw Object.assign(new Error('Too many attempts — sign in again'), { status: 401 });
 		throw Object.assign(new Error('Invalid code'), { status: 400 });
@@ -247,10 +247,10 @@ export async function enrollConfirm(db: AppDb, env: AppEnv, rawToken: string, co
  * with the replay protection the login flow depends on (a TOTP step that has
  * already been spent is refused; a backup code is consumed).
  *
- * The caller owns the throttle — `assertAuthGateOpen` and
- * `recordAuthGateFailure` on the `totp-gate` — because two very different
- * callers need it: signing in, and confirming that whoever is asking to delete
- * the account is still the person who owns it.
+ * The caller owns the throttle — `reserveAuthGateAttempt` and `clearAuthGate`
+ * on the `totp-gate` — because two very different callers need it: signing in,
+ * and confirming that whoever is asking to delete the account is still the
+ * person who owns it.
  *
  * @returns which kind of code matched, or nothing.
  */
@@ -328,9 +328,9 @@ export async function verifyMfa(db: AppDb, env: AppEnv, rawToken: string, code: 
 	if (!user?.totpEnabled || !user.totpSecretEnc) {
 		throw Object.assign(new Error('Unauthorized'), { status: 401 });
 	}
-	// Cross-challenge throttle (see enrollConfirm): fresh login challenges must
-	// not reset the global TOTP guess budget.
-	await assertAuthGateOpen(db, env, user.id, 'totp-gate');
+	// Cross-challenge throttle (see enrollConfirm): claim an attempt atomically
+	// before verifying so concurrent guesses cannot slip past the cap.
+	const gate = await reserveAuthGateAttempt(db, env, user.id, 'totp-gate');
 
 	const check = await checkUserCode(db, env, user, code);
 	if (check.ok) {
@@ -347,8 +347,7 @@ export async function verifyMfa(db: AppDb, env: AppEnv, rawToken: string, code: 
 		return { user: { id: user.id, email: user.email }, ...session, usedBackup: check.usedBackup };
 	}
 
-	const fail = await bumpFailure(db, challenge.id, challenge.failedAttempts);
-	const gate = await recordAuthGateFailure(db, env, user.id, 'totp-gate');
+	const fail = await bumpFailure(db, challenge.id);
 	if (fail.locked || gate.locked)
 		throw Object.assign(new Error('Too many attempts — sign in again'), { status: 401 });
 	throw Object.assign(new Error('Invalid code'), { status: 400 });
@@ -379,7 +378,7 @@ export async function totpStatus(db: AppDb, userId: string) {
 export async function rotateStart(db: AppDb, env: AppEnv, user: SessionUser, currentCode: string) {
 	if (!user.totpEnabled || !user.mfaVerified)
 		throw Object.assign(new Error('Unauthorized'), { status: 401 });
-	await assertAuthGateOpen(db, env, user.id, 'rotate-gate');
+	const gate = await reserveAuthGateAttempt(db, env, user.id, 'rotate-gate');
 	const row = await first(db.select().from(users).where(eq(users.id, user.id)));
 	if (!row?.totpSecretEnc) throw Object.assign(new Error('Unauthorized'), { status: 401 });
 
@@ -428,8 +427,7 @@ export async function rotateStart(db: AppDb, env: AppEnv, user: SessionUser, cur
 		if (!consumed.length) currentOk = { ok: false };
 	}
 	if (!currentOk.ok && !backupOk) {
-		const fail = await recordAuthGateFailure(db, env, user.id, 'rotate-gate');
-		if (fail.locked)
+		if (gate.locked)
 			throw Object.assign(new Error('Too many attempts — try again in 15 minutes'), {
 				status: 401
 			});

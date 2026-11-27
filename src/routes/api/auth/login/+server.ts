@@ -1,11 +1,7 @@
 import type { RequestHandler } from './$types';
 import { createSession, getAdminUser } from '#lib/server/auth.js';
 import { verifyPassword } from '#lib/server/crypto.js';
-import {
-	assertPasswordGateOpen,
-	clearPasswordGate,
-	recordPasswordFailure
-} from '#lib/server/auth-gate.js';
+import { clearPasswordGate, reservePasswordAttempt } from '#lib/server/auth-gate.js';
 import { rateLimitKey } from '#lib/server/rate-limit.js';
 import { setMfaCookie, setSessionCookie } from '#lib/server/cookies.js';
 import { fail, handleError, ok } from '#lib/server/http.js';
@@ -28,16 +24,15 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 		// client address only (see recordPasswordFailure).
 		const knownEmail = email.trim().toLowerCase() === admin.email.trim().toLowerCase();
 		const ip = rateLimitKey(request.headers);
-		await assertPasswordGateOpen(locals.db, locals.env, admin.id, ip);
+		const attempt = await reservePasswordAttempt(locals.db, locals.env, admin.id, ip, {
+			knownEmail
+		});
 		// The key derivation runs against the account's own hash whatever email
 		// was typed, so a wrong email takes as long as a wrong password and the
 		// response time cannot confirm the address.
 		const passwordOk = await verifyPassword(password, admin.passwordHash);
 		if (!knownEmail || !passwordOk) {
-			const failGate = await recordPasswordFailure(locals.db, locals.env, admin.id, ip, {
-				knownEmail
-			});
-			if (failGate.locked) return fail('Too many attempts — try again in 15 minutes', 401);
+			if (attempt.locked) return fail('Too many attempts — try again in 15 minutes', 401);
 			return fail('Invalid credentials', 401);
 		}
 		await clearPasswordGate(locals.db, locals.env, admin.id, ip);

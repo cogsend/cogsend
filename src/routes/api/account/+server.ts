@@ -3,11 +3,7 @@ import type { RequestHandler } from './$types';
 import { hashPassword, verifyPassword } from '#lib/server/crypto.js';
 import { users } from '#lib/server/db/schema.js';
 import { fail, handleError, ok } from '#lib/server/http.js';
-import {
-	assertPasswordGateOpen,
-	clearPasswordGate,
-	recordPasswordFailure
-} from '#lib/server/auth-gate.js';
+import { checkAccountPassword } from '#lib/server/auth-gate.js';
 import { rateLimitKey } from '#lib/server/rate-limit.js';
 import { getAdminUser, revokeOtherSessions } from '#lib/server/auth.js';
 import { requireSession } from '#lib/server/require.js';
@@ -42,23 +38,23 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 
 		const row = await getAdminUser(locals.db);
 		if (!row) return fail('This instance has no account yet', 409);
-		// Same gate as the login form: a live session must not become an
-		// unlimited oracle for the password (25k PBKDF2 is cheap to repeat), and
-		// it is the same secret, so the counters are shared.
-		await assertPasswordGateOpen(locals.db, locals.env, row.id, rateLimitKey(request.headers));
-		if (!(await verifyPassword(currentPassword, row.passwordHash))) {
-			const gate = await recordPasswordFailure(
-				locals.db,
-				locals.env,
-				row.id,
-				rateLimitKey(request.headers)
-			);
+		// Same per-address gate as the login form: a live session must not become
+		// an unlimited oracle for the password (25k PBKDF2 is cheap to repeat).
+		const passwordState = await checkAccountPassword(
+			locals.db,
+			locals.env,
+			row,
+			currentPassword,
+			rateLimitKey(request.headers)
+		);
+		if (passwordState !== 'ok') {
 			return fail(
-				gate.locked ? 'Too many attempts — try again later' : 'Current password is incorrect',
+				passwordState === 'locked'
+					? 'Too many attempts — try again later'
+					: 'Current password is incorrect',
 				401
 			);
 		}
-		await clearPasswordGate(locals.db, locals.env, row.id, rateLimitKey(request.headers));
 
 		const wantEmail = Object.hasOwn(payload, 'email');
 		const wantPassword = Object.hasOwn(payload, 'newPassword');
