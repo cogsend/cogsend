@@ -286,15 +286,38 @@ export function buildBundle({
 		})
 	};
 
+	const minFromVersion = release.minFromVersion ?? '0.0.0';
+	if (
+		typeof minFromVersion !== 'string' ||
+		!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(minFromVersion)
+	) {
+		throw new Error(
+			`release.json minFromVersion must be bare semver (got ${JSON.stringify(minFromVersion)})`
+		);
+	}
+	if (release.manualOnly !== undefined && typeof release.manualOnly !== 'boolean') {
+		throw new Error(
+			`release.json manualOnly must be a boolean (got ${JSON.stringify(release.manualOnly)})`
+		);
+	}
+	if (release.schemaChange !== undefined && typeof release.schemaChange !== 'boolean') {
+		throw new Error(
+			`release.json schemaChange must be a boolean (got ${JSON.stringify(release.schemaChange)})`
+		);
+	}
+	if (release.notes !== undefined && release.notes !== null && typeof release.notes !== 'string') {
+		throw new Error(`release.json notes must be a string or null`);
+	}
+
 	const manifest = {
 		format: MANIFEST_FORMAT,
 		name: 'cogsend',
 		version,
 		tag,
 		createdAt,
-		minFromVersion: release.minFromVersion ?? '0.0.0',
-		manualOnly: Boolean(release.manualOnly),
-		schemaChange: Boolean(release.schemaChange),
+		minFromVersion,
+		manualOnly: release.manualOnly ?? false,
+		schemaChange: release.schemaChange ?? false,
 		notes: release.notes ?? null,
 		pack: { file: `cogsend-${version}.pack`, size: pack.length, sha256: sha256(pack) },
 		worker: {

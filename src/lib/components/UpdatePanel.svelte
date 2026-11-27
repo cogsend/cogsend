@@ -308,9 +308,9 @@
 		try {
 			if (!credentials) await prepareCredentials();
 			await step('abort');
-			// The server dropped the opened token with the update; the next press
-			// opens it again.
-			credentials = null;
+			// The server dropped the opened token with the update; drop the
+			// in-memory form secrets too so reopening starts clean.
+			forgetCredentials();
 			progress = [];
 			say('Cancelled. The current version keeps serving.');
 		} catch (e) {
@@ -370,6 +370,7 @@
 		error = null;
 		offerSkipCheck = false;
 		progress = [];
+		forgetCredentials();
 	}
 
 	const installTag = $derived(customTag.trim() || latestTag || '');

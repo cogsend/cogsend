@@ -132,6 +132,6 @@ if (leftForAPerson) {
 	output('changed', 'false');
 	process.exit(0);
 }
-if (older) writeFileSync(ROLLBACK_MARKER, `${version}\n`);
+if (older) writeFileSync(ROLLBACK_MARKER, `${version} ${Date.now()}\n`);
 console.log(`✔ ${current} → ${version}${older ? ' (rollback)' : ''}`);
 output('changed', 'true');

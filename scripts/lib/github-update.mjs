@@ -93,14 +93,22 @@ export function releaseGate(manifest, current, { automatic }) {
 	return null;
 }
 
+const ROLLBACK_WINDOW_MS = 60 * 60_000;
+
 /**
- * True when the marker names exactly this version: an older release installed
- * on purpose may deploy once, and no other.
+ * True when the marker names exactly this version and (when timestamped) has
+ * not expired: a rollback deploys promptly after the Action commits it, and a
+ * stale marker left in git cannot silently roll back a later in-app upgrade.
  *
- * @param {string | null} marker @param {string} version
+ * @param {string | null} marker @param {string} version @param {number} [nowMs]
  */
-export function rollbackAllowed(marker, version) {
-	return typeof marker === 'string' && marker.trim() === version;
+export function rollbackAllowed(marker, version, nowMs = Date.now()) {
+	if (typeof marker !== 'string') return false;
+	const parts = marker.trim().split(/\s+/);
+	if (parts[0] !== version) return false;
+	if (parts.length === 1) return true;
+	const at = Number(parts[1]);
+	return Number.isFinite(at) && nowMs - at >= 0 && nowMs - at <= ROLLBACK_WINDOW_MS;
 }
 
 /**

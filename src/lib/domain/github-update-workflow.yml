@@ -51,12 +51,19 @@ jobs:
       - name: Fetch the updater (first update of an older copy)
         run: |
           if [ ! -f lib/update-from-release.mjs ]; then
+            mkdir -p lib
             for ref in main next; do
+              tmp="$(mktemp -d)"
               ok=true
               for f in update-from-release.mjs github-update.mjs deployed-version.mjs release-keys.json; do
-                curl -fsSL "https://raw.githubusercontent.com/cogsend/deploy/$ref/lib/$f" -o "lib/$f" || ok=false
+                curl -fsSL "https://raw.githubusercontent.com/cogsend/deploy/$ref/lib/$f" -o "$tmp/$f" || { ok=false; break; }
               done
-              if [ "$ok" = true ]; then break; fi
+              if [ "$ok" = true ]; then
+                mv "$tmp"/* lib/
+                rmdir "$tmp"
+                break
+              fi
+              rm -rf "$tmp"
             done
             test -f lib/update-from-release.mjs
           fi
