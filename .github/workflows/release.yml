@@ -263,10 +263,10 @@ jobs:
           if [ -f .release/deploy-clone/package.json ]; then
             node --input-type=module -e "
               import { readFileSync } from 'node:fs';
-              import { compareVersions } from './scripts/lib/deployed-version.mjs';
+              import { isLaterVersion } from './scripts/lib/deployed-version.mjs';
               const cur = JSON.parse(readFileSync('.release/deploy-clone/package.json', 'utf8')).version;
               const next = JSON.parse(readFileSync('.release/input/package.json', 'utf8')).version;
-              if (compareVersions(next, cur) < 0) {
+              if (isLaterVersion(cur, next)) {
                 console.error('Refusing to downgrade deploy repo from ' + cur + ' to ' + next);
                 process.exit(1);
               }
