@@ -271,7 +271,10 @@
 		rescheduleAt = scheduleFromDHM(days, hours, minutes, new Date());
 	}
 
+	let loadSeq = 0;
+
 	async function load(opts: { keepError?: boolean } = {}) {
+		const seq = ++loadSeq;
 		const bare = drafts.length === 0 && targets.length === 0;
 		if (bare) loading = true;
 		// A fresh attempt supersedes the previous failure banner — except when
@@ -283,6 +286,7 @@
 				fetch('/api/drafts?view=summary'),
 				fetch('/api/queue')
 			]);
+			if (seq !== loadSeq) return;
 			// An expired session is not a broken social account: sign in again
 			// rather than showing the reconnect copy.
 			if (sessionExpiredIfUnauthorized(draftsRes) || sessionExpiredIfUnauthorized(queueRes)) {
@@ -293,6 +297,7 @@
 			const failed: string[] = [];
 			if (draftsRes.ok) {
 				const payload = await draftsRes.json().catch(() => ({}));
+				if (seq !== loadSeq) return;
 				drafts = payload.drafts || [];
 				if (!draftsPaged) draftsNext = payload.next ?? null;
 			} else {
@@ -300,6 +305,7 @@
 			}
 			if (queueRes.ok) {
 				const payload = await queueRes.json().catch(() => ({}));
+				if (seq !== loadSeq) return;
 				targets = payload.targets || [];
 				firstWaitingTotals = payload.waitingTotals ?? {};
 				const fresh = firstQueueCursors(payload.next);
@@ -315,13 +321,14 @@
 				error = humanizeError('Could not load posts');
 			}
 		} catch (e) {
+			if (seq !== loadSeq) return;
 			// fetch() rejects (offline, DNS) without a status, so the per-response
 			// checks above never ran: without this the page would show nothing at
 			// all rather than an error.
 			loadFailed = true;
 			error = humanizeError(e instanceof Error ? e.message : 'Could not load posts');
 		} finally {
-			loading = false;
+			if (seq === loadSeq) loading = false;
 		}
 	}
 
@@ -1086,39 +1093,48 @@
 		extra?: Record<string, string>
 	): Promise<boolean> {
 		setCardError(draftId, null);
-		// A rejected fetch (offline, DNS blip) must surface as a banner instead of
-		// escaping into the callers, where it skipped the busy reset and left the
-		// card's button disabled forever.
-		let res: Response;
-		try {
-			res = await fetch('/api/targets/bulk', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ op, ids, ...extra })
-			});
-		} catch {
-			setCardError(draftId, humanizeError('fetch failed'));
-			return false;
+		const succeeded: string[] = [];
+		let firstError: string | null = null;
+		// The API caps bulk requests at 10 target IDs per call.
+		for (let i = 0; i < ids.length; i += 10) {
+			const chunk = ids.slice(i, i + 10);
+			let res: Response;
+			try {
+				res = await fetch('/api/targets/bulk', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ op, ids: chunk, ...extra })
+				});
+			} catch {
+				firstError ??= humanizeError('fetch failed');
+				break;
+			}
+			if (sessionExpiredIfUnauthorized(res)) return false;
+			const payload = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				firstError ??= humanizeError(payload.error || fallback);
+				break;
+			}
+			const results = (payload.results ?? []) as Array<{
+				id?: string;
+				ok: boolean;
+				error?: string;
+			}>;
+			for (const r of results) {
+				if (r.ok && r.id) succeeded.push(r.id);
+				else if (!r.ok && !firstError) firstError = humanizeError(r.error || fallback);
+			}
 		}
-		if (sessionExpiredIfUnauthorized(res)) return false;
-		const payload = await res.json().catch(() => ({}));
-		if (!res.ok) {
-			setCardError(draftId, humanizeError(payload.error || fallback));
-			return false;
+		// A refresh replaces only page 1, so drop mutated rows from older/search
+		// caches (cancel, retry, reschedule) to avoid showing stale copies.
+		const touched = new Set(succeeded.length ? succeeded : firstError ? [] : ids);
+		if (touched.size) {
+			olderTargets = olderTargets.filter((t) => !touched.has(t.id));
+			searchTargets = searchTargets.filter((t) => !touched.has(t.id));
 		}
-		const failed = (payload.results ?? []).filter((r: { ok: boolean }) => !r.ok) as {
-			error?: string;
-		}[];
-		if (failed.length) {
-			setCardError(draftId, humanizeError(failed[0]?.error || fallback));
+		if (firstError) {
+			setCardError(draftId, firstError);
 			return false;
-		}
-		// A refresh replaces only the first page, and a cancelled row leaves the
-		// queue, so a copy kept from an older page or a search would linger.
-		if (op === 'cancel') {
-			const gone = new Set(ids);
-			olderTargets = olderTargets.filter((t) => !gone.has(t.id));
-			searchTargets = searchTargets.filter((t) => !gone.has(t.id));
 		}
 		return true;
 	}

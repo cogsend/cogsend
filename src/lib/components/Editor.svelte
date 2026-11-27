@@ -292,7 +292,9 @@
 			) {
 				seededVisibility = visibility;
 			}
-			if (variant.optionsJson.spoilerText) seededCw = variant.optionsJson.spoilerText;
+			if (typeof variant.optionsJson.spoilerText === 'string' && variant.optionsJson.spoilerText) {
+				seededCw = variant.optionsJson.spoilerText;
+			}
 			if (variant.optionsJson.poll) seededPoll = parsePollConfig(variant.optionsJson.poll);
 		}
 	}
@@ -416,6 +418,7 @@
 	// Cleared only by a save that succeeds: the autosave keeps retrying a failed
 	// save, and the status must not flicker back to "Saving…" on every attempt.
 	let saveFailed = $state(false);
+	let lastFailedSnapshot: string | null = null;
 	// What the split Publish button is busy with (drives its label + spinner).
 	let busyAction = $state<'publish' | 'schedule' | null>(null);
 	// Quick publishes should not flash "Publishing…": the button only turns
@@ -972,6 +975,7 @@
 		busyAction = null;
 		dirty = false;
 		saveFailed = false;
+		lastFailedSnapshot = null;
 		mediaLayoutFailed = false;
 		savedSnapshot = null;
 		loadFailedId = null;
@@ -1081,8 +1085,13 @@
 			let loadedPoll: PollConfig | null = null;
 			for (const v of d.variants || []) {
 				if (v.platform === 'mastodon' && v.optionsJson) {
-					if (v.optionsJson.visibility) loadedVisibility = v.optionsJson.visibility;
-					if (v.optionsJson.spoilerText) loadedCw = v.optionsJson.spoilerText;
+					const vis = v.optionsJson.visibility;
+					if (vis === 'public' || vis === 'unlisted' || vis === 'private' || vis === 'direct') {
+						loadedVisibility = vis;
+					}
+					if (typeof v.optionsJson.spoilerText === 'string' && v.optionsJson.spoilerText) {
+						loadedCw = v.optionsJson.spoilerText;
+					}
 					if (v.optionsJson.poll) loadedPoll = parsePollConfig(v.optionsJson.poll);
 				}
 			}
@@ -1380,6 +1389,7 @@
 			if (generation !== editorGeneration) return id;
 			loadedDraftContentFor = id;
 			saveFailed = false;
+			lastFailedSnapshot = null;
 			if (takeSnapshot() === before) {
 				savedSnapshot = before;
 				dirty = false;
@@ -1409,6 +1419,7 @@
 				return null;
 			}
 			saveFailed = true;
+			lastFailedSnapshot = before;
 			showToast(humanizeError(e instanceof Error ? e.message : 'Save failed'), 'error');
 			return null;
 		} finally {
@@ -1460,10 +1471,12 @@
 			return linkedinMediaProblem ?? 'LinkedIn cannot take this media';
 		}
 		if (instagramMediaProblem && to('instagram')) return instagramMediaProblem;
-		const sizeProblem = mediaSizeProblem(
-			connectionIds.map(platformOf).filter((p) => p !== undefined),
-			media
-		);
+		const targetPlatforms = connectionIds.map(platformOf).filter((p) => p !== undefined);
+		for (const p of targetPlatforms) {
+			const typeProblem = imageTypeProblem(p, media);
+			if (typeProblem) return typeProblem;
+		}
+		const sizeProblem = mediaSizeProblem(targetPlatforms, media);
 		if (sizeProblem) return sizeProblem;
 		if (videoJobs.length) return 'Wait for the video to finish uploading';
 		if (videoProblem) return videoProblem;
@@ -3428,12 +3441,16 @@
 		void mastoPoll;
 		void threadsTopic;
 		void media;
-		if (takeSnapshot() !== savedSnapshot) {
+		const currentSnap = takeSnapshot();
+		if (currentSnap !== savedSnapshot) {
 			dirty = true;
+			if (saveFailed && lastFailedSnapshot !== null && currentSnap !== lastFailedSnapshot) {
+				saveFailed = false;
+			}
 		} else if (!saving) {
 			dirty = false;
 		}
-		if (!dirty || publishing || saving || editLocked) return;
+		if (!dirty || publishing || saving || saveFailed || editLocked) return;
 		// A load in flight owns the editor identity (and may merge local edits
 		// into the stored copy): saving now could strand the keystrokes in a
 		// second draft, so wait for it to settle.

@@ -1,4 +1,5 @@
 import { humanizeError } from '#lib/domain/human-error.js';
+import { sessionExpiredIfUnauthorized } from './session-expired.js';
 import { summarizePost, type TargetSnapshot } from '#lib/domain/post-state.js';
 import {
 	mayUnscheduleOthers,
@@ -37,6 +38,13 @@ async function publishOne(draftId: string, connectionId: string): Promise<Destin
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ connectionIds: [connectionId] })
 		});
+		if (sessionExpiredIfUnauthorized(res)) {
+			return {
+				connectionId,
+				status: 'failed',
+				error: 'Your session expired — sign in again'
+			};
+		}
 		const data = await res.json().catch(() => ({}));
 		if (!res.ok) throw new Error(data.error || 'Publish failed');
 		return outcomeOfRow(connectionId, (data.results || [])[0] as PublishRow | undefined);
@@ -75,6 +83,9 @@ export async function cancelWaitingExcept(
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ op: 'cancel', ids: chunk.map((w) => w.targetId) })
 			});
+			if (sessionExpiredIfUnauthorized(res)) {
+				return { cancelled, kept: [...kept, ...waiting.slice(i).map((w) => w.connectionId)] };
+			}
 			const data = await res.json().catch(() => ({}));
 			if (res.ok && Array.isArray(data.results)) results = data.results;
 		} catch {
