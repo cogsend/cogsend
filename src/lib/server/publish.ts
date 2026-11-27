@@ -39,6 +39,7 @@ import {
 	type ConnectionCredentials,
 	type ConnectionMeta,
 	type FetchLike,
+	type MediaAttachment,
 	type MediaReader,
 	type PublishCheckpoint,
 	type PublishPending,
@@ -192,7 +193,7 @@ export async function buildNormalizedPost(
 		});
 		return {
 			text: segmentsOpt[0] || '',
-			media: mediaForSegment(0).length ? mediaForSegment(0) : undefined,
+			media: thread[0]?.media,
 			thread,
 			options: postOptions
 		};
@@ -204,10 +205,9 @@ export async function buildNormalizedPost(
 			const segMedia = mediaForSegment(segmentIndex);
 			return { text, media: segMedia.length ? segMedia : undefined, options: postOptions };
 		});
-		const firstMedia = mediaForSegment(resolved[0].segmentIndex);
 		return {
 			text: resolved[0].text,
-			media: firstMedia.length ? firstMedia : undefined,
+			media: thread[0]?.media,
 			thread,
 			options: postOptions
 		};
@@ -226,40 +226,62 @@ const isVideoMedia = (m: { mime?: string | null }): boolean =>
 	(m.mime ?? '').toLowerCase().startsWith('video/');
 
 async function hydrateMedia(content: NormalizedPost, store: MediaStore): Promise<NormalizedPost> {
-	const fill = async (post: NormalizedPost): Promise<NormalizedPost> => {
-		const media = post.media
-			? await Promise.all(
-					post.media.map(async (m) => {
-						let next = m;
-						// Videos are read in slices by the provider (opts.mediaReader):
-						// a 300 MB file does not fit in the isolate's 128 MB.
-						if (isVideoMedia(next)) return next;
-						if (!next.bytes && next.storageKey) {
-							const bytes = await store.get(next.storageKey);
-							if (bytes) next = { ...next, bytes };
-						}
-						// Backfill dims for rows uploaded before width/height were stored.
-						// Correct dims fix Bluesky letterboxing; omit when undecodable.
-						if (
-							(!next.width || !next.height) &&
-							next.bytes &&
-							!(next.mime || '').toLowerCase().startsWith('video/')
-						) {
-							try {
-								const dims = decodeImageDimensions(next.bytes);
-								if (dims) next = { ...next, width: dims.width, height: dims.height };
-							} catch {
-								/* omit */
-							}
-						}
-						return next;
-					})
-				)
-			: undefined;
-		const thread = post.thread ? await Promise.all(post.thread.map(fill)) : undefined;
+	// Deduplicate by storageKey so segment 0 (shared by root `media` and
+	// `thread[0].media`) is fetched once, and hydrate segments sequentially
+	// rather than buffering an entire thread in parallel.
+	const cache = new Map<string, Promise<MediaAttachment>>();
+	const fillAttachment = async (m: MediaAttachment): Promise<MediaAttachment> => {
+		if (isVideoMedia(m) || m.bytes || !m.storageKey) return m;
+		const cached = cache.get(m.storageKey);
+		if (cached) {
+			const loaded = await cached;
+			return {
+				...m,
+				bytes: loaded.bytes,
+				width: m.width ?? loaded.width,
+				height: m.height ?? loaded.height
+			};
+		}
+		const pending = (async () => {
+			let next = m;
+			const bytes = await store.get(m.storageKey!);
+			if (bytes) next = { ...next, bytes };
+			// Backfill dims for rows uploaded before width/height were stored.
+			if ((!next.width || !next.height) && next.bytes) {
+				try {
+					const dims = decodeImageDimensions(next.bytes);
+					if (dims) next = { ...next, width: dims.width, height: dims.height };
+				} catch {
+					/* omit */
+				}
+			}
+			return next;
+		})();
+		cache.set(m.storageKey, pending);
+		return pending;
+	};
+	const fillPost = async (post: NormalizedPost): Promise<NormalizedPost> => {
+		const media = post.media ? await Promise.all(post.media.map(fillAttachment)) : undefined;
+		let thread: NormalizedPost[] | undefined;
+		if (post.thread) {
+			thread = [];
+			for (const seg of post.thread) {
+				thread.push(await fillPost(seg));
+			}
+		}
 		return { ...post, media, thread };
 	};
-	return fill(content);
+	return fillPost(content);
+}
+
+function segmentFingerprints(content: NormalizedPost): string[] {
+	const segs = content.thread?.length ? content.thread : [content];
+	return segs.map((seg) =>
+		JSON.stringify([
+			(seg.text ?? '').trim(),
+			(seg.media ?? []).map((m) => [m.storageKey ?? '', m.alt ?? '', m.mime ?? ''])
+		])
+	);
 }
 /**
  * URL handed to providers that fetch media server-side (Threads). A
@@ -596,9 +618,14 @@ export async function publishTarget(
 
 	// A holder rather than a `let`: the assignment happens inside the callback,
 	// which TypeScript's narrowing cannot see from the catch block below.
-	const resumeState: { last: PublishCheckpoint | null; from: PublishResume | null } = {
+	const resumeState: {
+		last: PublishCheckpoint | null;
+		from: PublishResume | null;
+		hashes: string[] | null;
+	} = {
 		last: null,
-		from: null
+		from: null,
+		hashes: null
 	};
 	const checkpoint = async (state: PublishCheckpoint) => {
 		resumeState.last = state;
@@ -611,12 +638,19 @@ export async function publishTarget(
 						segmentIds: state.segmentIds,
 						segmentCids: state.segmentCids,
 						remoteUrl: state.remoteUrl ?? null,
+						...(resumeState.hashes ? { segmentHashes: resumeState.hashes } : {}),
 						checkpoint: true
 					})
 				})
 				.where(eq(publishAttempts.id, attemptId));
 		} catch {
-			// Best effort only.
+			// If we cannot persist progress (e.g. budget exhausted), stop before
+			// posting another segment whose id would be lost on reclaim.
+			throw new PublishPartialError('Could not save thread progress — will retry shortly', {
+				segmentIds: state.segmentIds,
+				segmentCids: state.segmentCids,
+				remoteUrl: state.remoteUrl ?? null
+			});
 		}
 	};
 
@@ -680,7 +714,33 @@ export async function publishTarget(
 			}
 		}
 
-		resumeState.from = await lastPartialResume(db, targetId);
+		const currentHashes = segmentFingerprints(content);
+		resumeState.hashes = currentHashes;
+		const rawResume = await lastPartialResume(db, targetId);
+		if (rawResume) {
+			const postedCount = rawResume.segmentIds.length;
+			const shortened =
+				postedCount > 0 &&
+				Array.isArray(rawResume.segmentHashes) &&
+				currentHashes.length <= postedCount &&
+				currentHashes.length < rawResume.segmentHashes.length;
+			const postedEdited =
+				postedCount > 0 &&
+				Array.isArray(rawResume.segmentHashes) &&
+				rawResume.segmentIds.some((_, i) => rawResume.segmentHashes![i] !== currentHashes[i]);
+			if (shortened || postedEdited) {
+				resumeState.from = rawResume.pending
+					? { segmentIds: [], pending: rawResume.pending }
+					: null;
+			} else {
+				resumeState.from = {
+					segmentIds: rawResume.segmentIds,
+					segmentCids: rawResume.segmentCids,
+					remoteUrl: rawResume.remoteUrl,
+					...(rawResume.pending ? { pending: rawResume.pending } : {})
+				};
+			}
+		}
 		const resumeFrom = resumeState.from;
 		// The upload-heavy part of a publish lives inside provider.publish; make
 		// sure the lease is current before handing over to it.
@@ -829,7 +889,9 @@ export async function publishTarget(
 				retryAfterMs:
 					err instanceof ProviderError || err instanceof PublishPartialError
 						? err.retryAfterMs
-						: undefined
+						: undefined,
+				dropPending: err instanceof ProviderError ? Boolean(err.dropPending) : false,
+				segmentHashes: resumeState.hashes
 			}
 		);
 		return { status: nextStatus, error: finalMessage };
@@ -924,10 +986,12 @@ async function lastPartialResume(db: AppDb, targetId: string) {
 		const summary = parseJson<{
 			segmentIds?: string[];
 			segmentCids?: string[];
+			segmentHashes?: string[];
 			remoteUrl?: string | null;
 			remotePostId?: string;
 			pending?: PublishPending | null;
 		}>(attempt.responseSummary, {});
+		const segmentHashes = Array.isArray(summary.segmentHashes) ? summary.segmentHashes : undefined;
 		// A parked video resumes even before any segment is posted, which is
 		// what an empty list otherwise means.
 		const pending = validPending(summary.pending);
@@ -935,6 +999,7 @@ async function lastPartialResume(db: AppDb, targetId: string) {
 			return {
 				segmentIds: Array.isArray(summary.segmentIds) ? summary.segmentIds : [],
 				segmentCids: summary.segmentCids,
+				segmentHashes,
 				remoteUrl: summary.remoteUrl ?? null,
 				pending
 			};
@@ -946,6 +1011,7 @@ async function lastPartialResume(db: AppDb, targetId: string) {
 			return {
 				segmentIds: summary.segmentIds,
 				segmentCids: summary.segmentCids,
+				segmentHashes,
 				remoteUrl: summary.remoteUrl ?? null
 			};
 		}
@@ -989,6 +1055,8 @@ async function markFailed(
 		resume?: PublishResume | null;
 		/** The provider's own wait, such as Instagram's daily limit, when longer than the backoff. */
 		retryAfterMs?: number;
+		dropPending?: boolean;
+		segmentHashes?: string[] | null;
 	} = {}
 ): Promise<'scheduled' | 'failed' | 'published'> {
 	const now = opts.now ?? new Date();
@@ -1056,12 +1124,14 @@ async function markFailed(
 			summary.segmentIds = carried.segmentIds;
 			summary.segmentCids = carried.segmentCids;
 			summary.remoteUrl = carried.remoteUrl ?? null;
+			if (opts.segmentHashes) summary.segmentHashes = opts.segmentHashes;
 		} else if (park) {
 			summary.segmentIds = [];
 		}
 		const pending =
 			park?.pending ??
-			(nextStatus === 'scheduled' &&
+			(!opts.dropPending &&
+			nextStatus === 'scheduled' &&
 			opts.resume?.pending &&
 			opts.resume.pending.segment >= ((summary.segmentIds as string[] | undefined)?.length ?? 0)
 				? opts.resume.pending

@@ -52,7 +52,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		const video = (source.mime || '').toLowerCase().startsWith('video/');
 		const problem = await cardRoomProblem(locals, draft, segmentIndex, {
 			video,
-			storesFile: false
+			storesFile: false,
+			size: source.size
 		});
 		if (problem) return problem;
 		const stored = async () =>

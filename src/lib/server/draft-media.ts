@@ -13,6 +13,9 @@ const MAX_SEGMENT_INDEX = 100;
 // Worker-memory pressure at publish (bytes are buffered ~2x).
 export const MAX_FILES_PER_DRAFT = 32;
 export const MAX_FILES_PER_USER = 1000;
+// Total non-video bytes per draft: keeps publish hydration safely inside a
+// 128 MB Worker isolate (videos stream in slices and do not hydrate).
+export const MAX_DRAFT_MEDIA_BYTES = 48_000_000;
 
 export function parseSegmentIndex(value: unknown): number {
 	const n = typeof value === 'number' ? value : parseInt(String(value ?? '0'), 10);
@@ -134,7 +137,7 @@ export async function cardRoomProblem(
 	locals: App.Locals,
 	draft: { id: string; baseBody: string | null; userId: string },
 	segmentIndex: number,
-	adding: { video: boolean; storesFile: boolean }
+	adding: { video: boolean; storesFile: boolean; size?: number }
 ): Promise<Response | null> {
 	const problem = await segmentProblem(locals, draft, segmentIndex);
 	if (problem) return fail(problem, 400);
@@ -144,6 +147,14 @@ export async function cardRoomProblem(
 		.where(eq(draftMedia.draftId, draft.id));
 	if (existing.length + 1 > MAX_FILES_PER_DRAFT) {
 		return fail(`Max ${MAX_FILES_PER_DRAFT} files per draft`, 413);
+	}
+	if (!adding.video && adding.size) {
+		const existingImageBytes = existing
+			.filter((m) => !isVideoRow(m))
+			.reduce((sum, m) => sum + (m.size ?? 0), 0);
+		if (existingImageBytes + adding.size > MAX_DRAFT_MEDIA_BYTES) {
+			return fail('Draft image total exceeds 48MB', 413);
+		}
 	}
 	if (adding.storesFile && (await overUserFileCap(locals.db, draft.userId, 1))) {
 		return fail(`Max ${MAX_FILES_PER_USER} files per account`, 413);

@@ -11,6 +11,7 @@ import { draftMedia } from '#lib/server/db/schema.js';
 import {
 	cleanAltText,
 	keysUsedOnlyBy,
+	MAX_DRAFT_MEDIA_BYTES,
 	MAX_FILES_PER_DRAFT,
 	MAX_FILES_PER_USER,
 	overUserFileCap,
@@ -35,14 +36,37 @@ import {
 import { requireScope, requireUser } from '#lib/server/require.js';
 import { serializeMedia } from '#lib/server/serialize.js';
 
-// A request body ceiling applied before the multipart parse: formData()
-// buffers the whole body in the isolate, and the per-file caps can only run
-// afterwards. Matches the platform's own request-body limit, so anything
-// larger is refused with a clean 413 instead of a parse-then-OOM.
-const MAX_UPLOAD_BYTES = 100_000_000;
-// One file must fit in that body with its multipart framing; the uploads route
-// takes videos up to MAX_VIDEO_BYTES in parts.
-const MAX_FORM_VIDEO_BYTES = 95_000_000;
+// Single-request formData() buffers the body ~2x in memory; keep it well
+// inside the 128 MB isolate limit. Larger videos go up in parts via
+// POST /api/drafts/:id/media/uploads.
+const MAX_UPLOAD_BYTES = 40_000_000;
+const MAX_FORM_VIDEO_BYTES = 32_000_000;
+
+async function readCappedFormData(request: Request, maxBytes: number): Promise<FormData> {
+	const declared = request.headers.get('content-length');
+	if (declared !== null) {
+		const n = Number(declared);
+		if (Number.isFinite(n) && n > maxBytes) {
+			throw Object.assign(new Error('Upload too large'), { status: 413 });
+		}
+	}
+	if (!request.body) return request.formData();
+	let seen = 0;
+	const limiter = new TransformStream<Uint8Array, Uint8Array>({
+		transform(chunk, controller) {
+			seen += chunk.byteLength;
+			if (seen > maxBytes) {
+				controller.error(Object.assign(new Error('Upload too large'), { status: 413 }));
+				return;
+			}
+			controller.enqueue(chunk);
+		}
+	});
+	const capped = new Response(request.body.pipeThrough(limiter), {
+		headers: { 'content-type': request.headers.get('content-type') ?? '' }
+	});
+	return capped.formData();
+}
 
 /**
  * Keep a JPEG the composer made of an image: a smaller one for showing it, or
@@ -82,7 +106,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		if (!draft) return fail('Not found', 404);
 		const busy = await rejectIfNotEditable(locals.db, params.id);
 		if (busy) return busy;
-		const form = await request.formData();
+		const form = await readCappedFormData(request, MAX_UPLOAD_BYTES);
 		const segmentIndex = parseSegmentIndex(form.get('segmentIndex'));
 		const problem = await segmentProblem(locals, draft, segmentIndex);
 		if (problem) return fail(problem, 400);
@@ -122,13 +146,22 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			if (f.size > cap) {
 				return fail(
 					isVideo
-						? 'Video must be 95MB or smaller here; larger ones go up in parts (POST /api/drafts/:id/media/uploads)'
+						? 'Video must be 32MB or smaller here; larger ones go up in parts (POST /api/drafts/:id/media/uploads)'
 						: 'Image must be 16MB or smaller'
 				);
 			}
 		}
 		if (existing.length + files.length > MAX_FILES_PER_DRAFT) {
 			return fail(`Max ${MAX_FILES_PER_DRAFT} files per draft`, 413);
+		}
+		const existingImageBytes = existing
+			.filter((m) => !(m.mime || '').toLowerCase().startsWith('video/'))
+			.reduce((sum, m) => sum + (m.size ?? 0), 0);
+		const newImageBytes = files
+			.filter((f) => !(f.type || '').toLowerCase().startsWith('video/'))
+			.reduce((sum, f) => sum + f.size, 0);
+		if (existingImageBytes + newImageBytes > MAX_DRAFT_MEDIA_BYTES) {
+			return fail('Draft image total exceeds 48MB', 413);
 		}
 		if (await overUserFileCap(locals.db, user.id, files.length)) {
 			return fail(`Max ${MAX_FILES_PER_USER} files per account`, 413);

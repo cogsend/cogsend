@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { SubrequestBudget } from '#lib/server/budget.js';
 import { decryptJson, encryptJson } from '#lib/server/crypto.js';
 import { newId } from '#lib/server/db/client.js';
 import {
@@ -491,6 +492,82 @@ describe('publishTarget integration', () => {
 		const [row] = await db.select().from(publishTargets).where(eq(publishTargets.id, targetId));
 		expect(row?.status).toBe('published');
 		expect(row?.remoteUrl).toBe('https://mastodon.test/@u/111');
+	});
+
+	it('invalidates a partial checkpoint when an already-posted segment is edited or the thread is shortened', async () => {
+		const now = new Date();
+		const threadDraft = await extraDraft('first part\n---\nsecond part');
+		const targetId = newId();
+		await db.insert(publishTargets).values({
+			id: targetId,
+			draftId: threadDraft,
+			connectionId: connMasto,
+			status: 'pending',
+			attemptCount: 0,
+			createdAt: now,
+			updatedAt: now
+		});
+		let postNum = 0;
+		const firstRun = await publishTarget(db, TEST_ENV, store, targetId, {
+			fetchImpl: mockFetch({
+				'/api/v1/statuses': () => {
+					postNum++;
+					if (postNum === 1) {
+						return Response.json({ id: 'seg-0', url: 'https://mastodon.test/@u/seg-0' });
+					}
+					return new Response('temporary', { status: 500 });
+				}
+			})
+		});
+		expect(firstRun.status).toBe('scheduled');
+
+		// Edit segment 0 and shorten to a single post: retry must publish the edited post,
+		// not silently mark it published using the stale seg-0 checkpoint.
+		await db
+			.update(drafts)
+			.set({ baseBody: 'edited single post', updatedAt: new Date() })
+			.where(eq(drafts.id, threadDraft));
+		await db
+			.update(publishTargets)
+			.set({ status: 'pending', scheduledFor: null, updatedAt: new Date() })
+			.where(eq(publishTargets.id, targetId));
+
+		const sentBodies: string[] = [];
+		const secondRun = await publishTarget(db, TEST_ENV, store, targetId, {
+			fetchImpl: mockFetch({
+				'/api/v1/statuses': async (req) => {
+					const body = (await req.json()) as { status: string };
+					sentBodies.push(body.status);
+					return Response.json({ id: 'fresh-1', url: 'https://mastodon.test/@u/fresh-1' });
+				}
+			})
+		});
+		expect(secondRun.status).toBe('published');
+		expect(sentBodies).toEqual(['edited single post']);
+		expect(secondRun.remotePostId).toBe('fresh-1');
+	});
+
+	it('defers when the remaining budget cannot fit the target and reserve', async () => {
+		const now = new Date();
+		const d = await extraDraft('tight budget');
+		const targetId = newId();
+		await db.insert(publishTargets).values({
+			id: targetId,
+			draftId: d,
+			connectionId: connMasto,
+			status: 'pending',
+			attemptCount: 0,
+			createdAt: now,
+			updatedAt: now
+		});
+		const budget = new SubrequestBudget(10);
+		budget.count(8);
+		const res = await publishTarget(db, TEST_ENV, store, targetId, {
+			budget,
+			fetchImpl: mockFetch({})
+		});
+		expect(res.deferred).toBe(true);
+		expect(res.skipped).toBe(true);
 	});
 
 	it('handles multi-destination partial success', async () => {
