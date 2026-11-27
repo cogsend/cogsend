@@ -85,7 +85,7 @@ D1, R2, the Worker secrets and the app settings live in your Cloudflare account,
 
 ## Why the update is safe to run
 
-- **Signed releases.** Every release's update bundle is signed in CI with a key that exists only as a GitHub Actions secret. Instances trust only the public keys committed in `src/lib/domain/release-keys.json`, and refuse a bundle that is unsigned, signed by anyone else, or altered after signing. A compromised GitHub account alone cannot push code to your instance this way.
+- **Signed releases.** Every release's update bundle is built in isolation from the tag and then signed in a separate `release` environment job running from protected `main`, with a key that exists only as a GitHub Actions secret. Instances trust only the public keys committed in `src/lib/domain/release-keys.json`, and refuse a bundle that is unsigned, signed by anyone else, or altered after signing. Pushing to `cogsend/deploy` also refuses version downgrades.
 - **The same upload as wrangler.** CI checks each bundle against what `wrangler deploy` itself would upload for that release, file by file, before attaching it.
 - **Your bindings and secrets carry over.** The new version gets exactly the bindings the running one has; the update checks that before anything serves it, and stops if they differ.
 - **A checked switch.** The new version answers a health check before it gets any traffic.

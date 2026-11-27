@@ -16,6 +16,7 @@ Worth knowing before you report something:
 - **Third-party OAuth credentials** (Mastodon, Bluesky, LinkedIn, Threads, Instagram, X) in D1, encrypted with AES-256-GCM under `APP_ENCRYPTION_KEY`.
 - **The account**: an email and a PBKDF2-SHA256 hash, written into D1 by `npm run setup`. No password is stored anywhere in plaintext.
 - **A TOTP secret and backup codes** for that account, encrypted the same way.
+- **API keys, the optional scheduler tick token, and a remembered Cloudflare update token**: API keys and the tick token are stored as HMAC hashes in D1; a remembered Cloudflare update token is encrypted under a key derived from the account password (PBKDF2-SHA256, 25,000 iterations — bounded by the Workers Free CPU limit) rather than `APP_ENCRYPTION_KEY`.
 - **Draft content and uploaded media** (R2). Media handed to Meta is served through short-lived signed URLs.
 
 Anything that exposes those — a key leak, a way to read another tenant's row, an SSRF, a signature bypass — is a real finding. Note that this is a **single-tenant, self-hosted** app: "another user's data" generally means another _deployment_, not another account on one instance.
@@ -33,7 +34,7 @@ Only the latest release is supported. Fixes ship as a new release, which an inst
 ## What the app does by itself
 
 - **A flood guard on the endpoints that take a password or a key.** `/api/auth/login`, `/api/auth/totp/verify` and `/api/auth/claim`, and the updater's `/api/update/unlock` and `/api/update/remember`, consult Cloudflare's Rate Limiting binding: twenty requests a minute per client address, enforced at the edge by the same infrastructure as WAF rate-limiting rules. It is per Cloudflare location and eventually consistent, so it is a burst guard rather than accounting.
-- **A lockout on guessing.** Eight wrong passwords in fifteen minutes lock out the client address that sent them (an IPv6 address counts by its /64), and forty from any mix of addresses lock the account, so a guesser can lock out themselves but not the owner. The updater's password prompts count toward the same lockout. Authenticator codes lock the account after eight failures, counted across attempts rather than per challenge. This, not the edge limit, is what makes guessing impractical.
+- **A lockout on guessing.** Eight wrong passwords in fifteen minutes lock out the client address that sent them (an IPv6 address counts by its /64), and forty from any mix of addresses lock out unauthenticated sign-in for the account. Signed-in password prompts (account settings and the updater) enforce the per-address lockout without being blocked by an unauthenticated distributed login flood. Authenticator codes lock the account after eight failures, counted across attempts rather than per challenge, with each attempt claimed atomically before verification. This, not the edge limit, is what makes guessing impractical.
 - **Re-authentication for destructive actions.** Deleting the account requires the password and a current code, so a stolen session alone cannot wipe an instance.
 - **Sessions** are HMAC-hashed in D1, bound to the stored password hash, idle out after 24 hours (seven days for a browser signed in with "Remember this browser"), and die on a password change.
 
