@@ -429,6 +429,8 @@ export async function publishTarget(
 		mustTry?: boolean;
 		/** Epoch ms after which a video stops waiting and parks; see INLINE_PUBLISH_MS. */
 		deadline?: number;
+		/** Fence queue consumers to the exact jobId that enqueued this message. */
+		expectedJobId?: string;
 	} = {}
 ): Promise<{
 	status: string;
@@ -487,7 +489,10 @@ export async function publishTarget(
 						and(
 							eq(publishTargets.id, targetId),
 							isNull(publishTargets.remotePostId),
-							eq(publishTargets.status, 'pending')
+							or(
+								eq(publishTargets.status, 'pending'),
+								and(eq(publishTargets.status, 'scheduled'), lte(publishTargets.scheduledFor, now))
+							)
 						)
 					)
 					.returning({ id: publishTargets.id });
@@ -535,6 +540,7 @@ export async function publishTarget(
 			and(
 				eq(publishTargets.id, targetId),
 				eq(publishTargets.attemptCount, target.attemptCount),
+				...(options.expectedJobId ? [eq(publishTargets.jobId, options.expectedJobId)] : []),
 				// Never `failed`: every path that sends one again (Retry, Publish,
 				// Schedule) resets it first, so only a late or repeated queue
 				// message still points at it, and that would post it again.
@@ -673,25 +679,38 @@ export async function publishTarget(
 		const baseFetch = options.fetchImpl ?? providerFetch;
 		const fetchImpl = options.budget ? countingFetch(baseFetch, options.budget) : baseFetch;
 		let workingCreds = creds;
+		let currentCiphertext = conn.credentialsEncrypted;
 		if (provider.refreshIfNeeded) {
-			workingCreds = await refreshWithStoredRetry(
+			const refreshed = await refreshWithStoredRetry(
 				db,
 				env,
 				conn.id,
-				conn.credentialsEncrypted,
+				currentCiphertext,
 				creds,
 				(c) => provider.refreshIfNeeded!(c, fetchImpl)
 			);
+			workingCreds = refreshed.creds;
+			currentCiphertext = refreshed.baseCiphertext;
 			// Most publishes refresh nothing; writing the same credentials back
 			// would spend a call of the request's budget for no change.
-			if (JSON.stringify(workingCreds) !== JSON.stringify(creds)) {
-				await db
+			if (JSON.stringify(workingCreds) !== JSON.stringify(refreshed.baseCreds)) {
+				const nextCiphertext = await encryptJson(workingCreds, env.APP_ENCRYPTION_KEY);
+				// CAS on the ciphertext we refreshed from so a slower writer
+				// cannot clobber a newer rotated token.
+				const updated = await db
 					.update(connections)
 					.set({
-						credentialsEncrypted: await encryptJson(workingCreds, env.APP_ENCRYPTION_KEY),
+						credentialsEncrypted: nextCiphertext,
 						updatedAt: new Date()
 					})
-					.where(eq(connections.id, conn.id));
+					.where(
+						and(
+							eq(connections.id, conn.id),
+							eq(connections.credentialsEncrypted, currentCiphertext)
+						)
+					)
+					.returning({ id: connections.id });
+				if (updated.length) currentCiphertext = nextCiphertext;
 			}
 		}
 
@@ -703,14 +722,22 @@ export async function publishTarget(
 			const aligned = await provider.alignCredentials(workingCreds, meta, fetchImpl);
 			if (aligned) {
 				workingCreds = aligned;
-				await db
+				const nextCiphertext = await encryptJson(aligned, env.APP_ENCRYPTION_KEY);
+				const updated = await db
 					.update(connections)
 					.set({
-						credentialsEncrypted: await encryptJson(aligned, env.APP_ENCRYPTION_KEY),
+						credentialsEncrypted: nextCiphertext,
 						status: 'active',
 						updatedAt: new Date()
 					})
-					.where(eq(connections.id, conn.id));
+					.where(
+						and(
+							eq(connections.id, conn.id),
+							eq(connections.credentialsEncrypted, currentCiphertext)
+						)
+					)
+					.returning({ id: connections.id });
+				if (updated.length) currentCiphertext = nextCiphertext;
 			}
 		}
 
@@ -955,9 +982,13 @@ async function refreshWithStoredRetry(
 	readCiphertext: string,
 	creds: ConnectionCredentials,
 	refresh: (creds: ConnectionCredentials) => Promise<ConnectionCredentials>
-): Promise<ConnectionCredentials> {
+): Promise<{
+	creds: ConnectionCredentials;
+	baseCreds: ConnectionCredentials;
+	baseCiphertext: string;
+}> {
 	try {
-		return await refresh(creds);
+		return { creds: await refresh(creds), baseCreds: creds, baseCiphertext: readCiphertext };
 	} catch (err) {
 		if (classifyProviderError(err).code !== 'auth') throw err;
 		const latest = await first(
@@ -967,9 +998,15 @@ async function refreshWithStoredRetry(
 				.where(eq(connections.id, connectionId))
 		);
 		if (!latest?.credentialsEncrypted || latest.credentialsEncrypted === readCiphertext) throw err;
-		return refresh(
-			await decryptJson<ConnectionCredentials>(latest.credentialsEncrypted, env.APP_ENCRYPTION_KEY)
+		const latestCreds = await decryptJson<ConnectionCredentials>(
+			latest.credentialsEncrypted,
+			env.APP_ENCRYPTION_KEY
 		);
+		return {
+			creds: await refresh(latestCreds),
+			baseCreds: latestCreds,
+			baseCiphertext: latest.credentialsEncrypted
+		};
 	}
 }
 
@@ -1119,7 +1156,9 @@ async function markFailed(
 		const carried =
 			opts.partial ??
 			opts.lastCheckpoint ??
-			(park || opts.resume?.pending ? (opts.resume ?? null) : null);
+			(park || opts.resume?.pending || opts.resume?.segmentIds?.length
+				? (opts.resume ?? null)
+				: null);
 		if (carried) {
 			summary.segmentIds = carried.segmentIds;
 			summary.segmentCids = carried.segmentCids;

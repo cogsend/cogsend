@@ -467,7 +467,7 @@ describe('claimDueTargets stale publishing', () => {
 			createdAt: now,
 			updatedAt: now
 		});
-		const sent: Array<{ targetId: string }> = [];
+		const sent: Array<{ targetId: string; jobId?: string }> = [];
 		const store = createTestMedia();
 		const tick = await runSchedulerTick(db, TEST_ENV, {
 			store,
@@ -478,23 +478,42 @@ describe('claimDueTargets stale publishing', () => {
 			}
 		});
 		expect(tick.results.some((r) => r.id === targetId && r.status === 'queued')).toBe(true);
-		expect(sent).toEqual([{ targetId }]);
-		const consumed = await consumePublishJob(db, TEST_ENV, store, targetId, async (input) => {
-			const url =
-				typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-			if (url.includes('createSession')) {
-				return Response.json({
-					accessJwt: 'a',
-					refreshJwt: 'r',
-					did: 'did:plc:test',
-					handle: 'test.bsky.social'
-				});
-			}
-			if (url.includes('createRecord')) {
-				return Response.json({ uri: 'at://did:plc:test/app.bsky.feed.post/queued', cid: 'cid' });
-			}
-			return new Response(`unmocked ${url}`, { status: 404 });
-		});
+		expect(sent).toEqual([{ targetId, jobId: expect.any(String) }]);
+		// A stale/wrong jobId must not claim the row.
+		const wrongJob = await consumePublishJob(
+			db,
+			TEST_ENV,
+			store,
+			targetId,
+			async () => new Response('should not run', { status: 500 }),
+			undefined,
+			'stale-job-id'
+		);
+		expect(wrongJob.skipped).toBe(true);
+		const consumed = await consumePublishJob(
+			db,
+			TEST_ENV,
+			store,
+			targetId,
+			async (input) => {
+				const url =
+					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+				if (url.includes('createSession')) {
+					return Response.json({
+						accessJwt: 'a',
+						refreshJwt: 'r',
+						did: 'did:plc:test',
+						handle: 'test.bsky.social'
+					});
+				}
+				if (url.includes('createRecord')) {
+					return Response.json({ uri: 'at://did:plc:test/app.bsky.feed.post/queued', cid: 'cid' });
+				}
+				return new Response(`unmocked ${url}`, { status: 404 });
+			},
+			undefined,
+			sent[0].jobId
+		);
 		expect(consumed.status).toBe('published');
 	});
 

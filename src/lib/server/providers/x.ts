@@ -79,8 +79,12 @@ export function xPostUrl(postId: string, username?: string): string | null {
  * long post counts too: either way, posting the same text again cannot work.
  * A duplicate is also a 403, and says nothing about the account's plan.
  */
+// 403s that are clearly unrelated to X Premium long-post eligibility.
+const NON_PLAN_403 =
+	/duplicate|reply|suspended|locked|read-only|scope|oauth|not authorized|spam|violat|blocked|muted|community/i;
+
 function isLongPostRefusal(status: number, body: string): boolean {
-	if (status === 403) return !/duplicate/i.test(body);
+	if (status === 403) return !NON_PLAN_403.test(body);
 	return status === 400 && /too long/i.test(body);
 }
 

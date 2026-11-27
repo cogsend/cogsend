@@ -26,6 +26,7 @@ import {
 	drafts,
 	notificationState,
 	oauthPending,
+	publishAttempts,
 	publishTargets,
 	schedulerHeartbeats
 } from './db/schema';
@@ -52,7 +53,7 @@ export const HEARTBEAT_ID = 'default';
 export const HEARTBEAT_STALE_MS = 6 * 60 * 60_000;
 
 export type QueueLike = {
-	send(body: { targetId: string }): Promise<unknown>;
+	send(body: { targetId: string; jobId?: string }): Promise<unknown>;
 };
 
 /** One statement: every tick pays for it out of the same budget it publishes with. */
@@ -199,29 +200,36 @@ export async function maybeSendFailureDigest(
 		return { sent: false, failedCount: 0, reason: 'throttled' };
 	}
 	const cutoff = last ?? new Date(0);
-	const failures = await db
-		.select({
-			targetId: publishTargets.id,
-			errorMessage: publishTargets.errorMessage,
-			updatedAt: publishTargets.updatedAt,
-			platform: connections.platform,
-			handle: connections.handle,
-			draftTitle: drafts.title,
-			baseBody: drafts.baseBody
-		})
-		.from(publishTargets)
-		.innerJoin(drafts, eq(publishTargets.draftId, drafts.id))
-		.leftJoin(connections, eq(publishTargets.connectionId, connections.id))
-		.where(
-			and(
-				eq(publishTargets.status, 'failed'),
-				isNull(publishTargets.remotePostId),
-				gt(publishTargets.updatedAt, cutoff)
-			)
-		)
-		.orderBy(desc(publishTargets.updatedAt))
-		.limit(DIGEST_MAX_ROWS + 1);
-	if (!failures.length) return { sent: false, failedCount: 0, reason: 'none' };
+	const failureWhere = and(
+		eq(publishTargets.status, 'failed'),
+		isNull(publishTargets.remotePostId),
+		gt(publishTargets.updatedAt, cutoff)
+	);
+	const [failures, countRows] = await Promise.all([
+		db
+			.select({
+				targetId: publishTargets.id,
+				errorMessage: publishTargets.errorMessage,
+				updatedAt: publishTargets.updatedAt,
+				platform: connections.platform,
+				handle: connections.handle,
+				draftTitle: drafts.title,
+				baseBody: drafts.baseBody
+			})
+			.from(publishTargets)
+			.innerJoin(drafts, eq(publishTargets.draftId, drafts.id))
+			.leftJoin(connections, eq(publishTargets.connectionId, connections.id))
+			.where(failureWhere)
+			.orderBy(desc(publishTargets.updatedAt))
+			.limit(DIGEST_MAX_ROWS),
+		db
+			.select({ total: sql<number>`count(*)` })
+			.from(publishTargets)
+			.innerJoin(drafts, eq(publishTargets.draftId, drafts.id))
+			.where(failureWhere)
+	]);
+	const totalCount = Number(countRows[0]?.total ?? failures.length);
+	if (!failures.length || totalCount === 0) return { sent: false, failedCount: 0, reason: 'none' };
 
 	if (!state) {
 		await db
@@ -242,10 +250,10 @@ export async function maybeSendFailureDigest(
 			)
 		)
 		.returning({ id: notificationState.id });
-	if (!claimed.length) return { sent: false, failedCount: failures.length, reason: 'claimed' };
+	if (!claimed.length) return { sent: false, failedCount: totalCount, reason: 'claimed' };
 
 	const shown = failures.slice(0, DIGEST_MAX_ROWS);
-	const extra = failures.length - shown.length;
+	const extra = Math.max(0, totalCount - shown.length);
 	const lines = shown.map((f) => {
 		const where = [f.platform ? platformName(f.platform) : 'Account', displayHandle(f.handle)]
 			.filter(Boolean)
@@ -253,9 +261,9 @@ export async function maybeSendFailureDigest(
 		const body = draftExcerpt(f.baseBody || f.draftTitle || '(no text)', 90);
 		return { where, body, error: humanizeError(f.errorMessage) };
 	});
-	const subject = `CogSend: ${failures.length} post${failures.length === 1 ? '' : 's'} failed to publish`;
+	const subject = `CogSend: ${totalCount} post${totalCount === 1 ? '' : 's'} failed to publish`;
 	const text = [
-		`${failures.length} post${failures.length === 1 ? '' : 's'} failed to publish:`,
+		`${totalCount} post${totalCount === 1 ? '' : 's'} failed to publish:`,
 		'',
 		...lines.map((l) => `- ${l.where} — "${l.body}"\n  ${l.error}`),
 		...(extra > 0 ? [`…and ${extra} more.`] : []),
@@ -268,7 +276,7 @@ export async function maybeSendFailureDigest(
 				`<li><strong>${escapeHtml(l.where)}</strong><br>“${escapeHtml(l.body)}”<br><span style="color:#b91c1c">${escapeHtml(l.error)}</span></li>`
 		)
 		.join('');
-	const html = `<p>${failures.length} post${failures.length === 1 ? '' : 's'} failed to publish:</p><ul>${htmlLines}</ul>${
+	const html = `<p>${totalCount} post${totalCount === 1 ? '' : 's'} failed to publish:</p><ul>${htmlLines}</ul>${
 		extra > 0 ? `<p>…and ${extra} more.</p>` : ''
 	}<p><a href="${env.APP_URL.replace(/\/$/, '')}/posts?tab=failed">Open Posts</a></p>`;
 
@@ -429,8 +437,31 @@ export async function runJanitorsIfDue(db: AppDb, now = new Date()): Promise<boo
 	await purgeDisconnectedConnections(db);
 	await purgeExpiredMfaChallenges(db, now);
 	await purgeExpiredSessions(db);
+	await purgeOldPublishAttempts(db, now);
 	await writeAppSetting(db, JANITOR_SETTING, String(now.getTime()));
 	return true;
+}
+
+const ATTEMPT_RETENTION_MS = 30 * 24 * 60 * 60_000;
+
+/**
+ * Prune old publish_attempts for terminal targets so attempt history does not
+ * grow without bound while keeping live partial-resume checkpoints intact.
+ */
+async function purgeOldPublishAttempts(db: AppDb, now: Date): Promise<void> {
+	const cutoff = new Date(now.getTime() - ATTEMPT_RETENTION_MS);
+	await db.delete(publishAttempts).where(
+		and(
+			lt(publishAttempts.startedAt, cutoff),
+			inArray(
+				publishAttempts.publishTargetId,
+				db
+					.select({ id: publishTargets.id })
+					.from(publishTargets)
+					.where(inArray(publishTargets.status, ['published', 'failed', 'cancelled']))
+			)
+		)
+	);
 }
 
 /** How long a Mastodon server's reported limits are trusted before they are read again. */
@@ -512,7 +543,14 @@ export async function runSchedulerTick(
 	}
 ) {
 	await writeHeartbeat(db);
-	const janitorsRan = await runJanitorsIfDue(db);
+	// Janitors must never block scheduled posts from publishing: on failure the
+	// marker is left unwritten so the next tick retries them.
+	let janitorsRan = false;
+	try {
+		janitorsRan = await runJanitorsIfDue(db);
+	} catch (err) {
+		console.error('[scheduler] janitors failed', err);
+	}
 	// Before the scan, so a row a dead consumer left behind is queued (or
 	// published inline) by this same tick instead of being scanned and skipped.
 	await recoverStalePublishing(db);
@@ -549,7 +587,7 @@ export async function runSchedulerTick(
 				.returning({ id: publishTargets.id });
 			if (!queued.length) continue;
 			try {
-				await opts.queue.send({ targetId: t.id });
+				await opts.queue.send({ targetId: t.id, jobId });
 			} catch (err) {
 				// A failed send must not wedge the row behind jobId until
 				// STALE_CLAIM_MS: release the tag so the next tick can
@@ -618,7 +656,8 @@ export async function consumePublishJob(
 	store: MediaStore,
 	targetId: string,
 	fetchImpl?: typeof fetch,
-	budget?: SubrequestBudget
+	budget?: SubrequestBudget,
+	jobId?: string
 ) {
 	// A retryable failure is not thrown back to the queue. publishTarget has
 	// already rescheduled the row with backoff, so an immediate redelivery could
@@ -627,5 +666,10 @@ export async function consumePublishJob(
 	// the queue retries those.
 	// The budget lets a video upload park before the request runs out of calls;
 	// one job is one target, so it is never deferred.
-	return publishTarget(db, env, store, targetId, { fetchImpl, budget, mustTry: true });
+	return publishTarget(db, env, store, targetId, {
+		fetchImpl,
+		budget,
+		mustTry: true,
+		expectedJobId: jobId
+	});
 }
