@@ -1008,16 +1008,18 @@ export async function deleteDraft(ctx: OperationContext, userId: string, draftId
 	if (draftHasInFlightPublish(liveTargets))
 		invalid('Publishing in progress — try again shortly', 409);
 	const files = await ctx.db.select().from(draftMedia).where(eq(draftMedia.draftId, draftId));
-	// Objects before the row: a crash in between leaves a retryable row, not orphaned bytes.
-	await deleteMediaObjects(
-		ctx.media,
-		await keysUsedOnlyBy(
-			ctx.db,
-			files.map((file) => file.storageKey),
-			{ draftId }
-		)
+	const orphanKeys = await keysUsedOnlyBy(
+		ctx.db,
+		files.map((file) => file.storageKey),
+		{ draftId }
 	);
-	await ctx.db.delete(drafts).where(eq(drafts.id, draftId));
+	// Delete the draft row first so a concurrent publish or duplicate cannot
+	// read a live draft whose R2 objects are being deleted out from under it.
+	const deleted = await ctx.db
+		.delete(drafts)
+		.where(and(eq(drafts.id, draftId), eq(drafts.userId, userId)))
+		.returning({ id: drafts.id });
+	if (deleted.length) await deleteMediaObjects(ctx.media, orphanKeys);
 	return { ok: true as const };
 }
 

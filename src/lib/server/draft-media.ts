@@ -88,13 +88,21 @@ export async function segmentProblem(
 	segmentIndex: number
 ): Promise<string | null> {
 	const variants = await locals.db
-		.select({ body: draftVariants.body })
+		.select({ body: draftVariants.body, optionsJson: draftVariants.optionsJson })
 		.from(draftVariants)
 		.where(eq(draftVariants.draftId, draft.id));
-	const cards = Math.max(
-		splitThreadSegments(draft.baseBody ?? '').length,
-		...variants.map((v) => splitThreadSegments(v.body ?? '').length)
-	);
+	const variantCards = variants.map((v) => {
+		const fromBody = splitThreadSegments(v.body ?? '').length;
+		if (!v.optionsJson) return fromBody;
+		try {
+			const opts = JSON.parse(v.optionsJson) as { threadSegments?: unknown };
+			const fromOpt = Array.isArray(opts?.threadSegments) ? opts.threadSegments.length : 0;
+			return Math.max(fromBody, fromOpt);
+		} catch {
+			return fromBody;
+		}
+	});
+	const cards = Math.max(splitThreadSegments(draft.baseBody ?? '').length, ...variantCards);
 	if (segmentIndex < cards) return null;
 	return `segmentIndex ${segmentIndex} is past the last segment (${cards - 1})`;
 }

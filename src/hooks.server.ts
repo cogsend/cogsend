@@ -275,9 +275,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// Remember the origin the instance is actually served from, once the request
 	// is authenticated — the scheduler has no request of its own to read it from,
 	// and only a signed-in visitor proves the hostname is the real one.
-	// Cookies only: a browser visit is the authority on the human-facing URL, and
-	// it keeps API clients (which may use a different host) from rewriting it.
-	if (appEnv.appUrlSource === 'request' && event.locals.authMethod === 'session') {
+	// Cookies always update it; an authenticated bearer request seeds it only
+	// when no origin is stored yet (API-only deployments with scheduled media).
+	if (
+		appEnv.appUrlSource === 'request' &&
+		(event.locals.authMethod === 'session' ||
+			(event.locals.authMethod === 'bearer' && !storedAppUrl))
+	) {
 		waitUntil(rememberAppUrl(db, appEnv.APP_URL));
 	}
 

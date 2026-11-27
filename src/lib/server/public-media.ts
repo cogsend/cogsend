@@ -36,10 +36,16 @@ export async function signPublicMediaUrl(
 	nowMs = Date.now(),
 	variant?: PublicMediaVariant
 ): Promise<string> {
+	const base = appUrl.trim().replace(/\/$/, '');
+	if (!base) {
+		throw new Error(
+			'Public media URL requires APP_URL or MEDIA_PUBLIC_BASE_URL — open the app in a browser once or set APP_URL'
+		);
+	}
 	const exp = nowMs + PUBLIC_MEDIA_TTL_MS;
 	const sig = await hmacHex(await signingKey(secret), messageFor(storageKey, exp, variant));
 	const v = variant ? `&v=${variant}` : '';
-	return `${appUrl.replace(/\/$/, '')}/api/media/public/${encodeURIComponent(storageKey)}?exp=${exp}${v}&sig=${sig}`;
+	return `${base}/api/media/public/${encodeURIComponent(storageKey)}?exp=${exp}${v}&sig=${sig}`;
 }
 
 export async function verifyPublicMediaSig(
